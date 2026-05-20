@@ -20,14 +20,22 @@ T1_ROOT="${T1_ROOT:-}"
 STEPS="${STEPS:-meg_ica}"
 RESUME="${RESUME:--resume}"
 STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-}"
+STATIC_ARTIFACT_OVERVIEW_DURATION="${STATIC_ARTIFACT_OVERVIEW_DURATION:-}"
 
 read_static_task_log_mode() {
     [ -f "$CONFIG" ] || return 0
     sed -n 's/^[[:space:]]*static_task_log_mode[[:space:]]*=[[:space:]]*["'\'']\([^"'\'']*\)["'\''].*/\1/p' "$CONFIG" | head -n 1
 }
 
+read_static_artifact_overview_duration() {
+    [ -f "$CONFIG" ] || return 0
+    sed -n 's/^[[:space:]]*static_artifact_overview_duration[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$CONFIG" | head -n 1
+}
+
 STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-$(read_static_task_log_mode)}"
 STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-failed}"
+STATIC_ARTIFACT_OVERVIEW_DURATION="${STATIC_ARTIFACT_OVERVIEW_DURATION:-$(read_static_artifact_overview_duration)}"
+STATIC_ARTIFACT_OVERVIEW_DURATION="${STATIC_ARTIFACT_OVERVIEW_DURATION:-200.0}"
 case "$STATIC_TASK_LOG_MODE" in
     failed|all-command-log|none) ;;
     *)
@@ -59,6 +67,7 @@ echo "Pipeline:             $PIPELINE_ABS"
 echo "Config:               $CONFIG_ABS"
 echo "Steps:                $STEPS"
 echo "Task log mode:        $STATIC_TASK_LOG_MODE"
+echo "Artifact overview:    ${STATIC_ARTIFACT_OVERVIEW_DURATION}s"
 if [ -n "$T1_ROOT" ]; then
     echo "T1 root:              $T1_ROOT"
 else
@@ -77,6 +86,7 @@ nextflow run "$PIPELINE_ABS" \
     --preproc_dir "${OUTPUT_ROOT}/preprocessed" \
     --fs_subjects_dir "$FS_SUBJECTS_ROOT" \
     --static_task_log_mode "$STATIC_TASK_LOG_MODE" \
+    --static_artifact_overview_duration "$STATIC_ARTIFACT_OVERVIEW_DURATION" \
     -with-report "${OUTPUT_ROOT}/cohort_report.html" \
     -with-timeline "${OUTPUT_ROOT}/cohort_timeline.html" \
     -with-trace "${OUTPUT_ROOT}/cohort_trace.txt" \

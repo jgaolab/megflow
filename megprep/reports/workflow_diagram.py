@@ -72,11 +72,9 @@ _RUN_MODE_LABELS: dict[str, str] = {
 }
 
 _STATUS_LABELS: dict[str, str] = {
-    "done": "Done",
-    "partial": "Partial",
-    "missing": "Missing",
-    "skipped": "Skipped",
-    "n_a": "n/a",
+    "done": "All Done",
+    "partial": "Some Done",
+    "missing": "All Failed",
 }
 
 
@@ -268,23 +266,22 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
     skip_ica = _parsed_bool(parsed, "skip_ica")
 
     if run_meg:
-        # First node: OSL-based preprocessing (no "import", no "OSL" in label).
         nodes.append(
             {
-                "key": "meg_preproc",
-                "label": "MEG preprocessing",
+                "key": "basic_preproc",
+                "label": "Basic preproc",
                 "lane": "meg",
                 "plan": "run",
             }
         )
         nodes.append({"key": "artifacts", "label": "Artifacts", "lane": "meg", "plan": "run"})
-        if meg_stage >= 1:
+        if meg_stage >= 1 and not skip_ica:
             nodes.append(
                 {
                     "key": "ica",
                     "label": "ICA",
                     "lane": "meg",
-                    "plan": "skip" if skip_ica else "run",
+                    "plan": "run",
                 }
             )
         if meg_stage >= 2:
@@ -359,13 +356,15 @@ def load_workflow_context(meg_root: Path, preprocessed_dir: Path) -> dict[str, A
 
 
 def _node_dataset_status(node: dict[str, Any], summaries: list[dict[str, Any]]) -> str:
-    if node.get("plan") == "skip":
-        return "skipped"
     key = node["key"]
     if key == "anatomy_structural":
-        return "n_a"
-    if key == "meg_preproc":
-        n = sum(1 for s in summaries if s.get("preproc_done"))
+        return "done"
+    if key == "basic_preproc":
+        n = sum(
+            1
+            for s in summaries
+            if s.get("steps", {}).get("basic_preproc", s.get("preproc_done"))
+        )
         if n == 0:
             return "missing"
         if n == len(summaries):
@@ -394,13 +393,11 @@ def _status_class(status: str) -> str:
         "done": "wf-done",
         "partial": "wf-partial",
         "missing": "wf-missing",
-        "skipped": "wf-skipped",
-        "n_a": "wf-na",
-    }.get(status, "wf-na")
+    }.get(status, "wf-missing")
 
 
 def _status_label(status: str) -> str:
-    return _STATUS_LABELS.get(status, "n/a")
+    return _STATUS_LABELS.get(status, "All Failed")
 
 
 def _run_mode_label(value: Any) -> str:
@@ -680,7 +677,7 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
         )
 
     def draw_node(node: dict[str, Any], x: float, y: float) -> None:
-        st = statuses.get(node["key"], "n_a")
+        st = statuses.get(node["key"], "missing")
         cls = _status_class(st)
         status_label = _status_label(st)
         lines = _node_label_lines(str(node["label"]), max_chars=22 if box_w >= 190 else 18)
@@ -769,11 +766,9 @@ def render_workflow_dataset_html(ctx: dict[str, Any], subject_summaries: list[di
     <div class="info-note workflow-footnote">{html.escape(ctx.get("footnote", ""))}</div>
     <div class="workflow-svg-wrap">{svg}</div>
     <div class="workflow-legend">
-      <span class="wf-legend wf-done">All subjects done</span>
-      <span class="wf-legend wf-partial">Some subjects</span>
-      <span class="wf-legend wf-missing">Missing outputs</span>
-      <span class="wf-legend wf-skipped">Skipped (steps)</span>
-      <span class="wf-legend wf-na">n/a</span>
+      <span class="wf-legend wf-done">All Done</span>
+      <span class="wf-legend wf-partial">Some Done</span>
+      <span class="wf-legend wf-missing">All Failed</span>
     </div>
     <div class="workflow-link-row">
       {manifest_hint}

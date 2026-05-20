@@ -26,6 +26,7 @@ import mne
 import pandas as pd
 
 from workflow_diagram import (
+    build_workflow_nodes,
     expect_coregistration_outputs_for_qc,
     expect_ica_outputs_for_qc,
     load_workflow_context,
@@ -40,15 +41,17 @@ DEFAULT_THRESHOLDS = {
     "coreg_mean_threshold": 5.0,
     "coreg_max_threshold": 10.0,
     "epoch_reject_rate_threshold": 0.30,
+    "artifact_overview_duration": 200.0,
 }
 
 STEP_DEFS = [
+    ("basic_preproc", "Basic preproc"),
     ("artifacts", "Artifacts"),
     ("ica", "ICA"),
-    ("coregistration", "Coreg"),
-    ("headmodel", "Head"),
     ("epochs", "Epochs"),
     ("covariance", "Cov"),
+    ("coregistration", "Coreg"),
+    ("headmodel", "Head"),
     ("source", "Source"),
 ]
 PROCESS_TO_STEP = {
@@ -59,7 +62,7 @@ PROCESS_TO_STEP = {
     "run_mkheadsurf": "headmodel",
     "generate_bem": "headmodel",
     "import_MEG_dataset": "meg import",
-    "meg_preproc_osl": "basic preproc",
+    "meg_preproc_osl": "basic_preproc",
     "detect_Artifacts": "artifacts",
     "run_ICA": "ica",
     "run_IC_label": "ica",
@@ -73,6 +76,7 @@ PROCESS_TO_STEP = {
     "generate_static_html_report": "report",
     "generate_cohort_static_html_report": "report",
 }
+STEP_KEYS = {key for key, _ in STEP_DEFS}
 SUCCESS_TRACE_STATUSES = {"COMPLETED", "CACHED", "SUBMITTED", "RUNNING"}
 
 COREG_ASSET_STEPS = (
@@ -797,13 +801,13 @@ th.sortable {
 }
 
 th.sortable.active-sort {
-  background: linear-gradient(180deg, rgba(66, 103, 213, 0.12), rgba(66, 103, 213, 0.04));
-  box-shadow: inset 0 -3px 0 rgba(66, 103, 213, 0.82);
+  background: #f7f9fd;
+  box-shadow: inset 0 -1px 0 rgba(66, 103, 213, 0.18);
 }
 
 td.active-sort-cell {
-  background: rgba(66, 103, 213, 0.06);
-  box-shadow: inset 3px 0 0 rgba(66, 103, 213, 0.28);
+  background: transparent;
+  box-shadow: none;
 }
 
 .sort-header {
@@ -844,13 +848,13 @@ td.active-sort-cell {
 }
 
 .sort-header.active {
-  color: var(--accent-2);
-  font-weight: 800;
+  color: var(--text);
+  font-weight: 750;
 }
 
 .sort-header.active .sort-indicator {
   color: var(--accent-2);
-  opacity: 1;
+  opacity: 0.85;
 }
 
 tr:hover td {
@@ -874,23 +878,23 @@ tr.row-fail:hover td {
 }
 
 tr.row-warn td.active-sort-cell {
-  background: rgba(181, 71, 8, 0.09);
+  background: rgba(181, 71, 8, 0.045);
 }
 
 tr.row-fail td.active-sort-cell {
-  background: rgba(196, 50, 10, 0.10);
+  background: rgba(196, 50, 10, 0.05);
 }
 
 tr:hover td.active-sort-cell {
-  background: rgba(66, 103, 213, 0.11);
+  background: #fbfdff;
 }
 
 tr.row-warn:hover td.active-sort-cell {
-  background: rgba(181, 71, 8, 0.12);
+  background: rgba(181, 71, 8, 0.075);
 }
 
 tr.row-fail:hover td.active-sort-cell {
-  background: rgba(196, 50, 10, 0.13);
+  background: rgba(196, 50, 10, 0.085);
 }
 
 .pill {
@@ -1355,6 +1359,16 @@ tr.row-fail:hover td.active-sort-cell {
   background: rgba(152, 162, 179, 0.16);
 }
 
+.step-cell.is-failed {
+  color: var(--danger);
+  background: rgba(196, 50, 10, 0.12);
+}
+
+.step-cell.is-na {
+  color: var(--muted);
+  background: rgba(152, 162, 179, 0.10);
+}
+
 .step-cell .step-state {
   display: inline-flex;
   align-items: center;
@@ -1448,6 +1462,16 @@ tr.row-fail:hover td.active-sort-cell {
 .snapshot-item.missing {
   background: var(--panel-soft);
   color: var(--muted);
+}
+
+.snapshot-item.failed {
+  background: var(--danger-soft);
+  color: var(--danger);
+}
+
+.snapshot-item.neutral {
+  background: #eef2f6;
+  color: #667085;
 }
 
 .snapshot-dot {
@@ -1702,12 +1726,13 @@ function getJsonScriptData(elementId) {
 }
 
 const STEP_MATRIX_DEFS = [
+  { key: "basic_preproc", label: "Basic preproc" },
   { key: "artifacts", label: "Artifacts" },
   { key: "ica", label: "ICA" },
-  { key: "coregistration", label: "Coreg" },
-  { key: "headmodel", label: "Head" },
   { key: "epochs", label: "Epochs" },
   { key: "covariance", label: "Cov" },
+  { key: "coregistration", label: "Coreg" },
+  { key: "headmodel", label: "Head" },
   { key: "source", label: "Source" },
 ];
 
@@ -1718,7 +1743,7 @@ function getStepDatasetValue(row, stepKey) {
 
 function getSubjectTableState() {
   if (!window.__subjectTableState) {
-    window.__subjectTableState = { page: 1, sortKey: "risk", sortDirection: "desc" };
+    window.__subjectTableState = { page: 1, sortKey: "subject", sortDirection: "asc" };
   }
   return window.__subjectTableState;
 }
@@ -1755,8 +1780,12 @@ function updateStepMatrix(matchedRows, visibleRows) {
 
   if (summary) {
     summary.innerHTML = STEP_MATRIX_DEFS.map((step) => {
-      const count = matchedRows.filter((row) => boolFromDataset(getStepDatasetValue(row, step.key))).length;
-      return `<span class="summary-chip">${escapeHtml(step.label)} ${count}/${matchedRows.length}</span>`;
+      const expectedRows = matchedRows.filter((row) => getStepDatasetValue(row, step.key) !== "na");
+      if (!expectedRows.length) {
+        return `<span class="summary-chip">${escapeHtml(step.label)} N/A</span>`;
+      }
+      const count = expectedRows.filter((row) => boolFromDataset(getStepDatasetValue(row, step.key))).length;
+      return `<span class="summary-chip">${escapeHtml(step.label)} ${count}/${expectedRows.length}</span>`;
     }).join("");
   }
 
@@ -1765,10 +1794,17 @@ function updateStepMatrix(matchedRows, visibleRows) {
     const subjectName = row.dataset.subject || "Unknown";
     const subjectUrl = row.dataset.subjectUrl || "#";
     const cells = STEP_MATRIX_DEFS.map((step) => {
-      const isReady = boolFromDataset(getStepDatasetValue(row, step.key));
-      const label = isReady ? "READY" : "MISS";
+      const stepValue = getStepDatasetValue(row, step.key);
+      if (stepValue === "na") {
+        return `<td class="step-cell is-na" title="${escapeHtml(`${subjectName}: ${step.label} N/A`)}"><span class="step-state">N/A</span></td>`;
+      }
+      if (stepValue === "failed") {
+        return `<td class="step-cell is-failed" title="${escapeHtml(`${subjectName}: ${step.label} Failed`)}"><span class="step-state">Failed</span></td>`;
+      }
+      const isReady = boolFromDataset(stepValue);
+      const label = isReady ? "READY" : "N/A";
       const cssClass = isReady ? "is-ready" : "is-missing";
-      return `<td class="step-cell ${cssClass}" title="${escapeHtml(`${subjectName}: ${step.label} ${isReady ? "ready" : "missing"}`)}"><span class="step-state">${label}</span></td>`;
+      return `<td class="step-cell ${cssClass}" title="${escapeHtml(`${subjectName}: ${step.label} ${isReady ? "ready" : "N/A"}`)}"><span class="step-state">${label}</span></td>`;
     }).join("");
     return `<tr><td class="subject-col"><a href="${escapeHtml(subjectUrl)}">${escapeHtml(subjectName)}</a></td>${cells}</tr>`;
   }).join("");
@@ -1885,7 +1921,7 @@ function setSubjectSort(sortKey) {
 }
 
 function setSubjectSortFromSelect() {
-  const selectedKey = normalizeText(document.getElementById("subjectSortBy")?.value || "risk");
+  const selectedKey = normalizeText(document.getElementById("subjectSortBy")?.value || "subject");
   const state = getSubjectTableState();
   state.sortKey = selectedKey;
   state.sortDirection = getDefaultSortDirection(selectedKey);
@@ -1907,7 +1943,7 @@ function updateSubjectTable() {
   const missingStep = normalizeText(document.getElementById("subjectMissingStepFilter")?.value || "all");
   const pageSize = parseInt(document.getElementById("subjectPageSize")?.value || "20", 10);
   const rows = Array.from(table.querySelectorAll("tbody tr[data-search]"));
-  const sortBy = state.sortKey || normalizeText(document.getElementById("subjectSortBy")?.value || "risk");
+  const sortBy = state.sortKey || normalizeText(document.getElementById("subjectSortBy")?.value || "subject");
   const sortDirection = state.sortDirection || getDefaultSortDirection(sortBy);
   state.sortKey = sortBy;
   state.sortDirection = sortDirection;
@@ -2138,6 +2174,12 @@ def parse_args() -> argparse.Namespace:
         type=float,
         default=DEFAULT_THRESHOLDS["epoch_reject_rate_threshold"],
         help="Alarm threshold for epoch rejection rate, 0-1.",
+    )
+    parser.add_argument(
+        "--artifact_overview_duration",
+        type=float,
+        default=DEFAULT_THRESHOLDS["artifact_overview_duration"],
+        help="Seconds represented by the single Artifact Review overview plot in the static report.",
     )
     parser.add_argument(
         "--zip_output",
@@ -2639,6 +2681,7 @@ def read_raw_info(raw_file: Path) -> dict[str, Any]:
             "sfreq": sfreq,
             "n_channels": n_channels,
             "duration_sec": duration,
+            "first_time": float(getattr(raw, "first_time", 0.0) or 0.0),
         }
     except Exception as exc:
         return {
@@ -2709,6 +2752,13 @@ def artifact_segment_caption(segment_time: str) -> str:
         return f"Start time {value}"
 
 
+def artifact_overview_caption(start_time: Any = 0, duration: Any | None = None) -> str:
+    start = fmt_float(start_time, 1, " s")
+    if duration is None:
+        return f"Start time {start}"
+    return f"Start time {start} · Duration {fmt_float(duration, 1, ' s')}"
+
+
 def artifact_segment_sort_key(file_path: Path) -> tuple[float, str]:
     value = artifact_segment_time(file_path)
     try:
@@ -2717,41 +2767,223 @@ def artifact_segment_sort_key(file_path: Path) -> tuple[float, str]:
         return (float("inf"), file_path.name)
 
 
-def select_artifact_images(artifact_dir: Path, max_overview: int = 3, max_waveform: int = 3) -> dict[str, list[dict[str, Any]]]:
-    result = {"overview": [], "waveform": []}
+def expected_steps_for_scope(scope: dict[str, Any] | None) -> dict[str, bool]:
+    scope = scope if scope is not None else qc_completeness_scope_from_manifest(None)
+    if not scope.get("run_meg"):
+        return {key: False for key, _ in STEP_DEFS}
+    try:
+        meg_stage = int(scope.get("meg_stage", 3))
+    except (TypeError, ValueError):
+        meg_stage = 3
+    return {
+        "basic_preproc": True,
+        "artifacts": True,
+        "ica": bool(meg_stage >= 1 and not scope.get("skip_ica")),
+        "epochs": bool(meg_stage >= 2),
+        "covariance": bool(meg_stage >= 3),
+        "coregistration": bool(meg_stage >= 3),
+        "headmodel": bool(meg_stage >= 3),
+        "source": bool(meg_stage >= 3),
+    }
+
+
+def infer_qc_scope_from_task_details(task_details_by_subject: dict[str, list[dict[str, Any]]]) -> dict[str, Any] | None:
+    seen_steps = {
+        str(task.get("step") or "")
+        for tasks in task_details_by_subject.values()
+        for task in tasks
+    }
+    if not seen_steps:
+        return None
+    if seen_steps.intersection({"source", "headmodel", "coregistration", "covariance"}):
+        meg_stage = 3
+    elif "epochs" in seen_steps:
+        meg_stage = 2
+    elif "ica" in seen_steps:
+        meg_stage = 1
+    elif seen_steps.intersection({"artifacts", "basic_preproc", "meg import"}):
+        meg_stage = 0
+    else:
+        return None
+    return {"meg_stage": meg_stage, "skip_ica": False, "run_meg": True, "inferred_from_trace": True}
+
+
+def steps_raw_for_scope(scope: dict[str, Any]) -> str:
+    try:
+        meg_stage = int(scope.get("meg_stage", 3))
+    except (TypeError, ValueError):
+        meg_stage = 3
+    if meg_stage <= 0:
+        return "meg_artifacts"
+    if meg_stage == 1:
+        return "meg_ica"
+    if meg_stage == 2:
+        return "meg_epochs"
+    return "meg_all"
+
+
+def apply_inferred_workflow_scope(ctx: dict[str, Any], scope: dict[str, Any]) -> dict[str, Any]:
+    steps_raw = steps_raw_for_scope(scope)
+    manifest = dict(ctx.get("manifest") or {})
+    parsed = {
+        "primary": steps_raw,
+        "megStage": int(scope.get("meg_stage", 3)),
+        "meg_stage": int(scope.get("meg_stage", 3)),
+        "runAnatomy": False,
+        "run_anatomy": False,
+        "runMeg": True,
+        "run_meg": True,
+        "skipIca": bool(scope.get("skip_ica")),
+        "skip_ica": bool(scope.get("skip_ica")),
+    }
+    manifest["parsed"] = parsed
+    manifest["steps_raw"] = steps_raw
+    manifest["report_only"] = True
+    manifest["pipeline_steps_raw"] = steps_raw
+    nodes, footnote = build_workflow_nodes(manifest, "trace")
+    updated = dict(ctx)
+    updated["manifest"] = manifest
+    updated["steps_raw"] = steps_raw
+    updated["nodes"] = nodes
+    updated["footnote"] = f"steps inferred from Nextflow trace because the latest manifest is report-only: {steps_raw}"
+    return updated
+
+
+def select_artifact_images(artifact_dir: Path, overview_duration: float = 200.0) -> dict[str, list[dict[str, Any]]]:
+    result = {"overview": []}
     check_imgs_dir = artifact_dir / "check_imgs"
     if not check_imgs_dir.exists():
         return result
 
-    for plot_type, limit in [("overview", max_overview), ("waveform", max_waveform)]:
-        plot_dir = check_imgs_dir / plot_type
-        if not plot_dir.exists():
-            continue
-        channel_dirs = sorted(
-            [item for item in plot_dir.iterdir() if item.is_dir() and item.name.startswith("chn.")]
-        )
-        if not channel_dirs:
-            continue
-        target_dir = None
-        for candidate in channel_dirs:
-            if candidate.name == "chn.0":
-                target_dir = candidate
-                break
-        if target_dir is None:
-            target_dir = channel_dirs[0]
+    plot_dir = check_imgs_dir / "overview"
+    if not plot_dir.exists():
+        return result
+    channel_dirs = sorted(
+        [item for item in plot_dir.iterdir() if item.is_dir() and item.name.startswith("chn.")]
+    )
+    if not channel_dirs:
+        return result
+    target_dir = next((candidate for candidate in channel_dirs if candidate.name == "chn.0"), channel_dirs[0])
+    files = sorted(target_dir.glob("seg_*.jpg"), key=artifact_segment_sort_key)
+    if not files:
+        return result
 
-        files = sorted(target_dir.glob("seg_*.jpg"), key=artifact_segment_sort_key)
-        selected_files = sorted(pick_evenly_spaced(files, limit), key=artifact_segment_sort_key)
-        result[plot_type] = [
-            {
-                "path": file_path,
-                "channel_group": target_dir.name,
-                "segment_time": artifact_segment_time(file_path),
-            }
-            for file_path in selected_files
-        ]
+    duration = max(float(overview_duration or 0), 0.0)
+    first_file = files[0]
+    for file_path in files:
+        sort_value, _ = artifact_segment_sort_key(file_path)
+        if sort_value <= 0 or (duration and sort_value < duration):
+            first_file = file_path
+            break
+    result["overview"] = [
+        {
+            "path": first_file,
+            "channel_group": target_dir.name,
+            "segment_time": artifact_segment_time(first_file),
+            "duration": duration,
+        }
+    ]
 
     return result
+
+
+def generate_static_artifact_overview(
+    raw_file: Path,
+    bad_channels: list[str],
+    bad_segment_rows: list[dict[str, Any]],
+    output_root: Path,
+    subject_slug: str,
+    overview_duration: float,
+) -> dict[str, Any] | None:
+    try:
+        import matplotlib
+        matplotlib.use("Agg", force=True)
+        import matplotlib.pyplot as plt
+        import numpy as np
+    except Exception:
+        return None
+
+    try:
+        raw = mne.io.read_raw_fif(str(raw_file), preload=False, verbose="ERROR")
+        picks = list(mne.pick_types(raw.info, meg=True, eeg=False, ref_meg=False, exclude=[]))
+        if not picks:
+            return None
+
+        duration = max(float(overview_duration or 0), 0.0)
+        data_end = float(raw.times[-1]) if len(raw.times) else 0.0
+        raw_first_time = float(getattr(raw, "first_time", 0.0) or 0.0)
+        end_time = min(duration, data_end) if duration > 0 else data_end
+        if end_time <= 0:
+            return None
+        plot_start = raw_first_time
+        plot_stop = raw_first_time + end_time
+
+        raw_window = raw.copy().pick(picks).crop(tmin=0.0, tmax=end_time, include_tmax=True)
+        raw_window.load_data(verbose="ERROR")
+        data, times = raw_window.get_data(return_times=True)
+        if data.size == 0:
+            return None
+
+        stride = max(1, data.shape[1] // 2500)
+        data = data[:, ::stride]
+        times = times[::stride] + raw_first_time
+        scale = np.nanpercentile(np.abs(data), 95, axis=1)
+        scale[~np.isfinite(scale) | (scale == 0)] = 1.0
+        data = np.clip(data / scale[:, None], -3.0, 3.0)
+
+        ch_names = [raw_window.ch_names[idx] for idx in range(len(raw_window.ch_names))]
+        bad_set = set(bad_channels)
+        offsets = np.arange(len(ch_names), dtype=float)[::-1]
+        fig_height = max(5.2, min(28.0, 1.5 + 0.10 * len(ch_names)))
+        fig, ax = plt.subplots(figsize=(12.5, fig_height), dpi=150)
+
+        for row in bad_segment_rows:
+            try:
+                onset = float(row.get("onset_sec", row.get("onset")))
+                duration_row = float(row.get("duration_sec", row.get("duration")))
+            except (TypeError, ValueError):
+                continue
+            start = max(plot_start, onset)
+            stop = min(plot_stop, onset + max(duration_row, 0.0))
+            if stop > start:
+                ax.axvspan(start, stop, color="#f97066", alpha=0.18, lw=0)
+
+        for idx, ch_name in enumerate(ch_names):
+            color = "#c4320a" if ch_name in bad_set else "#27364a"
+            lw = 0.8 if ch_name in bad_set else 0.45
+            ax.plot(times, data[idx] * 0.32 + offsets[idx], color=color, lw=lw, alpha=0.86)
+
+        ax.set_xlim(plot_start, plot_stop)
+        ax.set_ylim(-0.8, len(ch_names) - 0.2)
+        tick_step = max(1, len(ch_names) // 28)
+        tick_positions = offsets[::tick_step]
+        tick_labels = ch_names[::tick_step]
+        ax.set_yticks(tick_positions)
+        ax.set_yticklabels(tick_labels, fontsize=7)
+        ax.set_xlabel("Time (s)", fontsize=9)
+        ax.set_ylabel("Channels", fontsize=9)
+        ax.grid(axis="x", color="#dbe4ee", lw=0.6, alpha=0.85)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        fig.tight_layout(pad=0.45)
+
+        rel_path = Path("assets") / "subjects" / subject_slug / "artifacts" / "static_overview.jpg"
+        output_path = output_root / rel_path
+        ensure_dir(output_path.parent)
+        fig.savefig(output_path, format="jpg", dpi=150, bbox_inches="tight", pil_kwargs={"quality": 92})
+        plt.close(fig)
+        return {
+            "rel_path": rel_path.as_posix(),
+            "start_time": plot_start,
+            "duration": end_time,
+            "n_channels": len(ch_names),
+        }
+    except Exception:
+        try:
+            plt.close("all")
+        except Exception:
+            pass
+        return None
 
 
 def collect_qa_images(search_roots: list[Path]) -> dict[str, Path]:
@@ -2820,10 +3052,10 @@ def parse_ica_sources(ica_results_dir: Path) -> list[dict[str, Any]]:
 
 def render_status_pill(status: str) -> str:
     status_map = {
-        "PASS": ("good", "PASS"),
-        "WARN": ("warn", "WARN"),
-        "FAIL": ("danger", "FAIL"),
-        "MISSING": ("neutral", "MISSING"),
+        "PASS": ("good", "Passed"),
+        "WARN": ("warn", "Warning"),
+        "FAIL": ("danger", "Failed"),
+        "MISSING": ("neutral", "N/A"),
     }
     css_class, label = status_map.get(status, ("neutral", status))
     return f'<span class="pill {css_class}">{html_text(label)}</span>'
@@ -2837,6 +3069,7 @@ def collect_subject_data(
     *,
     qc_scope: dict[str, Any] | None = None,
     task_details: list[dict[str, Any]] | None = None,
+    artifact_overview_duration: float = DEFAULT_THRESHOLDS["artifact_overview_duration"],
 ) -> dict[str, Any]:
     preprocessed_dir = report_root / "preprocessed"
     subject_slug = sanitize_name(subject)
@@ -2863,6 +3096,7 @@ def collect_subject_data(
         "preproc_done": bool(raw_files),
         "task_details": task_details or [],
         "task_errors": [task for task in (task_details or []) if task.get("failed")],
+        "failed_steps": {},
     }
 
     # Artifacts
@@ -2874,6 +3108,7 @@ def collect_subject_data(
         "assets": [],
         "bad_segment_rows": [],
     }
+    summary["steps"]["basic_preproc"] = summary["preproc_done"]
     bad_channels_file = next(iter(sorted(artifact_dir.glob("*_bad_channels.txt"))), None)
     bad_segments_file = next(iter(sorted(artifact_dir.glob("*_bad_segments.txt"))), None)
 
@@ -2925,6 +3160,7 @@ def collect_subject_data(
     )
     if heatmap_file:
         rel = copy_asset(heatmap_file, output_root, subject_slug, "artifacts")
+        raw_first_time = raw_info.get("first_time", 0.0)
         artifact_data["assets"].append(
             {
                 "title": "Artifact mask heatmap",
@@ -2932,34 +3168,62 @@ def collect_subject_data(
                 "category": "Artifacts",
                 "artifact_group": "mask",
                 "figure_class": "wide",
+                "details": f"Time axis starts at {fmt_float(raw_first_time, 3, ' s')}",
             }
         )
 
-    selected_artifact_images = select_artifact_images(artifact_dir)
-    for label, image_records in selected_artifact_images.items():
-        for idx, image_record in enumerate(image_records, start=1):
-            file_path = image_record["path"]
-            channel_group = image_record["channel_group"]
-            segment_time = image_record["segment_time"]
-            rel = copy_asset_as(
-                file_path,
-                output_root,
-                subject_slug,
-                "artifacts",
-                f"{label}_{channel_group}_{file_path.name}",
-            )
-            group_title = "Overview" if label == "overview" else "Waveform"
-            artifact_data["assets"].append(
-                {
-                    "title": f"{group_title} view {idx}",
-                    "rel_path": rel,
-                    "category": "Artifacts",
-                    "artifact_group": label,
-                    "channel_group": channel_group,
-                    "segment_time": segment_time,
-                    "details": artifact_segment_caption(segment_time),
-                }
-            )
+    static_overview = None
+    if raw_files:
+        static_overview = generate_static_artifact_overview(
+            raw_files[0],
+            artifact_data["bad_channels"],
+            artifact_data["bad_segment_rows"],
+            output_root,
+            subject_slug,
+            artifact_overview_duration,
+        )
+    if static_overview:
+        artifact_data["assets"].append(
+            {
+                "title": "Overview view 1",
+                "rel_path": static_overview["rel_path"],
+                "category": "Artifacts",
+                "artifact_group": "overview",
+                "start_time": static_overview.get("start_time", 0),
+                "duration": static_overview.get("duration", artifact_overview_duration),
+                "n_channels": static_overview.get("n_channels"),
+                "details": artifact_overview_caption(
+                    static_overview.get("start_time", 0),
+                    static_overview.get("duration", artifact_overview_duration),
+                ),
+            }
+        )
+    else:
+        selected_artifact_images = select_artifact_images(artifact_dir, artifact_overview_duration)
+        for label, image_records in selected_artifact_images.items():
+            for idx, image_record in enumerate(image_records, start=1):
+                file_path = image_record["path"]
+                channel_group = image_record["channel_group"]
+                segment_time = image_record["segment_time"]
+                rel = copy_asset_as(
+                    file_path,
+                    output_root,
+                    subject_slug,
+                    "artifacts",
+                    f"{label}_{channel_group}_{file_path.name}",
+                )
+                artifact_data["assets"].append(
+                    {
+                        "title": f"Overview view {idx}",
+                        "rel_path": rel,
+                        "category": "Artifacts",
+                        "artifact_group": label,
+                        "channel_group": channel_group,
+                        "segment_time": segment_time,
+                        "duration": image_record.get("duration"),
+                        "details": artifact_overview_caption(segment_time, image_record.get("duration")),
+                    }
+                )
 
     artifact_data["bad_channels_count"] = len(artifact_data["bad_channels"])
     artifact_data["exists"] = artifact_dir.exists() and (
@@ -3131,8 +3395,14 @@ def collect_subject_data(
     summary["source"] = source_data
     summary["steps"]["source"] = source_data["exists"]
 
-    alarms: list[dict[str, str]] = []
     scope = qc_scope if qc_scope is not None else qc_completeness_scope_from_manifest(None)
+    summary["expected_steps"] = expected_steps_for_scope(scope)
+    for task_error in summary["task_errors"]:
+        failed_step = task_error.get("step")
+        if failed_step in STEP_KEYS:
+            summary["steps"][failed_step] = False
+            summary["failed_steps"][failed_step] = True
+    alarms: list[dict[str, str]] = []
 
     for task_error in summary["task_errors"]:
         process = task_error.get("process") or "task"
@@ -3269,8 +3539,10 @@ def build_dataset_summary(
     *,
     workflow_html: str = "",
     workflow_meta: dict[str, Any] | None = None,
+    qc_scope: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     step_names = [key for key, _ in STEP_DEFS]
+    expected_steps = expected_steps_for_scope(qc_scope)
     total_subjects = len(subject_summaries)
     pass_count = sum(1 for item in subject_summaries if item["status"] == "PASS")
     warn_count = sum(1 for item in subject_summaries if item["status"] == "WARN")
@@ -3302,6 +3574,7 @@ def build_dataset_summary(
         "step_completion": {
             step: sum(1 for item in subject_summaries if item["steps"].get(step)) for step in step_names
         },
+        "expected_steps": expected_steps,
         "workflow_html": workflow_html,
         "workflow_meta": workflow_meta or {},
         "subjects": [
@@ -3422,8 +3695,7 @@ def render_artifact_gallery(assets: list[dict[str, Any]], prefix: str = "") -> s
         return '<div class="small">No images packaged for this section.</div>'
     groups = [
         ("mask", "Bad channel / bad segment mask", "Compact mask overview of detected bad channels and bad segments."),
-        ("overview", "Overview plots", "Segment overview images; captions keep the source channel folder and seg_<time> token."),
-        ("waveform", "Waveform plots", "Waveform images copied from the selected chn.* folder; captions keep that source folder."),
+        ("overview", "Overview plot", ""),
     ]
     blocks = []
     for group_key, title, desc in groups:
@@ -3434,7 +3706,7 @@ def render_artifact_gallery(assets: list[dict[str, Any]], prefix: str = "") -> s
             f"""
             <div class="artifact-group">
               <div class="artifact-group-title">{html_text(title)}</div>
-              <div class="artifact-group-desc">{html_text(desc)}</div>
+              {f'<div class="artifact-group-desc">{html_text(desc)}</div>' if desc else ''}
               {render_gallery(group_assets, prefix=prefix)}
             </div>
             """
@@ -3553,7 +3825,23 @@ def render_alarm_items(alarms: list[dict[str, str]]) -> str:
 
 def render_step_snapshot(summary: dict[str, Any], compact: bool = False) -> str:
     parts = []
+    expected_steps = summary.get("expected_steps") or {}
+    failed_steps = summary.get("failed_steps") or {}
     for key, label in STEP_DEFS:
+        if not expected_steps.get(key, True):
+            css = "neutral"
+            text = label if compact else f"{label}: N/A"
+            parts.append(
+                f'<span class="snapshot-item {css}"><span class="snapshot-dot"></span>{html_text(text)}</span>'
+            )
+            continue
+        if failed_steps.get(key):
+            css = "failed"
+            text = label if compact else f"{label}: Failed"
+            parts.append(
+                f'<span class="snapshot-item {css}"><span class="snapshot-dot"></span>{html_text(text)}</span>'
+            )
+            continue
         is_ready = bool(summary["steps"].get(key))
         css = "good" if is_ready else "missing"
         text = label if compact else f"{label}: {'ready' if is_ready else 'missing'}"
@@ -3651,7 +3939,7 @@ def render_task_details_block(task_details: list[dict[str, Any]], prefix: str = 
         failed = bool(task.get("failed"))
         status = task.get("status") or "unknown"
         status_class = "danger" if failed else "good"
-        step = task.get("step") or "unknown"
+        step = dict(STEP_DEFS).get(task.get("step"), str(task.get("step") or "unknown").replace("_", " "))
         log_links = "".join(
             f'<a href="{html_text(prefix + log["path"])}" target="_blank">{html_text(log.get("label", "log"))}</a> '
             for log in task.get("logs", [])
@@ -3698,6 +3986,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
 
     step_chips = []
     subject_step_labels = {
+        "basic_preproc": "Basic preproc",
         "artifacts": "Artifacts",
         "ica": "ICA",
         "coregistration": "Coreg",
@@ -3708,8 +3997,15 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
     }
     for key, _ in STEP_DEFS:
         label = subject_step_labels[key]
-        css = "good" if summary["steps"].get(key) else "neutral"
-        state = "ready" if summary["steps"].get(key) else "missing"
+        if not (summary.get("expected_steps") or {}).get(key, True):
+            css = "neutral"
+            state = "N/A"
+        elif (summary.get("failed_steps") or {}).get(key):
+            css = "danger"
+            state = "Failed"
+        else:
+            css = "good" if summary["steps"].get(key) else "neutral"
+            state = "ready" if summary["steps"].get(key) else "missing"
         step_chips.append(f'<span class="pill {css}">{label}: {state}</span>')
 
     qa_assets = []
@@ -3893,21 +4189,6 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
     </div>
 
     <div class="section">
-      <h2>Coregistration</h2>
-      <div class="panel">
-        <div class="metric-list">
-          <div class="metric-box"><div class="k">Mean Distance</div><div class="v">{fmt_float(summary['coregistration']['dist_mean'], 2, ' mm')}</div></div>
-          <div class="metric-box"><div class="k">Max Distance</div><div class="v">{fmt_float(summary['coregistration']['dist_max'], 2, ' mm')}</div></div>
-          <div class="metric-box"><div class="k">Min Distance</div><div class="v">{fmt_float(summary['coregistration']['dist_min'], 2, ' mm')}</div></div>
-        </div>
-        <div class="section">
-          <div class="info-note" style="margin-top:0; margin-bottom:12px">Coregistration figures are grouped by processing stage. The final downstream transform corresponds to the fine-tuned ICP pair: <code>*_coreg_icp_finetune.png</code> and <code>*_coreg_icp_finetune_brain.png</code>.</div>
-          {render_coreg_gallery(summary['coregistration']['assets'], prefix="../")}
-        </div>
-      </div>
-    </div>
-
-    <div class="section">
       <h2>Epochs</h2>
       <div class="panel">
         <div class="metric-list">
@@ -3926,6 +4207,21 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
       <h2>Covariance</h2>
       <div class="panel">
         {render_gallery(summary['covariance']['assets'], prefix="../")}
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>Coregistration</h2>
+      <div class="panel">
+        <div class="metric-list">
+          <div class="metric-box"><div class="k">Mean Distance</div><div class="v">{fmt_float(summary['coregistration']['dist_mean'], 2, ' mm')}</div></div>
+          <div class="metric-box"><div class="k">Max Distance</div><div class="v">{fmt_float(summary['coregistration']['dist_max'], 2, ' mm')}</div></div>
+          <div class="metric-box"><div class="k">Min Distance</div><div class="v">{fmt_float(summary['coregistration']['dist_min'], 2, ' mm')}</div></div>
+        </div>
+        <div class="section">
+          <div class="info-note" style="margin-top:0; margin-bottom:12px">Coregistration figures are grouped by processing stage. The final downstream transform corresponds to the fine-tuned ICP pair: <code>*_coreg_icp_finetune.png</code> and <code>*_coreg_icp_finetune_brain.png</code>.</div>
+          {render_coreg_gallery(summary['coregistration']['assets'], prefix="../")}
+        </div>
       </div>
     </div>
 
@@ -3965,7 +4261,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
 
 
 def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[dict[str, Any]], output_root: Path) -> None:
-    sorted_subjects = sorted(subject_summaries, key=lambda item: (-item["alarm_count"], item["subject"]))
+    sorted_subjects = sorted(subject_summaries, key=lambda item: (str(item["subject"]).lower(), str(item["subject"])))
     threshold_counts = {
         "bad_channels": 0,
         "bad_segments": 0,
@@ -3979,7 +4275,11 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
         bad_segments = summary["artifacts"]["bad_segments"]
         coreg_mean = summary["coregistration"]["dist_mean"]
         epoch_reject_rate = summary["epochs"].get("reject_rate")
-        missing_steps = [key for key, enabled in summary["steps"].items() if not enabled]
+        expected_steps = summary.get("expected_steps") or {}
+        missing_steps = [
+            key for key, _ in STEP_DEFS
+            if expected_steps.get(key, True) and not summary["steps"].get(key)
+        ]
         missing_steps_str = ",".join(missing_steps)
         risk_score = summary["alarm_count"] * 100
         risk_score += bad_channels
@@ -3988,6 +4288,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
         risk_score += len(missing_steps) * 25
         if coreg_mean is not None:
             risk_score += int(float(coreg_mean) * 10)
+        summary["_static_risk_score"] = risk_score
 
         if bad_channels > summary["thresholds"]["bad_channel_threshold"]:
             threshold_counts["bad_channels"] += 1
@@ -4014,8 +4315,10 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             row_class = "row-fail"
         elif summary["status"] == "WARN":
             row_class = "row-warn"
+        failed_steps = summary.get("failed_steps") or {}
         step_data_attrs = " ".join(
-            f'data-step-{key}="{"1" if summary["steps"].get(key) else "0"}"' for key, _ in STEP_DEFS
+            f'data-step-{key}="{"na" if not expected_steps.get(key, True) else ("failed" if failed_steps.get(key) else ("1" if summary["steps"].get(key) else "0"))}"'
+            for key, _ in STEP_DEFS
         )
         subject_rows.append(
             f"""
@@ -4034,25 +4337,49 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             """
         )
 
-    priority_subjects = [
-        summary for summary in sorted_subjects if summary["status"] != "PASS" or summary["alarm_count"] > 0
-    ]
+    def subject_priority_key(summary: dict[str, Any]) -> tuple[int, int, int, str]:
+        alarms = summary.get("alarms") or []
+        danger_count = sum(1 for alarm in alarms if alarm.get("severity") == "danger")
+        status_rank = {"FAIL": 0, "WARN": 1, "PASS": 2}.get(str(summary.get("status")), 3)
+        return (status_rank, -danger_count, -int(summary.get("_static_risk_score") or 0), str(summary.get("subject") or ""))
+
+    priority_subjects = sorted(
+        [
+            summary for summary in sorted_subjects if summary["status"] != "PASS" or summary["alarm_count"] > 0
+        ],
+        key=subject_priority_key,
+    )
     hot_subjects = priority_subjects[:12]
-    alarm_rows = []
+    alarm_records = []
     for summary in hot_subjects:
         if not summary["alarms"]:
             continue
         for alarm in summary["alarms"]:
-            css_class = "danger" if alarm["severity"] == "danger" else ""
-            search_blob = f"{summary['subject']} {alarm['category']} {alarm['message']}"
-            alarm_rows.append(
-                f"""
-                <div class="alarm-item alarm-row {css_class}" data-search="{html_text(search_blob)}">
-                  <div class="category"><a href="subjects/{html_text(summary['subject_slug'])}.html">{html_text(summary['subject'])}</a> · {html_text(alarm['category'])}</div>
-                  <div>{html_text(alarm['message'])}</div>
-                </div>
-                """
+            alarm_records.append(
+                {
+                    "summary": summary,
+                    "alarm": alarm,
+                    "sort_key": (
+                        0 if alarm.get("severity") == "danger" else 1,
+                        subject_priority_key(summary),
+                        str(alarm.get("category") or ""),
+                    ),
+                }
             )
+    alarm_rows = []
+    for record in sorted(alarm_records, key=lambda item: item["sort_key"]):
+        summary = record["summary"]
+        alarm = record["alarm"]
+        css_class = "danger" if alarm["severity"] == "danger" else ""
+        search_blob = f"{summary['subject']} {alarm['category']} {alarm['message']}"
+        alarm_rows.append(
+            f"""
+            <div class="alarm-item alarm-row {css_class}" data-search="{html_text(search_blob)}">
+              <div class="category"><a href="subjects/{html_text(summary['subject_slug'])}.html">{html_text(summary['subject'])}</a> · {html_text(alarm['category'])}</div>
+              <div>{html_text(alarm['message'])}</div>
+            </div>
+            """
+        )
 
     top_subject_cards = []
     for summary in priority_subjects[:6]:
@@ -4083,16 +4410,20 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
     ]
 
     step_completion_summary = "".join(
-        f'<span class="summary-chip">{html_text(label)} {fmt_int(dataset_summary["step_completion"][key])}/{fmt_int(dataset_summary["total_subjects"])}</span>'
+        (
+            f'<span class="summary-chip">{html_text(label)} N/A</span>'
+            if not (dataset_summary.get("expected_steps") or {}).get(key, True)
+            else f'<span class="summary-chip">{html_text(label)} {fmt_int(dataset_summary["step_completion"][key])}/{fmt_int(dataset_summary["total_subjects"])}</span>'
+        )
         for key, label in STEP_DEFS
     )
 
     status_bar_items = []
     total_subjects = max(1, dataset_summary["total_subjects"])
     for label, count, css in [
-        ("Pass", dataset_summary["pass_count"], "good"),
-        ("Warn", dataset_summary["warn_count"], "warn"),
-        ("Fail", dataset_summary["fail_count"], "danger"),
+        ("Passed", dataset_summary["pass_count"], "good"),
+        ("Warning", dataset_summary["warn_count"], "warn"),
+        ("Failed", dataset_summary["fail_count"], "danger"),
     ]:
         width = (count / total_subjects) * 100 if dataset_summary["total_subjects"] else 0
         status_bar_items.append(
@@ -4135,28 +4466,30 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <label for="subjectStatusFilter">Status</label>
             <select id="subjectStatusFilter" onchange="resetSubjectPage()">
               <option value="all">All status</option>
-              <option value="pass">Pass</option>
-              <option value="warn">Warn</option>
-              <option value="fail">Fail</option>
+              <option value="pass">Passed</option>
+              <option value="warn">Warning</option>
+              <option value="fail">Failed</option>
             </select>
           </div>
           <div class="control-group">
             <label for="subjectMissingStepFilter">Missing Step</label>
             <select id="subjectMissingStepFilter" onchange="resetSubjectPage()">
               <option value="all">All step completeness</option>
+              <option value="basic_preproc">Missing basic preproc</option>
               <option value="artifacts">Missing artifacts</option>
               <option value="ica">Missing ICA</option>
-              <option value="coregistration">Missing coreg</option>
-              <option value="headmodel">Missing head model</option>
               <option value="epochs">Missing epochs</option>
               <option value="covariance">Missing covariance</option>
+              <option value="coregistration">Missing coreg</option>
+              <option value="headmodel">Missing head model</option>
               <option value="source">Missing source</option>
             </select>
           </div>
           <div class="control-group">
             <label for="subjectSortBy">Sort</label>
             <select id="subjectSortBy" onchange="setSubjectSortFromSelect()">
-              <option value="risk" selected>Sort by risk</option>
+              <option value="subject" selected>Sort by subject</option>
+              <option value="risk">Sort by risk</option>
               <option value="missing_steps">Sort by missing steps</option>
               <option value="alarm_count">Sort by alarms</option>
               <option value="bad_channels">Sort by bad channels</option>
@@ -4165,7 +4498,6 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               <option value="coreg_mean">Sort by coreg mean</option>
               <option value="coreg_max">Sort by coreg max</option>
               <option value="epoch_reject">Sort by epoch reject</option>
-              <option value="subject">Sort by subject</option>
             </select>
           </div>
           <div class="control-group">
@@ -4197,7 +4529,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
         <div class="value">{fmt_int(dataset_summary['pass_count'])}</div>
       </div>
       <div class="card">
-        <div class="label">Warnings</div>
+        <div class="label">Warning</div>
         <div class="value">{fmt_int(dataset_summary['warn_count'])}</div>
       </div>
       <div class="card">
@@ -4216,7 +4548,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
           <div class="panel-kicker">Dataset Overview</div>
           <div class="panel-title-row">
             <div class="panel-title-group">
-              <h3>QC Overview</h3>
+              <h3>Preprocessing Overview</h3>
               <div class="panel-subtitle">Aggregate preprocessing quality indicators across the current dataset.</div>
             </div>
           </div>
@@ -4234,7 +4566,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
           <div class="panel-title-row">
             <div class="panel-title-group">
               <h3>Status Distribution</h3>
-              <div class="panel-subtitle">PASS, WARN, and FAIL counts under the current static QC rules.</div>
+              <div class="panel-subtitle">Passed, Warning, and Failed counts under the current static QC rules.</div>
             </div>
           </div>
           <div class="stat-bar-list">
@@ -4299,12 +4631,12 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
           <div class="panel-title-row">
             <div class="panel-title-group">
               <h3>QC Rules</h3>
-              <div class="panel-subtitle">How the static report derives PASS, WARN, FAIL, and completion state.</div>
+              <div class="panel-subtitle">How the static report derives Passed, Warning, Failed, and completion state.</div>
             </div>
           </div>
           <div class="rule-list">
             <div class="rule-item"><strong>Passed</strong><div class="small">No alarms under the current static thresholds.</div></div>
-            <div class="rule-item"><strong>Warnings</strong><div class="small">1-2 alarms and no danger-level alarm.</div></div>
+            <div class="rule-item"><strong>Warning</strong><div class="small">1-2 alarms and no danger-level alarm.</div></div>
             <div class="rule-item"><strong>Failed</strong><div class="small">3 or more alarms, or at least one danger-level alarm such as a coregistration threshold breach.</div></div>
             <div class="rule-item"><strong>Step Completion</strong><div class="small">Completion is presence-based. A step counts as complete when its expected report outputs exist, not when it necessarily passes QC.</div></div>
             <div class="rule-item"><strong>Adjust Thresholds</strong><div class="small">Regenerate the static report with CLI flags such as <code>--bad_channel_threshold</code>, <code>--bad_segment_threshold</code>, <code>--coreg_mean_threshold</code>, <code>--coreg_max_threshold</code>, and <code>--epoch_reject_rate_threshold</code>.</div></div>
@@ -4466,6 +4798,11 @@ def generate_static_report(args: argparse.Namespace) -> Path:
         wf_ctx.get("manifest") if isinstance(wf_ctx.get("manifest"), dict) else None,
         task_log_mode=args.task_log_mode,
     )
+    if not qc_scope.get("run_meg"):
+        inferred_scope = infer_qc_scope_from_task_details(task_details_by_subject)
+        if inferred_scope:
+            qc_scope = inferred_scope
+            wf_ctx = apply_inferred_workflow_scope(wf_ctx, inferred_scope)
     subject_summaries = [
         collect_subject_data(
             subject,
@@ -4474,6 +4811,7 @@ def generate_static_report(args: argparse.Namespace) -> Path:
             thresholds,
             qc_scope=qc_scope,
             task_details=task_details_by_subject.get(subject, []),
+            artifact_overview_duration=args.artifact_overview_duration,
         )
         for subject in subjects
     ]
@@ -4499,6 +4837,7 @@ def generate_static_report(args: argparse.Namespace) -> Path:
         thresholds,
         workflow_html=workflow_html,
         workflow_meta=wf_meta,
+        qc_scope=qc_scope,
     )
 
     for summary in subject_summaries:

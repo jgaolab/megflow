@@ -215,6 +215,14 @@ nextflow run ... --static_task_log_mode all-command-log
 docker run ... cmrlab/megprep:<tag> ... --static_task_log_mode all-command-log
 ```
 
+Artifact Review in the static report packages one overview plot per subject by
+default. The displayed window is controlled by
+`static_artifact_overview_duration` (default: `200.0` seconds). Prefer setting
+this value in the active Nextflow config file, for example
+`nextflow.config` for source-code runs or `nextflow_for_docker.config` for
+Docker builds, so static report behavior stays reproducible with the saved
+config snapshot.
+
 ### Cohort mode: multiple datasets under one root
 
 For a directory that contains many independent MEG datasets, use **`--cohort`**.
@@ -310,6 +318,7 @@ docker run -it --rm \
 | `-r`, `--view-report` | Run Streamlit to view the report (does not run Nextflow) |
 | `--cohort` | Treat the input directory as a collection of datasets, run each child through the native dataset tuple DAG, and generate a cohort-level static report |
 | `--static_task_log_mode` | Static report task log bundling mode: `all-command-log` (default), `failed`, or `none` |
+| `--static_artifact_overview_duration` | Seconds represented by the single Artifact Review overview plot in the static report; default `200.0` |
 | `--fs_license_file` | Specify the FreeSurfer license file path |
 | `--fs_subjects_dir` | Specify the FreeSurfer `SUBJECTS_DIR` containing processed T1 results |
 | `--t1_dir` | Specify the T1 image directory |

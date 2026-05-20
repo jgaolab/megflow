@@ -24,12 +24,13 @@ from typing import Any
 
 
 STEP_DEFS = [
+    ("basic_preproc", "Basic preproc"),
     ("artifacts", "Artifacts"),
     ("ica", "ICA"),
-    ("coregistration", "Coreg"),
-    ("headmodel", "Head"),
     ("epochs", "Epochs"),
     ("covariance", "Cov"),
+    ("coregistration", "Coreg"),
+    ("headmodel", "Head"),
     ("source", "Source"),
 ]
 
@@ -249,12 +250,13 @@ def fmt_float(value: Any, digits: int = 1, suffix: str = "") -> str:
 
 def status_pill(status: str) -> str:
     status = (status or "UNKNOWN").upper()
-    css = {
-        "PASS": "good",
-        "WARN": "warn",
-        "FAIL": "danger",
-    }.get(status, "neutral")
-    return f'<span class="pill {css}">{html_text(status)}</span>'
+    labels = {
+        "PASS": ("good", "Passed"),
+        "WARN": ("warn", "Warning"),
+        "FAIL": ("danger", "Failed"),
+    }
+    css, label = labels.get(status, ("neutral", status))
+    return f'<span class="pill {css}">{html_text(label)}</span>'
 
 
 def ensure_dir(path: Path) -> Path:
@@ -370,6 +372,14 @@ def build_cohort_summary(
         key: sum(int((report.summary.get("step_completion") or {}).get(key) or 0) for report in reports)
         for key, _ in STEP_DEFS
     }
+    step_expected_subjects = {
+        key: sum(
+            int(report.summary.get("total_subjects") or 0)
+            for report in reports
+            if (report.summary.get("expected_steps") or {}).get(key, True)
+        )
+        for key, _ in STEP_DEFS
+    }
 
     datasets = []
     for report in reports:
@@ -395,6 +405,7 @@ def build_cohort_summary(
                 "report_index": bundled_rel_index,
                 "source_report_index": source_rel_index,
                 "step_completion": summary.get("step_completion") or {},
+                "expected_steps": summary.get("expected_steps") or {},
                 "averages": summary.get("averages") or {},
             }
         )
@@ -409,6 +420,7 @@ def build_cohort_summary(
         "fail_count": fail_count,
         "alarm_count": alarm_count,
         "step_completion": step_completion,
+        "step_expected_subjects": step_expected_subjects,
         "datasets": datasets,
     }
 
@@ -455,8 +467,12 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
     rows = []
     for dataset in sorted(summary["datasets"], key=lambda item: (-item["alarm_count"], item["dataset"])):
         step_chips = "".join(
-            f'<span class="step-chip">{html_text(label)} '
-            f'{fmt_int((dataset.get("step_completion") or {}).get(key))}/{fmt_int(dataset["total_subjects"])}</span>'
+            (
+                f'<span class="step-chip">{html_text(label)} N/A</span>'
+                if not (dataset.get("expected_steps") or {}).get(key, True)
+                else f'<span class="step-chip">{html_text(label)} '
+                f'{fmt_int((dataset.get("step_completion") or {}).get(key))}/{fmt_int(dataset["total_subjects"])}</span>'
+            )
             for key, label in STEP_DEFS
         )
         averages = dataset.get("averages") or {}
@@ -486,7 +502,11 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
         )
 
     step_summary = "".join(
-        f'<span class="step-chip">{html_text(label)} {fmt_int(summary["step_completion"].get(key))}/{fmt_int(summary["total_subjects"])}</span>'
+        (
+            f'<span class="step-chip">{html_text(label)} N/A</span>'
+            if not int((summary.get("step_expected_subjects") or {}).get(key) or 0)
+            else f'<span class="step-chip">{html_text(label)} {fmt_int(summary["step_completion"].get(key))}/{fmt_int((summary.get("step_expected_subjects") or {}).get(key))}</span>'
+        )
         for key, label in STEP_DEFS
     )
 
@@ -510,9 +530,9 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
         <input id="datasetSearch" type="text" placeholder="Search dataset or path" oninput="filterDatasets()">
         <select id="datasetStatus" onchange="filterDatasets()">
           <option value="all">All statuses</option>
-          <option value="pass">PASS</option>
-          <option value="warn">WARN</option>
-          <option value="fail">FAIL</option>
+          <option value="pass">Passed</option>
+          <option value="warn">Warning</option>
+          <option value="fail">Failed</option>
         </select>
         <a href="data/cohort_summary.json" target="_blank">Cohort JSON</a>
         <a href="data/datasets.csv" target="_blank">Datasets CSV</a>
@@ -522,8 +542,8 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
     <section class="grid kpi-grid">
       <div class="panel kpi"><div class="label">Datasets</div><div class="value">{fmt_int(summary['dataset_count'])}</div></div>
       <div class="panel kpi"><div class="label">Subjects</div><div class="value">{fmt_int(summary['total_subjects'])}</div></div>
-      <div class="panel kpi"><div class="label">PASS</div><div class="value">{fmt_int(summary['pass_count'])}</div></div>
-      <div class="panel kpi"><div class="label">WARN / FAIL</div><div class="value">{fmt_int(summary['warn_count'])} / {fmt_int(summary['fail_count'])}</div></div>
+      <div class="panel kpi"><div class="label">Passed</div><div class="value">{fmt_int(summary['pass_count'])}</div></div>
+      <div class="panel kpi"><div class="label">Warning / Failed</div><div class="value">{fmt_int(summary['warn_count'])} / {fmt_int(summary['fail_count'])}</div></div>
       <div class="panel kpi"><div class="label">Alarms</div><div class="value">{fmt_int(summary['alarm_count'])}</div></div>
     </section>
 
@@ -542,9 +562,9 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
             <th>Dataset</th>
             <th>Status</th>
             <th>Subjects</th>
-            <th>PASS</th>
-            <th>WARN</th>
-            <th>FAIL</th>
+            <th>Passed</th>
+            <th>Warning</th>
+            <th>Failed</th>
             <th>Alarms</th>
             <th>Avg Bad Ch</th>
             <th>Avg Bad Seg</th>

@@ -41,15 +41,23 @@ def _is_bad_annotation(description):
 
 
 def _annotation_to_sample_bounds(raw, onset, duration):
+    raw_first_time = float(getattr(raw, "first_time", 0.0) or 0.0)
+    raw_duration = float(raw.n_times / (raw.info.get("sfreq", 1.0) or 1.0))
+    onset = float(onset)
+    duration = float(duration)
+    if raw_first_time and onset >= raw_first_time:
+        shifted_onset = onset - raw_first_time
+        if -1e-6 <= shifted_onset <= raw_duration + 1e-6:
+            onset = shifted_onset
     try:
         start_sample, stop_sample = raw.time_as_index(
-            [float(onset), float(onset) + float(duration)],
+            [onset, onset + duration],
             use_rounding=True,
         )
     except Exception:
         sfreq = float(raw.info.get("sfreq", 1.0) or 1.0)
-        start_sample = int(round(float(onset) * sfreq))
-        stop_sample = int(round((float(onset) + float(duration)) * sfreq))
+        start_sample = int(round(onset * sfreq))
+        stop_sample = int(round((onset + duration) * sfreq))
 
     start_sample = max(0, min(int(start_sample), raw.n_times))
     stop_sample = max(0, min(int(stop_sample), raw.n_times))
@@ -108,9 +116,11 @@ def plot_artifact_mask_heatmap(raw, bad_channels, output_path, max_time_bins=240
         mask[bad_channel_rows, :] = np.where(mask[bad_channel_rows, :] == 1, 3, 2)
 
     duration_sec = float(raw.n_times / (raw.info.get("sfreq", 1.0) or 1.0))
+    raw_first_time = float(getattr(raw, "first_time", 0.0) or 0.0)
+    raw_stop_time = raw_first_time + duration_sec
     time_scale = 60.0 if duration_sec >= 120 else 1.0
     time_label = "Time (min)" if time_scale == 60.0 else "Time (s)"
-    extent = [0, duration_sec / time_scale, -0.5, n_channels - 0.5]
+    extent = [raw_first_time / time_scale, raw_stop_time / time_scale, -0.5, n_channels - 0.5]
 
     cmap = ListedColormap(["#f8fafc", "#e11d48", "#2563eb", "#7c3aed"])
     norm = BoundaryNorm([-0.5, 0.5, 1.5, 2.5, 3.5], cmap.N)
@@ -134,7 +144,10 @@ def plot_artifact_mask_heatmap(raw, bad_channels, output_path, max_time_bins=240
     ax.spines[["left", "bottom"]].set_color("#cbd5e1")
 
     title = "Bad Channels and Bad Time Segments"
-    subtitle = f"{int(bad_channel_rows.sum())} bad channels | {bad_segment_count} bad segments | {bad_segment_duration:.1f}s marked bad"
+    subtitle = (
+        f"{int(bad_channel_rows.sum())} bad channels | {bad_segment_count} bad segments | "
+        f"{bad_segment_duration:.1f}s marked bad | raw.first_time={raw_first_time:.3f}s"
+    )
     ax.set_title(title, loc="left", fontsize=13, fontweight="bold", color="#111827", pad=22)
     ax.text(
         0,
@@ -343,6 +356,7 @@ def main(args):
             bad_channels_file=output_bad_channels_file,
             bad_segments_file=output_bad_segments_file,
             heatmap_output=heatmap_img_out,
+            force=True,
         )
     else:
         # raw = mne.io.read_raw_fif(args.input, preload=True)

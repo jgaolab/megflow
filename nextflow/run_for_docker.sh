@@ -24,6 +24,7 @@ NEXTFLOW_FILE="/program/nextflow/meg_pipeline.nf"
 STREAMLIT_APP_PATH="/program/megprep/reports/reports.py"
 COHORT_REPORT_PATH="/program/megprep/reports/cohort_static_html_report.py"
 STATIC_TASK_LOG_MODE=""
+STATIC_ARTIFACT_OVERVIEW_DURATION=""
 nextflow_args=()
 
 echo "Executor:"
@@ -56,6 +57,7 @@ while [[ "$#" -gt 0 ]]; do
 
         # static report options
         --static_task_log_mode|--task-log-mode) STATIC_TASK_LOG_MODE="$2"; shift ;;
+        --static_artifact_overview_duration|--artifact-overview-duration) STATIC_ARTIFACT_OVERVIEW_DURATION="$2"; shift ;;
 
         # nextflow options
         --resume) nextflow_args+=("-resume") ;;
@@ -70,6 +72,7 @@ while [[ "$#" -gt 0 ]]; do
             echo "  -r, --view-report     Run Streamlit to view the report (does not run Nextflow)"
             echo "  --cohort              Treat --input as a directory of datasets; isolate each child's output and FreeSurfer SUBJECTS_DIR"
             echo "  --static_task_log_mode failed|all-command-log|none"
+            echo "  --static_artifact_overview_duration seconds"
             echo "  --fs_license_file     Specify the FreeSurfer license file"
             echo "  --fs_subjects_dir     Specify the FreeSurfer SUBJECTS_DIR directory containing processed T1 results"
             echo "  --t1_dir              Specify the T1 image directory"
@@ -123,8 +126,14 @@ read_static_task_log_mode() {
     sed -n 's/^[[:space:]]*static_task_log_mode[[:space:]]*=[[:space:]]*["'\'']\([^"'\'']*\)["'\''].*/\1/p' "$CONFIG_FILE" | head -n 1
 }
 
+read_static_artifact_overview_duration() {
+    sed -n 's/^[[:space:]]*static_artifact_overview_duration[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$CONFIG_FILE" | head -n 1
+}
+
 STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-$(read_static_task_log_mode)}"
 STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-failed}"
+STATIC_ARTIFACT_OVERVIEW_DURATION="${STATIC_ARTIFACT_OVERVIEW_DURATION:-$(read_static_artifact_overview_duration)}"
+STATIC_ARTIFACT_OVERVIEW_DURATION="${STATIC_ARTIFACT_OVERVIEW_DURATION:-200.0}"
 case "$STATIC_TASK_LOG_MODE" in
     failed|all-command-log|none) ;;
     *)
@@ -135,6 +144,7 @@ esac
 
 echo "Using configuration file: $CONFIG_FILE"
 echo "Static report task log mode: $STATIC_TASK_LOG_MODE"
+echo "Static artifact overview duration: ${STATIC_ARTIFACT_OVERVIEW_DURATION}s"
 
 write_run_config() {
     local run_input_dir="$1"
@@ -188,6 +198,8 @@ write_run_config() {
 
     echo "Setting static_task_log_mode in config to: $STATIC_TASK_LOG_MODE"
     sed -i "s|^\s*static_task_log_mode\s*=.*|    static_task_log_mode = \"$STATIC_TASK_LOG_MODE\"|" "$run_config_file"
+    echo "Setting static_artifact_overview_duration in config to: $STATIC_ARTIFACT_OVERVIEW_DURATION"
+    sed -i "s|^\s*static_artifact_overview_duration\s*=.*|    static_artifact_overview_duration = $STATIC_ARTIFACT_OVERVIEW_DURATION|" "$run_config_file"
 }
 
 
@@ -231,6 +243,7 @@ run_nextflow_pipeline() {
         -c "${run_config_file}" \
         "${steps_args[@]}" \
         --static_task_log_mode "$STATIC_TASK_LOG_MODE" \
+        --static_artifact_overview_duration "$STATIC_ARTIFACT_OVERVIEW_DURATION" \
         "${work_args[@]}" \
         -with-report "${run_output_dir}/report.html" \
         -with-timeline "${run_output_dir}/timeline.html" \
@@ -246,6 +259,7 @@ regenerate_static_report() {
         python /program/megprep/reports/static_html_report.py \
             --report_root "$run_output_dir" \
             --output_dir "${run_output_dir}/static_html_report" \
+            --artifact_overview_duration "$STATIC_ARTIFACT_OVERVIEW_DURATION" \
             --task_log_mode "$STATIC_TASK_LOG_MODE"
     else
         echo "Skipping static report regeneration; no preprocessed directory found at ${run_output_dir}/preprocessed"
@@ -291,6 +305,7 @@ if [ "$COHORT_MODE" = true ]; then
         -c "${RUN_CONFIG_FILE}" \
         "${cohort_args[@]}" \
         --static_task_log_mode "$STATIC_TASK_LOG_MODE" \
+        --static_artifact_overview_duration "$STATIC_ARTIFACT_OVERVIEW_DURATION" \
         -w "${cohort_work_dir}/cohort_driver" \
         -with-report "${OUTPUT_DIR}/cohort_report.html" \
         -with-timeline "${OUTPUT_DIR}/cohort_timeline.html" \

@@ -517,6 +517,7 @@ EOF_MANIFEST
         --coreg_mean_threshold ${params.coreg_mean_threshold} \\
         --coreg_max_threshold ${params.coreg_max_threshold} \\
         --epoch_reject_rate_threshold ${params.epoch_reject_rate_threshold} \\
+        --artifact_overview_duration ${params.static_artifact_overview_duration} \\
         --task_log_mode "${params.static_task_log_mode}" \\
         --zip_output false
 
