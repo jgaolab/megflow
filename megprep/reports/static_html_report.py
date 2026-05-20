@@ -1743,7 +1743,7 @@ function getStepDatasetValue(row, stepKey) {
 
 function getSubjectTableState() {
   if (!window.__subjectTableState) {
-    window.__subjectTableState = { page: 1, sortKey: "subject", sortDirection: "asc" };
+    window.__subjectTableState = { page: 1, sortKey: "risk", sortDirection: "desc" };
   }
   return window.__subjectTableState;
 }
@@ -1827,12 +1827,13 @@ function updateStepMatrix(matchedRows, visibleRows) {
 }
 
 function getDefaultSortDirection(sortKey) {
-  return sortKey === "subject" ? "asc" : "desc";
+  return sortKey === "subject" || sortKey === "status" ? "asc" : "desc";
 }
 
 function getSortColumnIndex(sortKey) {
   const columnMap = {
     subject: 1,
+    status: 2,
     alarm_count: 3,
     bad_channels: 4,
     bad_segments: 5,
@@ -1844,10 +1845,17 @@ function getSortColumnIndex(sortKey) {
   return columnMap[sortKey] || null;
 }
 
+function statusRank(status) {
+  const rankMap = { fail: 0, warn: 1, pass: 2 };
+  return rankMap[normalizeText(status)] ?? 3;
+}
+
 function compareSubjectRows(a, b, sortKey, direction) {
   let result = 0;
   if (sortKey === "subject") {
     result = normalizeText(a.dataset.subject).localeCompare(normalizeText(b.dataset.subject));
+  } else if (sortKey === "status") {
+    result = statusRank(a.dataset.status) - statusRank(b.dataset.status);
   } else if (sortKey === "alarm_count") {
     result = toNumber(a.dataset.alarmCount) - toNumber(b.dataset.alarmCount);
   } else if (sortKey === "bad_channels") {
@@ -1921,7 +1929,7 @@ function setSubjectSort(sortKey) {
 }
 
 function setSubjectSortFromSelect() {
-  const selectedKey = normalizeText(document.getElementById("subjectSortBy")?.value || "subject");
+  const selectedKey = normalizeText(document.getElementById("subjectSortBy")?.value || "risk");
   const state = getSubjectTableState();
   state.sortKey = selectedKey;
   state.sortDirection = getDefaultSortDirection(selectedKey);
@@ -1943,7 +1951,7 @@ function updateSubjectTable() {
   const missingStep = normalizeText(document.getElementById("subjectMissingStepFilter")?.value || "all");
   const pageSize = parseInt(document.getElementById("subjectPageSize")?.value || "20", 10);
   const rows = Array.from(table.querySelectorAll("tbody tr[data-search]"));
-  const sortBy = state.sortKey || normalizeText(document.getElementById("subjectSortBy")?.value || "subject");
+  const sortBy = state.sortKey || normalizeText(document.getElementById("subjectSortBy")?.value || "risk");
   const sortDirection = state.sortDirection || getDefaultSortDirection(sortBy);
   state.sortKey = sortBy;
   state.sortDirection = sortDirection;
@@ -4488,8 +4496,9 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
           <div class="control-group">
             <label for="subjectSortBy">Sort</label>
             <select id="subjectSortBy" onchange="setSubjectSortFromSelect()">
-              <option value="subject" selected>Sort by subject</option>
-              <option value="risk">Sort by risk</option>
+              <option value="risk" selected>Sort by risk</option>
+              <option value="status">Sort by status</option>
+              <option value="subject">Sort by subject</option>
               <option value="missing_steps">Sort by missing steps</option>
               <option value="alarm_count">Sort by alarms</option>
               <option value="bad_channels">Sort by bad channels</option>
@@ -4673,7 +4682,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
           <thead>
             <tr>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="subject" onclick="setSubjectSort('subject')"><span>Subject</span><span class="sort-indicator">↕</span></button></th>
-              <th>Status</th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="status" onclick="setSubjectSort('status')"><span>Status</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarm_count" onclick="setSubjectSort('alarm_count')"><span>Alarms</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_channels" onclick="setSubjectSort('bad_channels')"><span>Bad Channels</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_segments" onclick="setSubjectSort('bad_segments')"><span>Bad Segments</span><span class="sort-indicator">↕</span></button></th>
