@@ -213,6 +213,8 @@ process import_MEG_dataset {
         --dataset_format ${dataset_format} \\
         --file_suffix ${file_suffix} \\
         --output_file imported_meg_data.txt \\
+        --exclude_output_dir "${output_dir}" \\
+        --exclude_preproc_dir "${preproc_dir}" \\
         --config "${params.meg_import_config}"
     """
 }

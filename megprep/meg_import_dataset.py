@@ -24,13 +24,44 @@ def _normalize_exclude_keywords(value) -> Optional[List[str]]:
     return None
 
 
+def _resolve_existing_or_parent(path_value) -> Optional[Path]:
+    """Resolve a path for containment checks without requiring the leaf to exist."""
+    if path_value is None:
+        return None
+    path_text = str(path_value).strip()
+    if not path_text:
+        return None
+
+    path = Path(path_text).expanduser()
+    if path.exists():
+        return path.resolve()
+
+    existing_parent = path.parent
+    while existing_parent != existing_parent.parent and not existing_parent.exists():
+        existing_parent = existing_parent.parent
+
+    if existing_parent.exists():
+        return existing_parent.resolve() / path.relative_to(existing_parent)
+    return path.resolve(strict=False)
+
+
+def _is_relative_to(path: Path, parent: Path) -> bool:
+    """Compatibility helper for Python versions without Path.is_relative_to."""
+    try:
+        path.relative_to(parent)
+    except ValueError:
+        return False
+    return True
+
+
 def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
                       dataset_format: Optional[Literal['bids', 'raw','auto']] = None,
                       datatype: Literal['meg'] = 'meg', subjects: Optional[List[str]] = None,
                       sessions: Optional[List[str]] = None, tasks: Optional[List[str]] = None,
                       runs: Optional[List[str]] = None, print_dir: bool = False,
                       bids_report: bool = False,
-                      raw_exclude_keywords: Optional[List[str]] = None) -> List:
+                      raw_exclude_keywords: Optional[List[str]] = None,
+                      raw_exclude_dirs: Optional[List[Union[str, Path]]] = None) -> List:
     """
     General function to read MEG datasets, supporting both BIDS and raw formats.
 
@@ -44,6 +75,10 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
         For ``dataset_format='raw'`` only: basenames containing any of these
         substrings (case-insensitive) are skipped. Use to drop non-MEG ``.fif``
         files (for example ``phantom``, ``crosstalk``) that share the same suffix.
+    raw_exclude_dirs : list of str or Path, optional
+        For ``dataset_format='raw'`` only: candidate files inside these
+        directories are skipped. This is used to keep MEGPrep output/preprocessed
+        directories out of raw input discovery.
     dataset_format : {'bids', 'raw','auto'}, optional
         Format of the dataset. If None, it will be auto-detected.
     datatype : {'meg'}, optional
@@ -156,16 +191,41 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
         exclude_lower = None
         if raw_exclude_keywords:
             exclude_lower = [k.lower() for k in raw_exclude_keywords]
-        for root, _, files in os.walk(dataset_dir):
+        exclude_dirs = []
+        if raw_exclude_dirs:
+            exclude_dirs = [
+                resolved for resolved in (_resolve_existing_or_parent(p) for p in raw_exclude_dirs) if resolved
+            ]
+        dataset_resolved = dataset_dir.resolve()
+        if any(exclude_dir == dataset_resolved for exclude_dir in exclude_dirs):
+            print(
+                f"Warning: a raw exclusion directory is the same as dataset_dir ({dataset_dir}); "
+                "raw input discovery may exclude all files."
+            )
+        for root, dirs, files in os.walk(dataset_dir):
+            root_path = Path(root).resolve()
+            if exclude_dirs and any(_is_relative_to(root_path, exclude_dir) for exclude_dir in exclude_dirs):
+                dirs[:] = []
+                continue
+            if exclude_dirs:
+                dirs[:] = [
+                    dirname for dirname in dirs
+                    if not any(_is_relative_to((root_path / dirname).resolve(), exclude_dir) for exclude_dir in exclude_dirs)
+                ]
             for file in files:
                 if not file.endswith(file_suffix):
+                    continue
+                candidate_path = Path(root) / file
+                candidate_resolved = candidate_path.resolve()
+                if exclude_dirs and any(_is_relative_to(candidate_resolved, exclude_dir) for exclude_dir in exclude_dirs):
+                    print(f"raw_exclude_dirs excluded: {candidate_path}")
                     continue
                 if exclude_lower:
                     file_lower = file.lower()
                     if any(k in file_lower for k in exclude_lower):
-                        print(f"raw_exclude_keywords excluded: {os.path.join(root, file)}")
+                        print(f"raw_exclude_keywords excluded: {candidate_path}")
                         continue
-                raw_list.append(os.path.join(root, file))
+                raw_list.append(str(candidate_path))
         if not raw_list:
             raise ValueError(f"No raw data files found in {dataset_dir}.")
 
@@ -210,6 +270,10 @@ if __name__ == "__main__":
     parser.add_argument("--bids_report", action="store_true", help="Generate BIDS report (for BIDS format).")
     parser.add_argument("--output_file", type=str, required=True,
                         help="Output file to save the raw list of file paths.")
+    parser.add_argument("--exclude_output_dir", type=str, default="",
+                        help="Pipeline output directory to exclude from raw dataset discovery.")
+    parser.add_argument("--exclude_preproc_dir", type=str, default="",
+                        help="Pipeline preprocessed directory to exclude from raw dataset discovery.")
     parser.add_argument('--config', type=str, default="{}", help='YAML configuration parameters')
     args = parser.parse_args()
 
@@ -236,6 +300,7 @@ if __name__ == "__main__":
         tasks=config.get('task'),
         runs=config.get('run_id'),
         raw_exclude_keywords=_normalize_exclude_keywords(config.get('raw_exclude_keywords')),
+        raw_exclude_dirs=[args.exclude_output_dir, args.exclude_preproc_dir],
     )
 
     #filtering: keep only the main file, exclude files that are split (e.g. -1.fif, -2.fif, etc.)
