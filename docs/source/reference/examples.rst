@@ -80,6 +80,8 @@ recording.
        autoreject: false
        interpolate_bads: false
        drop_bad_channels: false
+       exclude_event_id:
+         - 255
        epochs:
          event_id: null
          tmin: 0.0
@@ -197,9 +199,14 @@ use a BIDS-style or task-specific layout for covariance pairing.
 
 .. code-block:: yaml
 
+   raw_include_keywords:
+     - task-rest
    raw_exclude_keywords:
      - phantom
      - crosstalk
+
+For CTF raw folders, set ``file_suffix = ".ds"``. For BTI/4D folders whose
+primary data file is named ``c,rfDC``, set ``file_suffix = "c,rfDC"``.
 
 Report-Only Run
 ---------------

@@ -53,7 +53,31 @@ def _normalize_exclude_event_ids(exclude_event_id):
     """Convert exclude_event_id config to a set of ints, or empty set if unset."""
     if not exclude_event_id:
         return set()
-    return {int(eid) for eid in exclude_event_id}
+    if isinstance(exclude_event_id, (str, int, float)):
+        exclude_event_id = [exclude_event_id]
+    elif isinstance(exclude_event_id, dict):
+        exclude_event_id = exclude_event_id.values()
+    return {int(eid) for eid in exclude_event_id if eid is not None}
+
+
+def _get_epoch_kwargs(config):
+    """Return MNE Epochs kwargs and keep MEGPrep-only keys out of MNE."""
+    epoch_kwargs = dict(config.get('epochs') or {})
+    epoch_kwargs.pop('exclude_event_id', None)
+    return epoch_kwargs
+
+
+def _get_exclude_event_id(config):
+    exclude_event_id = config.get('exclude_event_id', None)
+    if exclude_event_id is None:
+        exclude_event_id = (config.get('epochs') or {}).get('exclude_event_id', None)
+    return exclude_event_id
+
+
+def _validate_epoch_events(events, context):
+    if events is None or len(events) == 0:
+        raise ValueError(f"No events remain for epoching after applying event filters ({context}).")
+    return events
 
 
 def filter_events_by_exclude(events, exclude_event_id):
@@ -115,6 +139,7 @@ def read_bids_events(events_file,sfreq,event_types=None,exclude_event_id=None):
         except ValueError as e:
             value_idx = None
 
+        event_types = event_types or {'trial_type': None}
         type_key = list(event_types.keys())[0]
         type_idx = header.index(type_key)
 
@@ -169,19 +194,21 @@ def epochs(subj_data_file,output_epoch_file, output_dir, events_file, config):
     subj_tag = os.path.basename(subj_data_file)
 
     event_source = config.get('event_source', 'find_events')
-    exclude_event_id = config.get('exclude_event_id', None)
+    exclude_event_id = _get_exclude_event_id(config)
+    epoch_kwargs = _get_epoch_kwargs(config)
 
 
     if task_type == 'resting':
         fixed_length_duration = config.get('resting', {}).get('fixed_length_duration', 2.0)
         print("Resting Epochs, fixed length duration: {}".format(fixed_length_duration))
         events = mne.make_fixed_length_events(raw, id=1, duration=fixed_length_duration)
-        epochs_data = mne.Epochs(raw=raw, events=events, **config.get('epochs'))
+        epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
     elif task_type == 'task':
         if event_source == 'find_events':
             events = mne.find_events(raw, **config.get('find_events', {}))
             events = filter_events_by_exclude(events, exclude_event_id)
-            epochs_data = mne.Epochs(raw=raw, events=events, **config.get('epochs'))
+            events = _validate_epoch_events(events, "find_events")
+            epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
         else:
             # According to the event file to generate epochs (in BIDS format)
             # events = mne.read_events(events_file)
@@ -189,10 +216,11 @@ def epochs(subj_data_file,output_epoch_file, output_dir, events_file, config):
             events = read_bids_events(
                 events_file, raw.info['sfreq'], config.get('event_file'), exclude_event_id
             )
+            events = _validate_epoch_events(events, "event_file")
             # add first sample
             events[:, 0] = events[:, 0] + raw.first_samp
             print("bids events:\n", events)
-            epochs_data = mne.Epochs(raw=raw, events=events, **config.get('epochs'))
+            epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
     else:
         raise ValueError("Unknown task_type specified in the config. Use 'resting' or 'task'.")
 

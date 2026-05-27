@@ -79,7 +79,9 @@ and task-based recordings.
 
 1. ``import_MEG_dataset`` discovers input recordings.
    BIDS input is filtered by ``meg_import_config`` entities. Raw input is
-   selected by ``file_suffix`` and optional ``raw_exclude_keywords``.
+   selected by ``file_suffix`` and optional ``raw_include_keywords`` /
+   ``raw_exclude_keywords``. Raw discovery matches both files and directories,
+   so CTF ``.ds`` folders are supported.
 
 2. ``meg_preproc_osl`` calls ``meg_preproc_osl.py``, which passes
    ``preproc_config`` to OSL-Ephys ``run_proc_batch``. The listed preprocessing
@@ -102,6 +104,22 @@ and task-based recordings.
 6. ``apply_ICA`` loads the marked components, applies the ICA solution, and
    saves ``*_clean_raw.fif``. The cleaned continuous file keeps the bad-channel
    and bad-segment metadata.
+
+Interactive Edits and Resume
+----------------------------
+
+Some sidecar files can be edited after a Nextflow run through the interactive
+reports. MEGPrep includes content hashes of those files in the relevant
+Nextflow task inputs so ``-resume`` can invalidate only the affected downstream
+tasks:
+
+* Editing ``artifact_report/*/*_bad_channels.txt`` or
+  ``artifact_report/*/*_bad_segments.txt`` invalidates ICA fitting and later
+  steps for that recording.
+* Editing ``ica_report/*/marked_components.txt`` invalidates ICA application
+  and later steps for that recording.
+* Editing ``trans/*/coreg-trans.fif`` invalidates forward modelling and source
+  reconstruction for that recording.
 
 Bad Segments: Marking vs Exclusion
 ----------------------------------
@@ -130,6 +148,9 @@ selects how epochs are built:
 * ``task_type: task`` with ``event_source: event_file`` reads BIDS
   ``*_events.tsv`` files and applies the ``event_file`` filters or label-to-id
   mappings.
+* ``exclude_event_id`` can be set to one id or a list of ids to remove those
+  events before epoching. With ``epochs.event_id: null``, MEGPrep keeps all
+  remaining event ids.
 
 The resulting epoch FIF file and rejection log are written under
 ``preprocessed/epochs/<recording>/``.

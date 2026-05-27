@@ -12,7 +12,7 @@ from tqdm.std import tqdm
 from typing import Literal, Optional, List, Union
 from mne_bids import BIDSPath, read_raw_bids, print_dir_tree, make_report, get_entity_vals
 
-def _normalize_exclude_keywords(value) -> Optional[List[str]]:
+def _normalize_keywords(value) -> Optional[List[str]]:
     """Turn YAML config value into a list of non-empty strings, or None if unset."""
     if value is None:
         return None
@@ -22,6 +22,22 @@ def _normalize_exclude_keywords(value) -> Optional[List[str]]:
         out = [str(x).strip() for x in value if x is not None and str(x).strip()]
         return out or None
     return None
+
+
+def _matches_suffix(path: Path, file_suffix: str) -> bool:
+    """Return True when a raw file/directory name matches the configured suffix."""
+    suffix = str(file_suffix or '').strip()
+    if not suffix:
+        return False
+    return path.name.lower().endswith(suffix.lower())
+
+
+def _matches_keywords(path: Path, keywords: Optional[List[str]]) -> bool:
+    """Match include/exclude keywords against the raw candidate basename."""
+    if not keywords:
+        return False
+    name_lower = path.name.lower()
+    return any(keyword.lower() in name_lower for keyword in keywords)
 
 
 def _resolve_existing_or_parent(path_value) -> Optional[Path]:
@@ -61,6 +77,7 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
                       runs: Optional[List[str]] = None, print_dir: bool = False,
                       bids_report: bool = False,
                       raw_exclude_keywords: Optional[List[str]] = None,
+                      raw_include_keywords: Optional[List[str]] = None,
                       raw_exclude_dirs: Optional[List[Union[str, Path]]] = None) -> List:
     """
     General function to read MEG datasets, supporting both BIDS and raw formats.
@@ -75,6 +92,9 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
         For ``dataset_format='raw'`` only: basenames containing any of these
         substrings (case-insensitive) are skipped. Use to drop non-MEG ``.fif``
         files (for example ``phantom``, ``crosstalk``) that share the same suffix.
+    raw_include_keywords : list of str, optional
+        For ``dataset_format='raw'`` only: when set, only basenames containing
+        at least one of these substrings (case-insensitive) are kept.
     raw_exclude_dirs : list of str or Path, optional
         For ``dataset_format='raw'`` only: candidate files inside these
         directories are skipped. This is used to keep MEGPrep output/preprocessed
@@ -188,9 +208,8 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
     # Handle raw dataset
     elif dataset_format == 'raw':
         raw_list = []
-        exclude_lower = None
-        if raw_exclude_keywords:
-            exclude_lower = [k.lower() for k in raw_exclude_keywords]
+        include_keywords = raw_include_keywords or None
+        exclude_keywords = raw_exclude_keywords or None
         exclude_dirs = []
         if raw_exclude_dirs:
             exclude_dirs = [
@@ -202,6 +221,20 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
                 f"Warning: a raw exclusion directory is the same as dataset_dir ({dataset_dir}); "
                 "raw input discovery may exclude all files."
             )
+
+        def keep_candidate(candidate_path: Path) -> bool:
+            candidate_resolved = candidate_path.resolve()
+            if exclude_dirs and any(_is_relative_to(candidate_resolved, exclude_dir) for exclude_dir in exclude_dirs):
+                print(f"raw_exclude_dirs excluded: {candidate_path}")
+                return False
+            if include_keywords and not _matches_keywords(candidate_path, include_keywords):
+                print(f"raw_include_keywords skipped: {candidate_path}")
+                return False
+            if exclude_keywords and _matches_keywords(candidate_path, exclude_keywords):
+                print(f"raw_exclude_keywords excluded: {candidate_path}")
+                return False
+            return True
+
         for root, dirs, files in os.walk(dataset_dir):
             root_path = Path(root).resolve()
             if exclude_dirs and any(_is_relative_to(root_path, exclude_dir) for exclude_dir in exclude_dirs):
@@ -212,24 +245,29 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
                     dirname for dirname in dirs
                     if not any(_is_relative_to((root_path / dirname).resolve(), exclude_dir) for exclude_dir in exclude_dirs)
                 ]
+
+            matched_dirs = []
+            for dirname in list(dirs):
+                candidate_path = Path(root) / dirname
+                if not _matches_suffix(candidate_path, file_suffix):
+                    continue
+                matched_dirs.append(dirname)
+                if keep_candidate(candidate_path):
+                    raw_list.append(str(candidate_path))
+
+            if matched_dirs:
+                dirs[:] = [dirname for dirname in dirs if dirname not in matched_dirs]
+
             for file in files:
-                if not file.endswith(file_suffix):
-                    continue
                 candidate_path = Path(root) / file
-                candidate_resolved = candidate_path.resolve()
-                if exclude_dirs and any(_is_relative_to(candidate_resolved, exclude_dir) for exclude_dir in exclude_dirs):
-                    print(f"raw_exclude_dirs excluded: {candidate_path}")
+                if not _matches_suffix(candidate_path, file_suffix):
                     continue
-                if exclude_lower:
-                    file_lower = file.lower()
-                    if any(k in file_lower for k in exclude_lower):
-                        print(f"raw_exclude_keywords excluded: {candidate_path}")
-                        continue
-                raw_list.append(str(candidate_path))
+                if keep_candidate(candidate_path):
+                    raw_list.append(str(candidate_path))
         if not raw_list:
             raise ValueError(f"No raw data files found in {dataset_dir}.")
 
-        return raw_list
+        return sorted(raw_list)
 
     else:
         raise ValueError(f"Unsupported dataset format: {dataset_format}. Supported formats: 'bids', 'raw'.")
@@ -299,7 +337,8 @@ if __name__ == "__main__":
         sessions=config.get('session_id'),
         tasks=config.get('task'),
         runs=config.get('run_id'),
-        raw_exclude_keywords=_normalize_exclude_keywords(config.get('raw_exclude_keywords')),
+        raw_exclude_keywords=_normalize_keywords(config.get('raw_exclude_keywords')),
+        raw_include_keywords=_normalize_keywords(config.get('raw_include_keywords')),
         raw_exclude_dirs=[args.exclude_output_dir, args.exclude_preproc_dir],
     )
 

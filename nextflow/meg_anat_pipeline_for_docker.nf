@@ -5,6 +5,7 @@ nextflow.enable.dsl=2
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import java.security.MessageDigest
 // include { deepprep } from '/opt/DeepPrep/deepprep/nextflow/deepprep.nf'
 
 log.info "MEGPrep Anatomy and MEG Preprocessing Pipeline"
@@ -17,6 +18,29 @@ workflow.onComplete {
     log.info "Pipeline completed at: $workflow.complete"
     log.info "Execution status: ${ workflow.success ? 'OK' : 'failed' }"
     log.info "Execution duration: $workflow.duration"
+}
+
+String fileSha256(def pathValue) {
+    def target = new File(pathValue.toString())
+    if (!target.exists()) {
+        return "missing:${target.absolutePath}"
+    }
+    if (target.isDirectory()) {
+        return "dir:${target.absolutePath}:${target.lastModified()}"
+    }
+    def digest = MessageDigest.getInstance("SHA-256")
+    target.withInputStream { stream ->
+        byte[] buffer = new byte[8192]
+        int read
+        while ((read = stream.read(buffer)) > 0) {
+            digest.update(buffer, 0, read)
+        }
+    }
+    return digest.digest().collect { String.format("%02x", it & 0xff) }.join()
+}
+
+String filesSha256(List paths) {
+    return paths.collect { pathValue -> "${pathValue}:${fileSha256(pathValue)}" }.join("|")
 }
 
 process generate_cohort_static_html_report {
@@ -227,7 +251,7 @@ process meg_preproc_osl {
     tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path)
 
     output:
-    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val("${preproc_dir}/${raw_subject_basename}/${raw_subject_basename}_preproc-raw${params.file_suffix}"), emit: preproc_subjects
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val("${preproc_dir}/${raw_subject_basename}/${raw_subject_basename}_preproc-raw.fif"), emit: preproc_subjects
 
     script:
     script_name = "${params.code_dir}/meg_preproc_osl.py"
@@ -268,10 +292,10 @@ process run_ICA {
     memory { 8.GB * task.attempt }
 
     input:
-    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments)
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash)
 
     output:
-    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val("${preproc_dir}/${params.ICA_output_dir}/${raw_subject_dir_basename}/ica_sources.fif"), val("${preproc_dir}/${params.ICA_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_ica.fif"), emit: ica_subjects
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash), val("${preproc_dir}/${params.ICA_output_dir}/${raw_subject_dir_basename}/ica_sources.fif"), val("${preproc_dir}/${params.ICA_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_ica.fif"), emit: ica_subjects
 
     script:
     script_name = "${params.code_dir}/run_ica.py"
@@ -294,10 +318,10 @@ process run_IC_label {
     tag "${dataset_name}:${raw_subject_basename}"
 
     input:
-    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(ica_source), val(ica_file_path)
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash), val(ica_source), val(ica_file_path)
 
     output:
-    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val("${preproc_dir}/${params.ICA_output_dir}/${raw_subject_dir_basename}/marked_components.txt"), emit: labelled_subjects
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash), val("${preproc_dir}/${params.ICA_output_dir}/${raw_subject_dir_basename}/marked_components.txt"), emit: labelled_subjects
 
     script:
     script_name = "${params.code_dir}/run_ica_label.py"
@@ -316,10 +340,10 @@ process apply_ICA {
     tag "${dataset_name}:${raw_subject_basename}"
 
     input:
-    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(marked_components)
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash), val(marked_components), val(marked_hash)
 
     output:
-    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val("${preproc_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_clean_raw.fif"), val("${target_mri_subject_id}"), emit: clean_subjects
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val("${preproc_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_clean_raw.fif"), val("${target_mri_subject_id}"), val("${artifact_hash}|${marked_hash}"), emit: clean_subjects
 
     script:
     script_name = "${params.code_dir}/apply_ica.py"
@@ -342,10 +366,10 @@ process epochs {
     tag "${subject_key[0]}:${subject_key[1]}"
 
     input:
-    tuple val(subject_key), val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(analysis_raw_path), val(target_mri_subject_id)
+    tuple val(subject_key), val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), val(analysis_raw_path), val(target_mri_subject_id), val(clean_hash)
 
     output:
-    tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val("${preproc_dir}/${params.epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif"), val(analysis_raw_path), emit: epoch_subjects
+    tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val("${preproc_dir}/${params.epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif"), val(analysis_raw_path), val(clean_hash), emit: epoch_subjects
 
     script:
     script_name = "${params.code_dir}/epochs.py"
@@ -368,10 +392,10 @@ process compute_covariance {
     tag "${subject_key[0]}:${subject_key[1]}"
 
     input:
-    tuple val(subject_key), val(dataset_name), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(raw_subject_path), val(raw_data_file)
+    tuple val(subject_key), val(dataset_name), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(raw_subject_path), val(raw_data_file), val(clean_hash)
 
     output:
-    tuple val(subject_key), val(output_dir), val(preproc_dir), val("${preproc_dir}/${params.covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"), emit: cov_subjects
+    tuple val(subject_key), val(output_dir), val(preproc_dir), val("${preproc_dir}/${params.covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"), val(clean_hash), emit: cov_subjects
 
     script:
     script_name = "${params.code_dir}/compute_covariance.py"
@@ -391,10 +415,10 @@ process coregistration {
     time '1h'
 
     input:
-    tuple val(subject_key), val(dataset_name), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(target_mri_subject_id), val(clean_raw_path)
+    tuple val(subject_key), val(dataset_name), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(target_mri_subject_id), val(clean_raw_path), val(clean_hash)
 
     output:
-    tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val("${preproc_dir}/${params.trans_output_dir}/${raw_subject_dir_basename}/coreg-trans.fif"), emit: trans_subjects
+    tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val("${preproc_dir}/${params.trans_output_dir}/${raw_subject_dir_basename}/coreg-trans.fif"), val(clean_hash), emit: trans_subjects
 
     script:
     script_name = "${params.code_dir}/coregistration.py"
@@ -415,10 +439,10 @@ process forward_solution {
     tag "${key[0]}:${key[1]}"
 
     input:
-    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(trans_path), val(epoch_output_dir), val(epoch_preproc_dir), val(epoch_fs_subjects_dir), val(epoch_path), val(clean_raw_path)
+    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(trans_path), val(coreg_clean_hash), val(trans_hash), val(epoch_output_dir), val(epoch_preproc_dir), val(epoch_fs_subjects_dir), val(epoch_path), val(clean_raw_path), val(epoch_clean_hash)
 
     output:
-    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val("${preproc_dir}/${params.fwd_output_dir}/${raw_subject_dir_basename}/${raw_subject_dir_basename}-fwd.fif"), val(epoch_path), val(clean_raw_path), emit: fwd_subjects
+    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val("${preproc_dir}/${params.fwd_output_dir}/${raw_subject_dir_basename}/${raw_subject_dir_basename}-fwd.fif"), val(epoch_path), val(clean_raw_path), val(trans_hash), val(epoch_clean_hash), emit: fwd_subjects
 
     script:
     dataset_name = key[0]
@@ -442,7 +466,7 @@ process source_imaging {
     tag "${key[0]}:${key[1]}"
 
     input:
-    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(fwd_file), val(epoch_path), val(clean_raw_path), val(cov_output_dir), val(cov_preproc_dir), val(bl_cov_file)
+    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(fwd_file), val(epoch_path), val(clean_raw_path), val(trans_hash), val(epoch_clean_hash), val(cov_output_dir), val(cov_preproc_dir), val(bl_cov_file), val(cov_clean_hash)
 
     output:
     tuple val(key), val(output_dir), val(preproc_dir), val("${preproc_dir}/${params.src_output_dir}/${raw_subject_dir_basename}"), emit: source_subjects
@@ -766,6 +790,11 @@ workflow {
 
                 native_preproc = meg_preproc_osl(native_raw_subject_ch)
                 native_artifacts = detect_Artifacts(native_preproc.preproc_subjects)
+                native_artifacts_with_hash = native_artifacts.artifacts
+                    .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments ->
+                        def artifactHash = filesSha256([bad_channels, bad_segments])
+                        tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifactHash)
+                    }
 
                 report_wait_token_ch = native_artifacts.artifacts.collect(flat: false).ifEmpty([]).map { true }
 
@@ -773,9 +802,14 @@ workflow {
                 def native_epoch_subject_ch = null
 
                 if (cfg.megStage >= 1 && !cfg.skipIca) {
-                    native_ica = run_ICA(native_artifacts.artifacts)
+                    native_ica = run_ICA(native_artifacts_with_hash)
                     native_labels = run_IC_label(native_ica.ica_subjects)
-                    native_clean = apply_ICA(native_labels.labelled_subjects)
+                    native_labelled_with_hash = native_labels.labelled_subjects
+                        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, marked_components ->
+                            def markedHash = fileSha256(marked_components)
+                            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, marked_components, markedHash)
+                        }
+                    native_clean = apply_ICA(native_labelled_with_hash)
                     native_clean_subject_ch = native_clean.clean_subjects
                     report_wait_token_ch = native_clean_subject_ch.collect(flat: false).ifEmpty([]).map { true }
                 }
@@ -786,13 +820,13 @@ workflow {
                         epoch_input_ch = native_preproc.preproc_subjects
                             .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path ->
                                 def subjectKey = [dataset_name, new File(preproc_raw_path.toString()).getParentFile().getName()]
-                                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, '')
+                                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, '', '')
                             }
                     } else {
                         epoch_input_ch = native_clean_subject_ch
-                            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id ->
+                            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                                 def subjectKey = [dataset_name, new File(clean_raw_path.toString()).getParentFile().getName()]
-                                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id)
+                                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
                             }
                     }
                     native_epochs = epochs(epoch_input_ch)
@@ -804,23 +838,23 @@ workflow {
                     def covariance_inputs_ch
                     if (params.covar_type == 'epochs') {
                         covariance_inputs_ch = native_clean_subject_ch
-                            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id ->
+                            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                                 def subjectKey = [dataset_name, new File(clean_raw_path.toString()).getParentFile().getName()]
-                                tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, clean_raw_path, clean_raw_path.toString())
+                                tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, clean_raw_path, clean_raw_path.toString(), clean_hash)
                             }
                     } else if (params.covar_type == 'raw') {
                         covariance_inputs_ch = native_clean_subject_ch
-                            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id ->
+                            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                                 def clean_path = clean_raw_path.toString()
                                 if (clean_path.contains("task-${params.raw_covariance_task_id}")) {
                                     return null
                                 }
                                 def raw_data_file = clean_path.replaceAll(/task-[^_]+/, "task-${params.raw_covariance_task_id}")
                                 def subjectKey = [dataset_name, new File(clean_path).getParentFile().getName()]
-                                tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, clean_raw_path, raw_data_file)
+                                tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, clean_raw_path, raw_data_file, clean_hash)
                             }
                             .filter { it != null }
-                            .filter { subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, clean_raw_path, raw_data_file ->
+                            .filter { subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, clean_raw_path, raw_data_file, clean_hash ->
                                 new File(raw_data_file.toString()).exists()
                             }
                     } else {
@@ -829,26 +863,31 @@ workflow {
 
                     native_cov = compute_covariance(covariance_inputs_ch)
                     if (cfg.runAnatomy) {
-                        native_coreg_subject_ch = native_clean_subject_ch.map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id ->
+                        native_coreg_subject_ch = native_clean_subject_ch.map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                             def subjectKey = [dataset_name, new File(clean_raw_path.toString()).getParentFile().getName()]
-                            tuple([dataset_name, target_mri_subject_id], subjectKey, dataset_name, output_dir, preproc_dir, target_mri_subject_id, clean_raw_path)
+                            tuple([dataset_name, target_mri_subject_id], subjectKey, dataset_name, output_dir, preproc_dir, target_mri_subject_id, clean_raw_path, clean_hash)
                         }
                         native_anatomy_by_subject_ch = native_anatomy_subject_ch.map { dataset_name, output_dir, preproc_dir, subject_name, fs_subjects_dir, subject_dir ->
                             tuple([dataset_name, subject_name], fs_subjects_dir)
                         }
                         native_coreg_inputs = native_coreg_subject_ch
                             .combine(native_anatomy_by_subject_ch, by: 0)
-                            .map { mri_key, subjectKey, dataset_name, output_dir, preproc_dir, target_mri_subject_id, clean_raw_path, fs_subjects_dir ->
-                                tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, target_mri_subject_id, clean_raw_path)
+                            .map { mri_key, subjectKey, dataset_name, output_dir, preproc_dir, target_mri_subject_id, clean_raw_path, clean_hash, fs_subjects_dir ->
+                                tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, target_mri_subject_id, clean_raw_path, clean_hash)
                             }
                     } else {
-                        native_coreg_inputs = native_clean_subject_ch.map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id ->
+                        native_coreg_inputs = native_clean_subject_ch.map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                             def subjectKey = [dataset_name, new File(clean_raw_path.toString()).getParentFile().getName()]
-                            tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, target_mri_subject_id, clean_raw_path)
+                            tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, target_mri_subject_id, clean_raw_path, clean_hash)
                         }
                     }
                     native_trans = coregistration(native_coreg_inputs)
-                    native_fwd_inputs = native_trans.trans_subjects.combine(native_epoch_subject_ch, by: 0)
+                    native_trans_with_hash = native_trans.trans_subjects
+                        .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, trans_path, clean_hash ->
+                            def transHash = fileSha256(trans_path)
+                            tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, trans_path, clean_hash, transHash)
+                        }
+                    native_fwd_inputs = native_trans_with_hash.combine(native_epoch_subject_ch, by: 0)
                     native_fwds = forward_solution(native_fwd_inputs)
                     native_source_inputs = native_fwds.fwd_subjects.combine(native_cov.cov_subjects, by: 0)
                     native_source = source_imaging(native_source_inputs)

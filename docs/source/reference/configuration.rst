@@ -202,8 +202,9 @@ walking the input directory and selecting files by suffix.
        BIDS; otherwise it uses raw-file discovery.
    * - ``file_suffix``
      - string
-     - Any file suffix, usually ``.fif``
-     - Used only for raw dataset discovery. Split FIF continuation files such
+     - Any basename ending, usually ``.fif``, ``.ds``, or ``c,rfDC``
+     - Used only for raw dataset discovery. Matches files and directories, so
+       CTF ``.ds`` folders can be imported. Split FIF continuation files such
        as ``-1.fif`` are excluded.
    * - ``meg_import_config.subject_id``
      - null, string, or list
@@ -224,8 +225,13 @@ walking the input directory and selecting files by suffix.
    * - ``meg_import_config.raw_exclude_keywords``
      - null, string, or list
      - Case-insensitive substrings
-     - Raw dataset only. Excludes files whose basename contains any listed
-       keyword, for example ``phantom`` or ``emptyroom``.
+     - Raw dataset only. Excludes files or directories whose basename contains
+       any listed keyword, for example ``phantom`` or ``emptyroom``.
+   * - ``meg_import_config.raw_include_keywords``
+     - null, string, or list
+     - Case-insensitive substrings
+     - Raw dataset only. When set, only files or directories whose basename
+       contains at least one listed keyword are imported.
 
 Anatomy Input and Reconstruction
 --------------------------------
@@ -463,6 +469,11 @@ preprocessing and ICA stages.
    * - ``event_file``
      - YAML mapping
      - Filters and optionally maps BIDS event labels to integer ids.
+   * - ``exclude_event_id``
+     - integer or list of integers
+     - Drops these event ids before epoching. Set ``epochs.event_id: null`` to
+       keep all other detected or BIDS events; if ``epochs.event_id`` is also
+       set, both the include filter and this exclude filter are applied.
    * - ``epochs``
      - MNE ``Epochs`` kwargs
      - Fields such as ``event_id``, ``tmin``, ``tmax``,
