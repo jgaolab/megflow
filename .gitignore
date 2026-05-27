@@ -28,6 +28,7 @@ megprep/temp/
 megprep/tools/DeepPrep
 megprep/tools/MEGNet
 megprep/reports/__pycache__/
+megprep/reports/reports/__pycache__/
 megprep/__pycache__
 run_*.sh
 start_vpn.sh
@@ -37,4 +38,5 @@ megprep/docs/build/
 generate_static_html.sh
 generate_static_html-smn4lang.sh
 IMPROVEMENT_ROADMAP.md
+.DS_Store
 trace-*.txt
