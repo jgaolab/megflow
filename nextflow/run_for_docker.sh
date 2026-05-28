@@ -27,8 +27,111 @@ STATIC_TASK_LOG_MODE=""
 STATIC_ARTIFACT_OVERVIEW_DURATION=""
 nextflow_args=()
 
+prepare_docker_user() {
+    if [ "$(id -u)" != "0" ] || [ "${MEGPREP_DOCKER_DROPPED:-}" = "1" ]; then
+        return
+    fi
+
+    local scan_input_dir=""
+    local scan_output_dir=""
+    local previous_arg=""
+    for arg in "$@"; do
+        case "$previous_arg" in
+            -i|--input)
+                scan_input_dir="$arg"
+                previous_arg=""
+                continue
+                ;;
+            -o|--output)
+                scan_output_dir="$arg"
+                previous_arg=""
+                continue
+                ;;
+        esac
+        case "$arg" in
+            -i|--input|-o|--output)
+                previous_arg="$arg"
+                ;;
+        esac
+    done
+
+    if [ -z "$scan_output_dir" ] && [ -e /output ]; then
+        scan_output_dir=/output
+    fi
+
+    local target_uid="${LOCAL_UID:-${HOST_UID:-}}"
+    local target_gid="${LOCAL_GID:-${HOST_GID:-}}"
+
+    if [ -z "$target_uid" ] && [ -n "$scan_input_dir" ] && [ -e "$scan_input_dir" ]; then
+        target_uid="$(stat -c '%u' "$scan_input_dir" 2>/dev/null || true)"
+        target_gid="$(stat -c '%g' "$scan_input_dir" 2>/dev/null || true)"
+    fi
+    if { [ -z "$target_uid" ] || [ "$target_uid" = "0" ]; } && [ -n "$scan_output_dir" ] && [ -e "$scan_output_dir" ]; then
+        local output_uid
+        local output_gid
+        output_uid="$(stat -c '%u' "$scan_output_dir" 2>/dev/null || true)"
+        output_gid="$(stat -c '%g' "$scan_output_dir" 2>/dev/null || true)"
+        if [ -n "$output_uid" ] && [ "$output_uid" != "0" ]; then
+            target_uid="$output_uid"
+            target_gid="$output_gid"
+        fi
+    fi
+
+    if [ -z "$target_uid" ] || [ "$target_uid" = "0" ]; then
+        target_uid=1000
+    fi
+    if [ -z "$target_gid" ]; then
+        target_gid="$target_uid"
+    fi
+
+    if ! getent group "$target_gid" >/dev/null 2>&1; then
+        groupadd -g "$target_gid" megprep_host_group 2>/dev/null || true
+    fi
+    if ! getent passwd "$target_uid" >/dev/null 2>&1; then
+        useradd -u "$target_uid" -g "$target_gid" -M -d /tmp/megprep_home -s /bin/bash megprep_host_user 2>/dev/null || true
+    fi
+
+    mkdir -p /tmp/megprep_home /tmp/megprep_cache /tmp/megprep_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR
+    chmod -R 777 /tmp/megprep_home /tmp/megprep_cache /tmp/megprep_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR
+
+    if [ -n "$scan_output_dir" ]; then
+        mkdir -p "$scan_output_dir"
+        if ! gosu "$target_uid:$target_gid" test -w "$scan_output_dir" 2>/dev/null; then
+            echo "Preparing output directory ownership for ${target_uid}:${target_gid}: $scan_output_dir"
+            chown -R "$target_uid:$target_gid" "$scan_output_dir"
+        fi
+        chmod ug+rwX "$scan_output_dir" 2>/dev/null || true
+    fi
+
+    export MEGPREP_DOCKER_DROPPED=1
+    export HOME=/tmp/megprep_home
+    export XDG_CACHE_HOME=/tmp/megprep_cache
+    export NXF_HOME=/tmp/megprep_nextflow
+    export NXF_TEMP=/tmp
+    export TMPDIR=/tmp
+    export NUMBA_CACHE_DIR=/tmp/NUMBA_CACHE_DIR
+    export MPLCONFIGDIR=/tmp/MPLCONFIGDIR
+    exec gosu "$target_uid:$target_gid" "$0" "$@"
+}
+
+prepare_docker_user "$@"
+
 echo "Executor:"
-whoami
+executor_name="$(id -un 2>/dev/null || true)"
+if [ -n "$executor_name" ]; then
+    echo "$executor_name"
+else
+    id -u
+fi
+
+export HOME="${HOME:-/tmp/megprep_home}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/megprep_cache}"
+export NXF_HOME="${NXF_HOME:-/tmp/megprep_nextflow}"
+export NXF_TEMP="${NXF_TEMP:-/tmp}"
+export TMPDIR="${TMPDIR:-/tmp}"
+export NUMBA_CACHE_DIR="${NUMBA_CACHE_DIR:-/tmp/NUMBA_CACHE_DIR}"
+export MPLCONFIGDIR="${MPLCONFIGDIR:-/tmp/MPLCONFIGDIR}"
+mkdir -p "$HOME" "$XDG_CACHE_HOME" "$NXF_HOME" "$NXF_TEMP" "$TMPDIR" "$NUMBA_CACHE_DIR" "$MPLCONFIGDIR"
 
 # Process input arguments
 while [[ "$#" -gt 0 ]]; do
@@ -115,6 +218,14 @@ if [ -z "$OUTPUT_DIR" ]; then
     echo "Output directory must be specified."
     exit 1
 fi
+
+if ! mkdir -p "$OUTPUT_DIR" 2>/dev/null || ! touch "$OUTPUT_DIR/.megprep_write_test" 2>/dev/null; then
+    echo "Error: output directory is not writable by the container user: $OUTPUT_DIR"
+    echo "If you run Docker with a custom --user, remove it or make the mounted output directory writable by that user."
+    echo "You can also pass LOCAL_UID/LOCAL_GID when automatic ownership inference from /input is not suitable."
+    exit 1
+fi
+rm -f "$OUTPUT_DIR/.megprep_write_test"
 
 # Check if the config file exists
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -253,19 +364,6 @@ run_nextflow_pipeline() {
     cp "$run_config_file" "${run_output_dir}/nextflow.config"
 }
 
-regenerate_static_report() {
-    local run_output_dir="$1"
-    if [ -d "${run_output_dir}/preprocessed" ]; then
-        python /program/megprep/reports/static_html_report.py \
-            --report_root "$run_output_dir" \
-            --output_dir "${run_output_dir}/static_html_report" \
-            --artifact_overview_duration "$STATIC_ARTIFACT_OVERVIEW_DURATION" \
-            --task_log_mode "$STATIC_TASK_LOG_MODE"
-    else
-        echo "Skipping static report regeneration; no preprocessed directory found at ${run_output_dir}/preprocessed"
-    fi
-}
-
 # activate Anaconda virtualenv and virtual display
 #/usr/bin/supervisord  -c /etc/supervisor/conf.d/supervisord.conf
 #Xvfb :99 -screen 0 1920x1080x24 &
@@ -312,11 +410,10 @@ if [ "$COHORT_MODE" = true ]; then
         -with-trace "${OUTPUT_DIR}/cohort_trace.txt" \
         "${nextflow_args[@]}"
 
-    chmod -R 777 "$OUTPUT_DIR"
+    chmod -R ug+rwX "$OUTPUT_DIR" 2>/dev/null || true
     exit 0
 fi
 
 write_run_config "$INPUT_DIR" "$OUTPUT_DIR" "$RUN_CONFIG_FILE"
 run_nextflow_pipeline "$RUN_CONFIG_FILE" "$OUTPUT_DIR" ""
-regenerate_static_report "$OUTPUT_DIR"
-chmod -R 777 /output
+chmod -R ug+rwX "$OUTPUT_DIR" 2>/dev/null || true

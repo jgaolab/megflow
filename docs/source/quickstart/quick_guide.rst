@@ -48,7 +48,7 @@ cleaning, which avoids dataset-specific event and source-model assumptions:
 
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
      cmrlab/megprep:0.0.3 \
@@ -146,13 +146,20 @@ Then run the first QC pass with:
 
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /path/to/bids:/input \
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
      cmrlab/megprep:0.0.3 \
      -i /input -o /output --fs_subjects_dir /smri --steps meg_ica --resume
+
+The Docker entrypoint automatically prepares the mounted output directory and
+runs the pipeline as the host UID/GID inferred from ``/input``. The output
+directory does not need to exist before the command is launched. Report-only
+runs that only mount ``/output`` infer ownership from ``/output``. If neither
+mount is owned by the desired output user, add
+``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"`` before the volume mounts.
 
 Next Steps
 ----------

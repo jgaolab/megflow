@@ -3,8 +3,14 @@ $ streamlit run reports.py
 $ nextflow run meg_pipeline.nf -preview -with-dag workflow.png
 $ nextflow run meg_pipeline.nf -preview -with-dag workflow.svg
 
-Docker run 
-$ docker run -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output -v /data/liaopan/datasets/SMN4Lang/smri:/smri megprep:0.0.3 -r
+Docker run
+$ docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output -v /data/liaopan/datasets/SMN4Lang/smri:/smri megprep:0.0.3 -r
+
+Docker output ownership is handled by the entrypoint: it prepares mounted
+output permissions as root, then drops to the host UID/GID inferred from
+`/input` when available. Report-only runs that only mount `/output` infer
+ownership from `/output`. Use `-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"`
+when the owner should be specified explicitly.
 
 https://www.nextflow.io/docs/latest/reports.html#workflow-diagram
 sudo apt install graphviz

@@ -97,7 +97,6 @@ Markdown==3.7
 markdown-it-py==3.0.0
 MarkupSafe==3.0.2
 matplotlib==3.10.0
-mayavi
 mdit-py-plugins==0.4.2
 mdurl==0.1.2
 mistune==3.1.2
@@ -252,6 +251,7 @@ sleepecg==0.5.5
 autoreject==0.4.3
 redis==5.2.1
 #vtk-osmesa==9.0.1
+# mayavi
 streamlit==1.51.0 #1.45.0
 streamlit_shortcuts==1.2.1
 plotly==6.5.0

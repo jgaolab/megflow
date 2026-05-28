@@ -27,15 +27,13 @@ enhanced_style = """
 
         /* Main header styling */
         .main-header {
-            # background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-            color: white;
-            padding: 20px;
-            border-radius: 15px;
+            color: #2c3e50;
+            padding: 0 0 10px;
+            border-radius: 0;
             text-align: center;
             font-weight: 700;
-            # box-shadow: 0 8px 16px rgba(102, 126, 234, 0.3);
-            margin-bottom: 30px;
-            # animation: fadeInDown 0.6s ease-out;
+            box-shadow: none;
+            margin-bottom: 18px;
         }
 
         /* Subheader styling */
@@ -71,6 +69,21 @@ enhanced_style = """
             box-shadow: 0 6px 12px rgba(102, 126, 234, 0.4);
         }
 
+        .stButton > button[kind="primary"] {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+            color: white !important;
+            box-shadow: 0 4px 8px rgba(5, 150, 105, 0.22);
+        }
+
+        .stButton > button[kind="primary"] *,
+        .stButton > button[kind="primary"]:hover * {
+            color: white !important;
+        }
+
+        .stButton > button[kind="primary"]:hover {
+            box-shadow: 0 6px 12px rgba(5, 150, 105, 0.34);
+        }
+
         .stButton > button:active {
             transform: translateY(0);
         }
@@ -83,7 +96,7 @@ enhanced_style = """
         /* Image container styling */
         .stImage {
             border-radius: 15px;
-            overflow: hidden;
+            overflow: visible;
             box-shadow: 0 8px 16px rgba(0, 0, 0, 0.1);
             transition: transform 0.3s ease;
         }
@@ -145,6 +158,41 @@ enhanced_style = """
             box-shadow: 0 2px 4px rgba(79, 172, 254, 0.3);
         }
 
+        .ica-score-row {
+            min-height: 34px;
+            margin-bottom: 8px;
+            display: flex;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .control-section-label {
+            color: #475569;
+            font-size: 13px;
+            font-weight: 700;
+            letter-spacing: 0;
+            margin: 4px 0 8px;
+        }
+
+        .control-section-gap {
+            height: 18px;
+        }
+
+        .element-container:has(.portrait-source-controls),
+        .element-container:has(.portrait-topography-nav-controls),
+        .element-container:has(.portrait-topography-mark-controls) {
+            display: none;
+        }
+
+        .element-container:has(.portrait-source-controls) + div[data-testid="stHorizontalBlock"],
+        .element-container:has(.portrait-topography-nav-controls) + div[data-testid="stHorizontalBlock"],
+        .element-container:has(.portrait-topography-mark-controls) + div[data-testid="stHorizontalBlock"],
+        .element-container:has(.portrait-source-controls) + div[data-testid="stLayoutWrapper"],
+        .element-container:has(.portrait-topography-nav-controls) + div[data-testid="stLayoutWrapper"],
+        .element-container:has(.portrait-topography-mark-controls) + div[data-testid="stLayoutWrapper"] {
+            display: none;
+        }
+
         /* Success message styling */
         .success-msg {
             background: linear-gradient(135deg, #d4edda 0%, #c3e6cb 100%);
@@ -202,15 +250,8 @@ enhanced_style = """
             padding: 2rem 3rem;
         }
 
-        /* Save button special styling */
-        div[data-testid="column"]:has(button:contains("Save")) button {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%) !important;
-            font-size: 16px !important;
-            height: 56px !important;
-        }
-
-        div[data-testid="column"]:has(button:contains("Save")) button:hover {
-            box-shadow: 0 8px 16px rgba(17, 153, 142, 0.4);
+        header[data-testid="stHeader"] {
+            background: transparent;
         }
 
         /* Marked component button styling */
@@ -218,9 +259,183 @@ enhanced_style = """
             height: 44px !important;
             font-size: 13px !important;
         }
+
+        @media (orientation: landscape) and (min-width: 900px) {
+            .block-container {
+                padding-top: 1.6rem;
+                padding-left: 1.5rem;
+                padding-right: 1.5rem;
+                padding-bottom: 0.8rem;
+            }
+
+            .main-header {
+                padding: 0 0 8px;
+                margin-bottom: 10px;
+                font-size: 1.45rem;
+                line-height: 1.2;
+            }
+
+            div[data-testid="stImage"],
+            .stImage {
+                display: flex;
+                justify-content: center;
+                align-items: flex-end;
+                background: white;
+                height: auto;
+                max-height: none;
+                overflow: visible;
+            }
+
+            div[data-testid="stImage"] img,
+            .stImage img {
+                display: block;
+                max-height: min(42vh, 360px) !important;
+                height: auto !important;
+                width: 100% !important;
+                max-width: 100% !important;
+                object-fit: contain;
+                margin: 0 auto;
+            }
+
+            .ica-score-row {
+                min-height: 28px;
+                margin-bottom: 4px;
+            }
+
+            .stMarkdown h3 {
+                font-size: 1rem;
+                line-height: 1.2;
+                margin: 0.25rem 0 0.45rem;
+            }
+
+            .stButton > button {
+                height: 38px !important;
+                padding: 8px 12px !important;
+                border-radius: 8px;
+                font-size: 12px !important;
+            }
+
+            button[key^="view_"], button[key^="delete_"] {
+                height: 34px !important;
+                padding: 6px 8px !important;
+                font-size: 12px !important;
+            }
+
+            .component-badge {
+                margin: 2px 0 6px;
+                padding: 5px 12px;
+                font-size: 13px;
+            }
+
+            .score-badge {
+                margin: 2px 4px;
+                padding: 3px 9px;
+                font-size: 12px;
+            }
+
+            .control-section-label {
+                font-size: 12px;
+                margin: 2px 0 6px;
+            }
+
+            .control-section-gap {
+                height: 14px;
+            }
+
+        }
+
+        @media (orientation: portrait) {
+            div[data-testid="stHorizontalBlock"]:has(.ica-source-panel):has(.ica-topography-panel):has(.ica-control-panel) {
+                flex-direction: column !important;
+            }
+
+            div[data-testid="stHorizontalBlock"]:has(.ica-source-panel):has(.ica-topography-panel):has(.ica-control-panel) > div[data-testid="stColumn"] {
+                width: 100% !important;
+                min-width: 100% !important;
+                flex: 1 1 100% !important;
+            }
+
+            div[data-testid="stColumn"]:has(.ica-control-panel) {
+                display: none !important;
+            }
+
+            .element-container:has(.portrait-source-controls) + div[data-testid="stHorizontalBlock"],
+            .element-container:has(.portrait-topography-nav-controls) + div[data-testid="stHorizontalBlock"],
+            .element-container:has(.portrait-topography-mark-controls) + div[data-testid="stHorizontalBlock"],
+            .element-container:has(.portrait-source-controls) + div[data-testid="stLayoutWrapper"],
+            .element-container:has(.portrait-topography-nav-controls) + div[data-testid="stLayoutWrapper"],
+            .element-container:has(.portrait-topography-mark-controls) + div[data-testid="stLayoutWrapper"] {
+                display: flex !important;
+            }
+        }
+
+        @media (orientation: landscape) and (min-width: 1200px) {
+            div[data-testid="stImage"] img,
+            .stImage img {
+                max-height: min(42vh, 420px) !important;
+            }
+        }
+
+        div[data-testid="stDialog"] .stImage,
+        div[data-testid="stDialog"] div[data-testid="stImage"],
+        div[role="dialog"] .stImage,
+        div[role="dialog"] div[data-testid="stImage"] {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            transform: none !important;
+            box-shadow: none !important;
+        }
+
+        div[data-testid="stDialog"] .stImage img,
+        div[data-testid="stDialog"] div[data-testid="stImage"] img,
+        div[role="dialog"] .stImage img,
+        div[role="dialog"] div[data-testid="stImage"] img,
+        div[role="dialog"] img {
+            width: auto !important;
+            height: min(88vh, 900px) !important;
+            max-width: calc(100vw - 80px) !important;
+            max-height: calc(100vh - 72px) !important;
+            object-fit: contain !important;
+            margin: auto !important;
+        }
+
+        div[data-testid="stFullScreenFrame"]:has(button[aria-label="Close fullscreen"]) {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: visible !important;
+            padding: 24px !important;
+        }
+
+        div[data-testid="stFullScreenFrame"]:has(button[aria-label="Close fullscreen"]) .stImage,
+        div[data-testid="stFullScreenFrame"]:has(button[aria-label="Close fullscreen"]) div[data-testid="stImage"] {
+            display: flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            overflow: visible !important;
+            height: auto !important;
+            max-height: none !important;
+            box-shadow: none !important;
+            transform: none !important;
+        }
+
+        div[data-testid="stFullScreenFrame"]:has(button[aria-label="Close fullscreen"]) .stImage img,
+        div[data-testid="stFullScreenFrame"]:has(button[aria-label="Close fullscreen"]) div[data-testid="stImage"] img {
+            width: auto !important;
+            height: auto !important;
+            max-width: calc(100vw - 96px) !important;
+            max-height: calc(100vh - 96px) !important;
+            object-fit: contain !important;
+            margin: auto !important;
+        }
     </style>
 """
 st.markdown(enhanced_style, unsafe_allow_html=True)
+
 
 # Sidebar styling
 st.sidebar.markdown("""
@@ -264,6 +479,8 @@ image_dir = os.path.join(ica_report_dir, selected_dir, 'ica_results')
 MARKED_FILE = os.path.join(ica_report_dir, selected_dir, "marked_components.txt")
 print("MARKED_FILE:", MARKED_FILE)
 ecg_eog_score_file = os.path.join(ica_report_dir, selected_dir, "ecg_eog_scores.json")
+st.sidebar.caption("Marked components file:")
+st.sidebar.code(MARKED_FILE)
 
 # Streamlit title
 st.markdown('<h2 class="main-header">🧠 Interactive ICA Component Viewer/Marker</h2>', unsafe_allow_html=True)
@@ -380,29 +597,91 @@ else:
             current_source_filename = current_source["filename"]
             current_source_start = current_source["start"]
             current_source_end = current_source["end"]
+            total_components = len(topo_files)
 
-            col1, col2 = st.columns([1, 1], gap="large")
+            def save_marked_components():
+                with open(MARKED_FILE, "w") as f:
+                    f.write("\n".join(map(str, sorted(st.session_state["marked_components"]))))
 
-            with col1:
-                st.markdown(f"### 📈 Source Components: {current_source_start}-{current_source_end}")
-                st.image(
-                    os.path.join(image_dir, current_source_filename),
-                    caption=f"Source Components {current_source_start}-{current_source_end}",
-                    width='stretch',
-                )
+                with open(ecg_eog_score_file, "w") as json_file:
+                    json.dump(st.session_state['ecg_eog_scores'], json_file, indent=4)
 
-                left_col1, left_col2 = st.columns(2, gap="medium")
-                with left_col1:
-                    if st.button("Previous Sources", width='stretch'):
+                st.toast(f"Saved {len(st.session_state['marked_components'])} components to marked_components.txt.")
+
+            def mark_current_component(mark_type):
+                component = current_topo["component"]
+                if component in st.session_state["marked_components"]:
+                    return
+
+                st.session_state["marked_components"].append(component)
+                st.session_state["marked_types"].append(mark_type)
+
+                if mark_type == "ecg" and component not in st.session_state['ecg_eog_scores']['ecg_indices']:
+                    st.session_state['ecg_eog_scores']['ecg_indices'].append(component)
+                    st.session_state['ecg_eog_scores']['ecg'].append(1.0)
+                elif mark_type == "eog" and component not in st.session_state['ecg_eog_scores']['eog_indices']:
+                    st.session_state['ecg_eog_scores']['eog_indices'].append(component)
+                    st.session_state['ecg_eog_scores']['eog'].append(1.0)
+
+                label = "artifact" if mark_type == "outlier" else mark_type.upper()
+                st.toast(f"✅ Component {component} marked as {label}.")
+
+            def render_source_controls(key_suffix, portrait=False):
+                if portrait:
+                    st.markdown('<div class="portrait-source-controls"></div>', unsafe_allow_html=True)
+                source_nav_cols = st.columns(2, gap="small")
+                with source_nav_cols[0]:
+                    if st.button("Previous Sources", key=f"previous_sources_{key_suffix}", width='stretch'):
                         st.session_state["source_group"] = max(0, source_group_idx - 1)
                         st.rerun()
-                with left_col2:
-                    if st.button("Next Sources", width='stretch'):
+                with source_nav_cols[1]:
+                    if st.button("Next Sources", key=f"next_sources_{key_suffix}", width='stretch'):
                         st.session_state["source_group"] = min(len(source_files) - 1, source_group_idx + 1)
                         st.rerun()
 
-            total_components = len(topo_files)
+            def render_topography_controls(key_suffix, portrait=False):
+                if portrait:
+                    st.markdown('<div class="portrait-topography-nav-controls"></div>', unsafe_allow_html=True)
+                nav_cols = st.columns(3, gap="small")
+                with nav_cols[0]:
+                    if st.button("Previous", key=f"previous_component_{key_suffix}", width='stretch'):
+                        st.session_state["ica_component"] = max(0, component_idx - 1)
+                        st.rerun()
+                with nav_cols[1]:
+                    if st.button("Next", key=f"next_component_{key_suffix}", width='stretch'):
+                        st.session_state["ica_component"] = min(len(topo_files) - 1, component_idx + 1)
+                        st.rerun()
+                with nav_cols[2]:
+                    if st.button("Save", key=f"save_components_{key_suffix}", width='stretch', type="primary"):
+                        save_marked_components()
+
+                if portrait:
+                    st.markdown('<div class="portrait-topography-mark-controls"></div>', unsafe_allow_html=True)
+                mark_cols = st.columns(3, gap="small")
+                with mark_cols[0]:
+                    if st.button("Mark", key=f"mark_component_{key_suffix}", width='stretch'):
+                        mark_current_component("outlier")
+                with mark_cols[1]:
+                    if st.button("ECG", key=f"mark_ecg_{key_suffix}", width='stretch'):
+                        mark_current_component("ecg")
+                with mark_cols[2]:
+                    if st.button("EOG", key=f"mark_eog_{key_suffix}", width='stretch'):
+                        mark_current_component("eog")
+
+            col1, col2, col3 = st.columns([1, 1, 1], gap="large")
+
+            with col1:
+                st.markdown('<div class="ica-source-panel"></div>', unsafe_allow_html=True)
+                st.markdown(f"### 📈 Source Components: {current_source_start}-{current_source_end}")
+                st.markdown('<div class="ica-score-row"></div>', unsafe_allow_html=True)
+                st.image(
+                    os.path.join(image_dir, current_source_filename),
+                    width='stretch',
+                )
+                render_source_controls("portrait", portrait=True)
+
             with col2:
+                st.markdown('<div class="ica-topography-panel"></div>', unsafe_allow_html=True)
                 st.markdown(f"### 🔬 Component {current_topo['component']}/{total_components - 1} - Topography")
 
                 # Create score badges
@@ -414,55 +693,28 @@ else:
                 if current_ecg_score is not None:
                     score_html += f'<span class="score-badge">❤️ ECG: {current_ecg_score:.2f}</span>'
 
-                if score_html:
-                    st.markdown(f'<div style="margin-bottom: 15px;">{score_html}</div>', unsafe_allow_html=True)
+                st.markdown(f'<div class="ica-score-row">{score_html}</div>', unsafe_allow_html=True)
 
                 st.image(
                     os.path.join(image_dir, current_topo_filename),
                     width='stretch',
                 )
+                render_topography_controls("portrait", portrait=True)
 
-                right_col1, right_col2  = st.columns(2, gap="small")
-                with right_col1:
-                    if st.button("Previous", width='stretch'):
-                        st.session_state["ica_component"] = max(0, component_idx - 1)
-                        st.rerun()
-                with right_col2:
-                    if st.button("Next ", width='stretch'):
-                        st.session_state["ica_component"] = min(len(topo_files) - 1, component_idx + 1)
-                        st.rerun()
+            with col3:
+                st.markdown("### 🎛️ Controls")
+                st.markdown('<div class="ica-score-row ica-control-panel"></div>', unsafe_allow_html=True)
 
-                m_col1,m_col2,m_col3 = st.columns(3, gap="small")
-                with m_col1:
-                    if st.button("Mark", width='stretch'):
-                        if current_topo["component"] not in st.session_state["marked_components"]:
-                            st.session_state["marked_components"].append(current_topo["component"])
-                            st.session_state["marked_types"].append("outlier") #outlier
-                            st.toast(f"✅ Component {current_topo['component']} marked as artifact.")
-                with m_col2:
-                    if st.button("Mark as ECG", width='stretch'):
-                        if current_topo["component"] not in st.session_state["marked_components"]:
-                            st.session_state["marked_components"].append(current_topo["component"])
-                            st.session_state["marked_types"].append("ecg")  # Record ECG type
-                            if current_topo["component"] not in st.session_state['ecg_eog_scores']['ecg_indices']:
-                                st.session_state['ecg_eog_scores']['ecg_indices'].append(current_topo["component"])
-                                # For ECG,
-                                st.session_state['ecg_eog_scores']['ecg'].append(1.0)
-                            st.toast(f"✅ Component {current_topo['component']} marked as ECG.")
-                with m_col3:
-                    if st.button("Mark as EOG", width='stretch'):
-                        if current_topo["component"] not in st.session_state["marked_components"]:
-                            st.session_state["marked_components"].append(current_topo["component"])
-                            st.session_state["marked_types"].append("eog")  # Record EOG type
-                            if current_topo["component"] not in st.session_state['ecg_eog_scores']['eog_indices']:
-                                st.session_state['ecg_eog_scores']['eog_indices'].append(current_topo["component"])
-                                # For EOG
-                                st.session_state['ecg_eog_scores']['eog'].append(1.0)
-                            st.toast(f"✅ Component {current_topo['component']} marked as EOG.")
+                st.markdown('<div class="control-section-label">Source group</div>', unsafe_allow_html=True)
+                render_source_controls("landscape")
+
+                st.markdown('<div class="control-section-gap"></div>', unsafe_allow_html=True)
+                st.markdown('<div class="control-section-label">Topography component</div>', unsafe_allow_html=True)
+                render_topography_controls("landscape")
             print("ecg_eog_scores:",st.session_state['ecg_eog_scores'])
             # Marked components section
             st.markdown(
-                "<hr style='margin: 40px 0; border: none; height: 2px; background: linear-gradient(90deg, transparent, #667eea, transparent);'>",
+                "<hr style='margin: 16px 0; border: none; height: 2px; background: linear-gradient(90deg, transparent, #667eea, transparent);'>",
                 unsafe_allow_html=True)
 
             st.markdown("### 🏷️ Marked ICA Components")
@@ -472,8 +724,8 @@ else:
                     f'<div class="component-badge">📍 Total Marked: {len(st.session_state["marked_components"])}</div>',
                     unsafe_allow_html=True)
 
-                # Each row can show up to 6 items
-                items_per_row = 6
+                # Each row can show up to 8 items
+                items_per_row = 8
 
                 # Group marked components into rows
                 rows = [
@@ -486,14 +738,14 @@ else:
                     cols = st.columns(len(row), gap="small")
                     for i, comp in enumerate(row):
                         with cols[i]:
-                            if st.button(f"📌 Comp {comp}", key=f"view_{comp}", width='stretch'):
+                            if st.button(f"IC {comp}", key=f"view_{comp}", width='stretch'):
                                 st.session_state["ica_component"] = next(
                                     (idx for idx, topo in enumerate(topo_files) if topo["component"] == comp),
                                     st.session_state["ica_component"]
                                 )
                                 st.rerun()
 
-                            if st.button(f"🗑️ Delete", key=f"delete_{comp}", width='stretch'):
+                            if st.button("Delete", key=f"delete_{comp}", width='stretch'):
                                 # st.session_state["marked_components"].remove(comp)
 
                                 # Remove from marked types if it exists
@@ -521,22 +773,3 @@ else:
 
             else:
                 st.info("ℹ️ No components marked yet. Use the 'Mark' button to mark artifacts.")
-
-            # Save button
-            st.markdown(
-                "<hr style='margin: 40px 0; border: none; height: 2px; background: linear-gradient(90deg, transparent, #667eea, transparent);'>",
-                unsafe_allow_html=True)
-
-            st.markdown("### 💾 Save ICA Components")
-            col_save1, col_save2, col_save3 = st.columns([1, 2, 1])
-            with col_save2:
-                if st.button("💾 Save Marked Components", width='stretch'):
-                    with open(MARKED_FILE, "w") as f:
-                        f.write("\n".join(map(str, sorted(st.session_state["marked_components"]))))
-
-                    with open(ecg_eog_score_file, "w") as json_file:
-                        json.dump(st.session_state['ecg_eog_scores'], json_file, indent=4)
-
-                    st.markdown(
-                        f'<div class="success-msg">✅ Successfully saved {len(st.session_state["marked_components"])} marked components to:<br><code>{MARKED_FILE}</code></div>',
-                        unsafe_allow_html=True)

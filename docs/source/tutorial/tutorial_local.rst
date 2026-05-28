@@ -10,7 +10,7 @@ processing should run in the same command.
 
 .. code-block:: bash
 
-    docker run -it --rm \
+    docker run --rm -it \
         -v /data/datasets/SMN4Lang:/input \
         -v /data/datasets/SMN4Lang/megprep_out:/output \
         -v /data/datasets/SMN4Lang/smri:/smri \
@@ -30,11 +30,20 @@ In this command:
 + ``-it``
    Run in interactive mode, allowing users to interact within the container.  
 
-+ ``--rm``  
-   This option automatically removes the container after it exits, ensuring no residual containers remain.  
++ ``--rm``
+   This option automatically removes the container after it exits, ensuring no residual containers remain.
 
-+ ``-v /data/datasets/SMN4Lang:/input``  
-   This option creates a volume mount, mapping the host directory `/data/datasets/SMN4Lang` to the container's `/input` directory, allowing the container to access input data.  
++ Output ownership
+   The container entrypoint starts as root only long enough to prepare mounted
+   output permissions, then runs Nextflow as the host UID/GID inferred from
+   ``/input``. Report-only runs that only mount ``/output`` infer ownership
+   from ``/output`` instead. You do not need Docker's ``--user`` flag or a
+   pre-created output directory. If neither mount has the desired output owner,
+   add ``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"`` to the
+   ``docker run`` command.
+
++ ``-v /data/datasets/SMN4Lang:/input``
+   This option creates a volume mount, mapping the host directory `/data/datasets/SMN4Lang` to the container's `/input` directory, allowing the container to access input data.
 
 + ``-v /data/datasets/SMN4Lang/megprep_out:/output``
    This maps the output directory in the host to the container's `/output` directory for saving processed data.

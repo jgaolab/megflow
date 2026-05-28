@@ -118,7 +118,7 @@ docker pull cmrlab/megprep:<version>
 
 ### Basic Command Structure
 ```bash
-docker run cmrlab/megprep:<version> [nextflow_options]
+docker run --rm -it cmrlab/megprep:<version> [nextflow_options]
 ```
 
 ### Pipeline steps
@@ -236,7 +236,7 @@ In cohort mode, FreeSurfer/DeepPrep outputs are also isolated by dataset under
 do not overwrite each other.
 
 ```bash
-docker run -it --rm \
+docker run --rm -it \
   -v /data/liaopan/datasets:/input \
   -v /data/liaopan/megprep_cohort:/output \
   -v /data/liaopan/smri:/smri \
@@ -277,12 +277,27 @@ The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.s
 - You can instead set **`steps = '...'`** inside the Nextflow file you mount at **`/program/nextflow/nextflow.config`**; a container **`--steps`** / **`-s`** argument **overrides** that for the run.
 - **`-s`** here is the **MEGPrep** flag (input path is **`-i`**), not Docker’s **`-i`** (interactive). Typical pattern: `docker run ... cmrlab/megprep:<tag> -i /input -o /output ... --steps all`.
 - The Docker entrypoint copies the mounted config to `/program/nextflow/run_nextflow.config`, applies command-line path overrides, runs Nextflow with that file, then copies it to `<output>/nextflow.config` and snapshots it into `preprocessed/logs/` for the static HTML report.
+- The Docker entrypoint starts as root only long enough to prepare mounted output permissions, then drops to the host UID/GID inferred from `/input`; report-only runs that only mount `/output` infer ownership from `/output`.
+
+**Docker output ownership**
+
+You do **not** need to add Docker's `--user` flag or pre-create the output directory. If the host output path does not exist, Docker may create it as `root:root` before the container starts; MEGPrep fixes that at startup, then runs the pipeline as the host user inferred from `/input`. For interactive report runs such as `docker run ... -v /data/preprocessed:/output cmrlab/megprep:<version> -r`, ownership is inferred from `/output`. Outputs should therefore be writable by the submitting user, not owned by root.
+
+If neither `/input` nor `/output` is owned by the user who should own generated files, pass the desired IDs explicitly:
+
+```bash
+docker run --rm -it \
+  -e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)" \
+  -v /data/bids:/input -v /data/out:/output \
+  cmrlab/megprep:<version> \
+  -i /input -o /output
+```
 
 **Examples:**
 
 ```bash
 # Full MEG only (explicit; same as default meg_all when config unchanged)
-docker run -it --rm \
+docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   -v /data/license.txt:/fs_license.txt \
   cmrlab/megprep:0.0.3 \
@@ -291,7 +306,7 @@ docker run -it --rm \
   --steps meg_all
 
 # Structural MRI + full MEG in one container run
-docker run -it --rm \
+docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   -v /data/license.txt:/fs_license.txt \
   cmrlab/megprep:0.0.3 \
@@ -300,7 +315,7 @@ docker run -it --rm \
   --steps all
 
 # Static HTML report only (existing preproc under preproc_dir)
-docker run -it --rm \
+docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   cmrlab/megprep:0.0.3 \
   -i /input -o /output --fs_subjects_dir /smri \
@@ -330,7 +345,7 @@ docker run -it --rm \
 Here is a comprehensive example mapping input/output volumes and license files:
 
 ```bash
-docker run -it --rm \
+docker run --rm -it \
     -v /data/datasets/SMN4Lang:/input \
     -v /data/datasets/SMN4Lang/preprocessed:/output \
     -v /data/datasets/SMN4Lang/smri:/smri \
@@ -356,7 +371,7 @@ MEGPrep generates interactive quality control reports via Streamlit.
 Use the `-r` flag and map port `8501`:
 
 ```bash
-docker run -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output cmrlab/megprep:<version> -r
+docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output cmrlab/megprep:<version> -r
 ```
 
 **Access via browser:**

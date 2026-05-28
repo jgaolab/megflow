@@ -100,7 +100,14 @@ full MEG workflow with existing anatomy.
 
 .. code-block:: bash
 
-   docker run cmrlab/megprep:<version> -h
+   docker run --rm -it cmrlab/megprep:<version> -h
+
+Docker runs do not require Docker's ``--user`` flag. The container entrypoint
+prepares mounted output permissions, then drops to the host UID/GID inferred
+from ``/input`` before running Nextflow. Report-only runs that only mount
+``/output`` infer ownership from ``/output``. If that inference is not
+appropriate, pass ``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"`` to choose
+the output owner explicitly.
 
 .. code-block:: text
 

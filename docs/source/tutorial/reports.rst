@@ -26,7 +26,7 @@ The static report can also be regenerated without rerunning the pipeline:
 
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /data/bids:/input \
      -v /data/out:/output \
      -v /data/smri:/smri \
@@ -139,10 +139,17 @@ run MEGPrep with Docker and expose port ``8501``:
 
 .. code-block:: bash
 
-   docker run -p 8501:8501 \
+   docker run --rm -it -p 8501:8501 \
      -v /data/megprep_output:/output \
      cmrlab/megprep:<version> \
      -r
+
+The Docker entrypoint handles mounted output permissions automatically. It
+starts as root, prepares ``/output`` when needed, then drops to the host UID/GID
+inferred from ``/input``. For report-only runs that only mount ``/output``, the
+UID/GID are inferred from ``/output`` instead, so an existing report directory
+owned by the submitting user stays writable. If neither mount has the desired
+owner, pass ``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"``.
 
 Then open:
 

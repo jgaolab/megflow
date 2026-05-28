@@ -7,6 +7,14 @@ noise covariance choices, anatomy matching, and coregistration settings. This
 page explains when to run each broader workflow mode and what to check before
 using it.
 
+Docker output ownership is handled by the MEGPrep entrypoint. It prepares
+mounted output permissions as root, then drops to the host UID/GID inferred
+from ``/input`` before running Nextflow. Report-only runs that only mount
+``/output`` infer ownership from ``/output`` instead. The host output directory
+does not need to be created in advance. Use
+``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"`` if neither mount is owned by
+the desired output user.
+
 Recommended Progression
 -----------------------
 
@@ -34,7 +42,7 @@ For a BIDS dataset with T1w images:
 
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /path/to/bids_dataset:/input \
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
@@ -74,7 +82,7 @@ Example command:
 
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
@@ -97,7 +105,7 @@ Use ``--steps meg_all`` when:
 
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
@@ -119,7 +127,7 @@ both ready. This mode runs anatomy first, then the full MEG workflow.
 
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /path/to/bids_dataset:/input \
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \

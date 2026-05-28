@@ -37,6 +37,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
         libglx-mesa0 \
         libxcb1 \
         curl \
+        gosu \
         wget \
         ca-certificates \
         software-properties-common \
@@ -130,8 +131,17 @@ RUN \
 #    echo "umask 0001" >> /etc/profile
 #    sed -i '$a exit $?' /opt/DeepPrep/deepprep/deepprep.sh
 
+RUN mkdir -p /tmp/megprep_home /tmp/megprep_cache /tmp/megprep_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR /output && \
+    if [ -d /home/deepprep/.nextflow ]; then cp -a /home/deepprep/.nextflow/. /tmp/megprep_nextflow/; fi && \
+    chmod -R 777 /tmp/megprep_home /tmp/megprep_cache /tmp/megprep_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR /output
+
 WORKDIR /output
-ENV NXF_OFFLINE='true'
+ENV HOME=/tmp/megprep_home \
+    XDG_CACHE_HOME=/tmp/megprep_cache \
+    NXF_HOME=/tmp/megprep_nextflow \
+    NUMBA_CACHE_DIR=/tmp/NUMBA_CACHE_DIR \
+    MPLCONFIGDIR=/tmp/MPLCONFIGDIR \
+    NXF_OFFLINE='true'
 EXPOSE 8501
 ENTRYPOINT ["/program/nextflow/run.sh"]
 

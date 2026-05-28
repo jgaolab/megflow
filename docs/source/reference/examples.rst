@@ -216,7 +216,7 @@ processing.
 
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /data/bids:/input \
      -v /data/out:/output \
      -v /data/smri:/smri \
@@ -226,9 +226,15 @@ processing.
 Docker End-to-End Example
 -------------------------
 
+The Docker entrypoint prepares mounted output permissions and then drops to the
+host UID/GID inferred from ``/input``. The host output directory may be absent
+when the command starts. Report-only runs that only mount ``/output`` infer
+ownership from ``/output``. If neither mount should determine the output owner,
+add ``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"``.
+
 .. code-block:: bash
 
-   docker run -it --rm \
+   docker run --rm -it \
      -v /data/bids:/input \
      -v /data/out:/output \
      -v /data/smri:/smri \

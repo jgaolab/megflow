@@ -72,6 +72,32 @@ overrides before launching Nextflow.
        static HTML report. Values are ``failed``, ``all-command-log``, and
        ``none``.
 
+Docker Output Ownership
+-----------------------
+
+The Docker image is designed to be run without Docker's ``--user`` flag. The
+entrypoint starts as ``root`` only long enough to prepare mounted output
+permissions. It then drops privileges with ``gosu`` and runs Nextflow as the
+host UID/GID inferred from the mounted ``/input`` directory. Report-only runs
+that only mount ``/output`` infer ownership from ``/output`` instead.
+
+This means users do not need to pre-create the host output directory. If Docker
+creates the bind-mounted output path as ``root:root`` before the container
+starts, MEGPrep changes ownership to the inferred host user before launching the
+pipeline.
+
+If neither ``/input`` nor ``/output`` is owned by the user who should own the
+outputs, pass the desired IDs explicitly:
+
+.. code-block:: bash
+
+   docker run --rm -it \
+     -e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)" \
+     -v /data/bids:/input \
+     -v /data/out:/output \
+     cmrlab/megprep:<version> \
+     -i /input -o /output
+
 Pipeline Stage Selection
 ------------------------
 
