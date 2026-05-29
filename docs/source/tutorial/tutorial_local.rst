@@ -1,7 +1,7 @@
 Local
 ========================
 
-Run MEGPrep
+Run MEGFlow
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 The example below runs the default full MEG workflow with an existing
@@ -12,11 +12,11 @@ processing should run in the same command.
 
     docker run --rm -it \
         -v /data/datasets/SMN4Lang:/input \
-        -v /data/datasets/SMN4Lang/megprep_out:/output \
+        -v /data/datasets/SMN4Lang/megflow_out:/output \
         -v /data/datasets/SMN4Lang/smri:/smri \
-        -v /data/megprep/license.txt:/fs_license.txt \
+        -v /data/megflow/license.txt:/fs_license.txt \
         -v /data/nextflow.config:/program/nextflow/nextflow.config \
-        cmrlab/megprep:0.0.3 \
+        cmrlab/megflow:0.0.3 \
         -i /input \
         -o /output \
         --fs_license_file /fs_license.txt \
@@ -45,20 +45,20 @@ In this command:
 + ``-v /data/datasets/SMN4Lang:/input``
    This option creates a volume mount, mapping the host directory `/data/datasets/SMN4Lang` to the container's `/input` directory, allowing the container to access input data.
 
-+ ``-v /data/datasets/SMN4Lang/megprep_out:/output``
++ ``-v /data/datasets/SMN4Lang/megflow_out:/output``
    This maps the output directory in the host to the container's `/output` directory for saving processed data.
 
 + ``-v /data/datasets/SMN4Lang/smri:/smri``
    This mounts a directory containing SMRI data(T1w, Freesurfer's SUBJECTS_DIR) to the container's `/smri` directory for application use.
 
-+ ``-v /data/megprep/license.txt:/fs_license.txt``  
++ ``-v /data/megflow/license.txt:/fs_license.txt``  
    This mounts the FreeSurfer license file into the container, ensuring it has access to the necessary permissions.  
 
 + ``-v /data/nextflow.config:/program/nextflow/nextflow.config``
    This mounts the Nextflow configuration file so the program inside the container can use it.  
 
-+ ``cmrlab/megprep:0.0.3``  
-    This specifies the Docker image and version to run, where `megprep` is the image name, and `0.0.3` is the version.  
++ ``cmrlab/megflow:0.0.3``  
+    This specifies the Docker image and version to run, where `megflow` is the image name, and `0.0.3` is the version.  
 
 + ``-i /input``  
     This is a parameter passed to the program, specifying the input data directory as `/input`.  

@@ -1,13 +1,13 @@
 Installation
 ============
 
-MEGPrep is officially distributed as a container image. The containerized
+MEGFlow is officially distributed as a container image. The containerized
 workflow is recommended because it provides the most reproducible runtime and
 avoids most local dependency conflicts.
 
 If Docker cannot be installed, the Docker daemon is unavailable, or the image
 cannot be pulled in your network environment, use the local development
-installation workflow. The local workflow installs MEGPrep from source and can
+installation workflow. The local workflow installs MEGFlow from source and can
 run without a Docker image, but local system libraries and package versions may
 affect reproducibility.
 
@@ -15,36 +15,36 @@ Recommended: Containerized One-Click Install
 --------------------------------------------
 
 The scripts under ``scripts/install/`` install or reuse a container runtime,
-pull ``cmrlab/megprep:<version>``, and verify the installation by running the
-MEGPrep help command.
+pull ``cmrlab/megflow:<version>``, and verify the installation by running the
+MEGFlow help command.
 
 Linux:
 
 .. code-block:: bash
 
-   bash scripts/install/install_megprep_linux.sh
-   bash scripts/install/install_megprep_linux.sh 0.0.3
+   bash scripts/install/install_megflow_linux.sh
+   bash scripts/install/install_megflow_linux.sh 0.0.3
 
 macOS:
 
 .. code-block:: bash
 
-   bash scripts/install/install_megprep_macos.sh
-   bash scripts/install/install_megprep_macos.sh 0.0.3
+   bash scripts/install/install_megflow_macos.sh
+   bash scripts/install/install_megflow_macos.sh 0.0.3
 
 Windows PowerShell:
 
 .. code-block:: powershell
 
-   powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megprep_windows.ps1
-   powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megprep_windows.ps1 -ImageTag 0.0.3
+   powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1
+   powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1 -ImageTag 0.0.3
 
 On Linux, the installer can use Docker or Apptainer/Singularity:
 
 .. code-block:: bash
 
-   bash scripts/install/install_megprep_linux.sh 0.0.3 docker
-   bash scripts/install/install_megprep_linux.sh 0.0.3 apptainer
+   bash scripts/install/install_megflow_linux.sh 0.0.3 docker
+   bash scripts/install/install_megflow_linux.sh 0.0.3 apptainer
 
 See ``scripts/install/README.md`` for installer options and troubleshooting.
 
@@ -60,11 +60,11 @@ Check Docker:
 
    docker info
 
-Pull the MEGPrep image:
+Pull the MEGFlow image:
 
 .. code-block:: bash
 
-   docker pull cmrlab/megprep:<version>
+   docker pull cmrlab/megflow:<version>
 
 Replace ``<version>`` with a release tag such as ``0.0.3`` or ``latest``.
 
@@ -74,14 +74,14 @@ Alternative: Local Installation Without Docker
 The scripts under ``scripts/install-dev/`` provide a source-based local
 installation path for Linux environments where container installation is not
 available or image pulling is blocked. This workflow installs or reuses Conda,
-Nextflow, FreeSurfer, and MEGPrep source dependencies in a local installation
+Nextflow, FreeSurfer, and MEGFlow source dependencies in a local installation
 directory.
 
 .. code-block:: bash
 
-   bash scripts/install-dev/install_megprep_dev_linux.sh
-   bash scripts/install-dev/install_megprep_dev_linux.sh --install-dir /data/megprep-dev
-   bash scripts/install-dev/install_megprep_dev_linux.sh --no-freesurfer
+   bash scripts/install-dev/install_megflow_dev_linux.sh
+   bash scripts/install-dev/install_megflow_dev_linux.sh --install-dir /data/megflow-dev
+   bash scripts/install-dev/install_megflow_dev_linux.sh --no-freesurfer
 
 After installation, load the generated environment:
 
@@ -100,7 +100,7 @@ full MEG workflow with existing anatomy.
 
 .. code-block:: bash
 
-   docker run --rm -it cmrlab/megprep:<version> -h
+   docker run --rm -it cmrlab/megflow:<version> -h
 
 Docker runs do not require Docker's ``--user`` flag. The container entrypoint
 prepares mounted output permissions, then drops to the host UID/GID inferred

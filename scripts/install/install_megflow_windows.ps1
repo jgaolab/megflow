@@ -3,11 +3,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Image = "cmrlab/megprep:$ImageTag"
+$Image = "cmrlab/megflow:$ImageTag"
 
 function Write-Log {
     param([string]$Message)
-    Write-Host "[megprep-install][windows] $Message"
+    Write-Host "[megflow-install][windows] $Message"
 }
 
 function Test-Input {
@@ -52,7 +52,7 @@ Test-Input
 Write-Log "Target image: $Image"
 Ensure-DockerDesktop
 
-Write-Log "Pulling MEGPrep Docker image..."
+Write-Log "Pulling MEGFlow Docker image..."
 docker pull $Image
 
 Write-Log "Running '-h' to validate installation (help output should print below)..."

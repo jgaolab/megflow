@@ -1,14 +1,14 @@
 Configuration Reference
 =======================
 
-MEGPrep is configured through a Nextflow configuration file, usually
+MEGFlow is configured through a Nextflow configuration file, usually
 ``nextflow.config``. The top-level ``params`` block controls input discovery,
 pipeline stage selection, output locations, and the YAML snippets passed to
 the Python processing scripts.
 
 Many nested YAML fields are passed directly to MNE-Python, MNE-BIDS, OSL-Ephys,
 PyPREP, or FreeSurfer/DeepPrep functions. When a field is a direct pass-through,
-MEGPrep preserves the name and meaning used by the upstream API. Useful
+MEGFlow preserves the name and meaning used by the upstream API. Useful
 upstream references include the MNE-Python documentation for
 `Raw objects <https://mne.tools/stable/generated/mne.io.Raw.html>`_,
 `Epochs <https://mne.tools/stable/generated/mne.Epochs.html>`_,
@@ -83,7 +83,7 @@ that only mount ``/output`` infer ownership from ``/output`` instead.
 
 This means users do not need to pre-create the host output directory. If Docker
 creates the bind-mounted output path as ``root:root`` before the container
-starts, MEGPrep changes ownership to the inferred host user before launching the
+starts, MEGFlow changes ownership to the inferred host user before launching the
 pipeline.
 
 If neither ``/input`` nor ``/output`` is owned by the user who should own the
@@ -95,7 +95,7 @@ outputs, pass the desired IDs explicitly:
      -e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)" \
      -v /data/bids:/input \
      -v /data/out:/output \
-     cmrlab/megprep:<version> \
+     cmrlab/megflow:<version> \
      -i /input -o /output
 
 Pipeline Stage Selection
@@ -164,11 +164,11 @@ Global Paths and Execution Settings
    * - ``preproc_dir``
      - path
      - ``${params.output_dir}/preprocessed``
-     - Main MEGPrep derivative directory.
+     - Main MEGFlow derivative directory.
    * - ``code_dir``
      - path
-     - Container path ``/program/megprep``
-     - Directory containing MEGPrep Python scripts.
+     - Container path ``/program/megflow``
+     - Directory containing MEGFlow Python scripts.
    * - ``cohort``
      - boolean
      - ``false``
@@ -264,7 +264,7 @@ Anatomy Input and Reconstruction
 
 Structural processing is used by ``steps=anatomy``, ``steps=all``, or selected
 MEG milestones with ``with_anatomy``. If structural processing is not selected,
-MEGPrep assumes ``fs_subjects_dir`` already contains subject reconstructions.
+MEGFlow assumes ``fs_subjects_dir`` already contains subject reconstructions.
 
 .. list-table::
    :header-rows: 1
@@ -423,7 +423,7 @@ manual review, and ``meg_vendor`` selects vendor-specific plotting assumptions.
 
 For ICA rule-based labeling, ``ic_label_config.ICA_classify.meg_vendor`` can be
 set to ``auto``. This is the recommended cohort setting because each dataset may
-come from a different MEG system. When ``auto`` is used, MEGPrep infers the
+come from a different MEG system. When ``auto`` is used, MEGFlow infers the
 template family from the ICA channel names and applies bundled templates only
 when they are available. Current ECG/EOG template similarity bundles cover
 ``elekta``/``neuromag``, ``ctf``, ``4d``/``bti``, and ``kit``. OPM datasets or
@@ -445,7 +445,7 @@ dataset directory names are usually sufficient:
        default: auto
 
 Dataset-specific mappings take precedence over ``meg_vendor``. If no mapping
-matches, MEGPrep falls back to ``meg_vendor``; if that is ``auto``, it uses
+matches, MEGFlow falls back to ``meg_vendor``; if that is ``auto``, it uses
 channel-name inference. For backward-compatible compact configs,
 ``ICA_classify.meg_vendor`` may also be a mapping with the same keys, although
 ``meg_vendor_by_dataset`` is preferred for clarity.
@@ -453,7 +453,7 @@ channel-name inference. For backward-compatible compact configs,
 Bad Segment Marking and Exclusion
 ---------------------------------
 
-MEGPrep separates marking bad time spans from excluding data:
+MEGFlow separates marking bad time spans from excluding data:
 
 * Artifact detection writes MNE annotations to ``*_bad_segments.txt``. This is
   a marking step.
@@ -507,7 +507,7 @@ preprocessing and ICA stages.
        ``preload``, and ``detrend``.
    * - ``autoreject``
      - boolean
-     - If true, MEGPrep estimates global rejection thresholds with
+     - If true, MEGFlow estimates global rejection thresholds with
        ``autoreject.get_rejection_threshold`` and calls ``drop_bad``.
    * - ``interpolate_bads``
      - boolean

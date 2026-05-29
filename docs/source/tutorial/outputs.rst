@@ -1,7 +1,7 @@
 Outputs
 ========
 
-MEGPrep writes Nextflow execution files under ``output_dir`` and processing
+MEGFlow writes Nextflow execution files under ``output_dir`` and processing
 derivatives under ``preproc_dir``. By default:
 
 .. code-block:: text
@@ -29,10 +29,10 @@ Top-Level Output Layout
    * - ``<output_dir>/nextflow.config``
      - Effective config copied from the Docker run config.
    * - ``<output_dir>/static_html_report/``
-     - Portable MEGPrep QC report. Depending on ``static_task_log_mode``, this
+     - Portable MEGFlow QC report. Depending on ``static_task_log_mode``, this
        may include packaged Nextflow ``.command*`` log excerpts.
    * - ``<output_dir>/preprocessed/``
-     - MEGPrep processing derivatives.
+     - MEGFlow processing derivatives.
 
 Preprocessed Directory
 ----------------------
@@ -64,7 +64,7 @@ Preprocessed Directory
    * - ``preprocessed/source_recon/<recording>/``
      - Source reconstruction outputs and visualization figures.
    * - ``preprocessed/logs/``
-     - Nextflow log, MEGPrep run manifest, and config snapshots when available.
+     - Nextflow log, MEGFlow run manifest, and config snapshots when available.
    * - ``preprocessed/deepprep/``
      - DeepPrep outputs when ``anatomy_preprocess_method = "deepprep"`` and
        anatomy processing is enabled.
@@ -102,7 +102,7 @@ Important Sidecar Files
      - Coregistration distance summary in mm.
    * - ``coreg-trans.fif``
      - MEG-MRI transform used by forward modeling.
-   * - ``megprep_run_manifest.json``
+   * - ``megflow_run_manifest.json``
      - Pipeline mode, selected stages, path snapshot, and runtime metadata.
 
 The exact set of outputs depends on ``params.steps``. For example,

@@ -8,7 +8,7 @@ import groovy.json.JsonSlurper
 import java.security.MessageDigest
 // include { deepprep } from '/opt/DeepPrep/deepprep/nextflow/deepprep.nf'
 
-log.info "MEGPrep Anatomy and MEG Preprocessing Pipeline"
+log.info "MEGFlow Anatomy and MEG Preprocessing Pipeline"
 log.info "============================="
 log.info ""
 log.info "Start time: $workflow.start"
@@ -531,7 +531,7 @@ process generate_static_html_report {
     """
     set -euo pipefail
     mkdir -p "${preproc_dir}/logs"
-    cat > "${preproc_dir}/logs/megprep_run_manifest.json" <<'EOF_MANIFEST'
+    cat > "${preproc_dir}/logs/megflow_run_manifest.json" <<'EOF_MANIFEST'
 ${manifest_json}
 EOF_MANIFEST
 

@@ -40,7 +40,7 @@ sys.path.insert(0,os.path.abspath(os.path.join("..", "..")))
 
 # -- Project information -----------------------------------------------------
 
-project = 'megprep'
+project = 'MEGFlow'
 copyright = '2025, LiaoPan'
 author = 'LiaoPan'
 
@@ -115,7 +115,7 @@ myst_enable_extensions = [
 html_theme = 'sphinx_book_theme'
 html_logo = '_static/logo.png'
 html_favicon = '_static/favicon.png'
-html_title = 'MEGPrep Documentation'
+html_title = 'MEGFlow Documentation'
 
 html_theme_options = {
     'show_toc_level': 2,

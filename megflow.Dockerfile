@@ -1,5 +1,5 @@
 FROM pbfslab/deepprep:25.1.0
-# v3:MEGPrep Environments + DeepPrep Environments
+# v3:MEGFlow Environments + DeepPrep Environments
 LABEL liaopan='liaopanblog@gmail.com'
 
 ENV TZ=Asia/Shanghai \
@@ -57,7 +57,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
         openjdk-11-jdk && \
     rm -rf /var/lib/apt/lists/* && \
     ln -s /usr/bin/python3 /usr/bin/python && \
-    mkdir -p /input /output /smri ${RUN_DIR}/nextflow ${RUN_DIR}/megprep/
+    mkdir -p /input /output /smri ${RUN_DIR}/nextflow ${RUN_DIR}/megflow/
 
 
 COPY requirements.txt requirements.txt
@@ -73,7 +73,7 @@ RUN pip install --no-cache-dir -r requirements.txt && \
 COPY nextflow/meg_anat_pipeline_for_docker.nf ${RUN_DIR}/nextflow/meg_pipeline.nf
 COPY nextflow/nextflow_for_docker.config ${RUN_DIR}/nextflow/nextflow.config
 COPY nextflow/run_for_docker.sh ${RUN_DIR}/nextflow/run.sh
-COPY megprep ${RUN_DIR}/megprep/
+COPY megflow ${RUN_DIR}/megflow/
 #COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY softwares/mkheadsurf /opt/freesurfer/bin/mkheadsurf
 COPY softwares/tksurfer /opt/freesurfer/bin/tksurfer
@@ -82,12 +82,12 @@ COPY softwares/fsfast /opt/freesurfer/fsfast
 COPY softwares/mri_mc /opt/freesurfer/bin/mri_mc
 COPY softwares/mri_seghead /opt/freesurfer/bin/mri_seghead
 COPY softwares/dcm2niix /usr/local/bin/dcm2niix
-COPY megprep/anat_get_t1w_file_in_bids.py /opt/DeepPrep/deepprep/nextflow/bin/anat_get_t1w_file_in_bids.py
+COPY megflow/anat_get_t1w_file_in_bids.py /opt/DeepPrep/deepprep/nextflow/bin/anat_get_t1w_file_in_bids.py
 COPY nextflow/deepprep.nf /opt/DeepPrep/deepprep/nextflow/deepprep.nf
 COPY nextflow/deepprep.common.config /opt/DeepPrep/deepprep/nextflow/deepprep.common.config
 
 RUN chmod +x ${RUN_DIR}/nextflow/run.sh && \
-    cd ${RUN_DIR}/megprep/tools/osl-ephys && pip install --no-deps -e .
+    cd ${RUN_DIR}/megflow/tools/osl-ephys && pip install --no-deps -e .
 RUN \
     echo "export DISPLAY=:99" >> ~/.bashrc && \
     echo "export QT_QPA_PLATFORM=xcb" >> ~/.bashrc && \
@@ -95,7 +95,7 @@ RUN \
     echo "export MESA_GL_VERSION_OVERRIDE=3.2" >> ~/.bashrc && \
     echo "export NUMBA_CACHE_DIR=/tmp/NUMBA_CACHE_DIR" >> ~/.bashrc && \
     echo "export MPLCONFIGDIR=/tmp/MPLCONFIGDIR/" >> ~/.bashrc && \
-    chmod -R 777 ${RUN_DIR}/nextflow ${RUN_DIR}/megprep/ && \
+    chmod -R 777 ${RUN_DIR}/nextflow ${RUN_DIR}/megflow/ && \
     chmod -R 777 ${RUN_DIR} && \
     chmod -R 777 /usr/local/lib/python3.10 && \
     chmod -R 755 /opt/DeepPrep/deepprep/nextflow/bin/anat_get_t1w_file_in_bids.py && \
@@ -131,14 +131,14 @@ RUN \
 #    echo "umask 0001" >> /etc/profile
 #    sed -i '$a exit $?' /opt/DeepPrep/deepprep/deepprep.sh
 
-RUN mkdir -p /tmp/megprep_home /tmp/megprep_cache /tmp/megprep_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR /output && \
-    if [ -d /home/deepprep/.nextflow ]; then cp -a /home/deepprep/.nextflow/. /tmp/megprep_nextflow/; fi && \
-    chmod -R 777 /tmp/megprep_home /tmp/megprep_cache /tmp/megprep_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR /output
+RUN mkdir -p /tmp/megflow_home /tmp/megflow_cache /tmp/megflow_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR /output && \
+    if [ -d /home/deepprep/.nextflow ]; then cp -a /home/deepprep/.nextflow/. /tmp/megflow_nextflow/; fi && \
+    chmod -R 777 /tmp/megflow_home /tmp/megflow_cache /tmp/megflow_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR /output
 
 WORKDIR /output
-ENV HOME=/tmp/megprep_home \
-    XDG_CACHE_HOME=/tmp/megprep_cache \
-    NXF_HOME=/tmp/megprep_nextflow \
+ENV HOME=/tmp/megflow_home \
+    XDG_CACHE_HOME=/tmp/megflow_cache \
+    NXF_HOME=/tmp/megflow_nextflow \
     NUMBA_CACHE_DIR=/tmp/NUMBA_CACHE_DIR \
     MPLCONFIGDIR=/tmp/MPLCONFIGDIR \
     NXF_OFFLINE='true'

@@ -3,10 +3,10 @@
 set -euo pipefail
 
 IMAGE_TAG="${1:-latest}"
-IMAGE="cmrlab/megprep:${IMAGE_TAG}"
+IMAGE="cmrlab/megflow:${IMAGE_TAG}"
 
 log() {
-  echo "[megprep-install][macos] $*"
+  echo "[megflow-install][macos] $*"
 }
 
 validate_inputs() {
@@ -58,7 +58,7 @@ main() {
   log "Target image: ${IMAGE}"
   ensure_docker_desktop
 
-  log "Pulling MEGPrep Docker image..."
+  log "Pulling MEGFlow Docker image..."
   docker pull "${IMAGE}"
 
   log "Running '-h' to validate installation (help output should print below)..."

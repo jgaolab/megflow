@@ -1,7 +1,7 @@
 Quickstart
 ==========
 
-This page is for a first successful MEGPrep run. You do not need to understand
+This page is for a first successful MEGFlow run. You do not need to understand
 all configuration fields before starting. For a new dataset, the safest first
 run is usually through ICA cleaning and QC:
 
@@ -31,7 +31,7 @@ later for source-level analysis:
      - Your MEG dataset. BIDS is recommended, but raw FIF discovery is also
        supported by the default config.
    * - ``/path/to/output``
-     - An empty or reusable output directory for MEGPrep results.
+     - An empty or reusable output directory for MEGFlow results.
    * - ``/path/to/smri``
      - Optional for the first run. FreeSurfer or DeepPrep anatomy outputs are
        required later for coregistration and source reconstruction.
@@ -51,7 +51,7 @@ cleaning, which avoids dataset-specific event and source-model assumptions:
    docker run --rm -it \
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
-     cmrlab/megprep:0.0.3 \
+     cmrlab/megflow:0.0.3 \
      -i /input \
      -o /output \
      --steps meg_ica \
@@ -151,7 +151,7 @@ Then run the first QC pass with:
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megprep:0.0.3 \
+     cmrlab/megflow:0.0.3 \
      -i /input -o /output --fs_subjects_dir /smri --steps meg_ica --resume
 
 The Docker entrypoint automatically prepares the mounted output directory and

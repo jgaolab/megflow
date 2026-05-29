@@ -164,7 +164,7 @@ with st.sidebar:
     st.markdown("---")
         # Github Link
     st.markdown("""
-    <a href="https://github.com/LiaoPan/megprep" target="_blank" style="text-decoration: none;">
+    <a href="https://github.com/jgaolab/megflow" target="_blank" style="text-decoration: none;">
         <div class="link-card">
             <!-- GitHub SVG Icon -->
             <svg class="link-icon-svg" role="img" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -176,7 +176,7 @@ with st.sidebar:
 
     # ReadTheDocs Link
     st.markdown("""
-    <a href="https://megprep.readthedocs.io/en/latest/" target="_blank" style="text-decoration: none;">
+    <a href="https://megflow-docs.readthedocs.io/en/latest/" target="_blank" style="text-decoration: none;">
         <div class="link-card">
             <!-- Solid 'Chrome Reader Mode' Icon - Matches visual weight of GitHub icon -->
             <svg class="link-icon-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -227,6 +227,6 @@ st.markdown('</div>', unsafe_allow_html=True)
 st.markdown("<br><br>", unsafe_allow_html=True)
 st.markdown("""
     <div style="text-align: center; color: #94A3B8; font-size: 0.8rem;">
-        MegPrep Analytics Platform • Interactive Documentation
+        MEGFlow Analytics Platform • Interactive Documentation
     </div>
 """, unsafe_allow_html=True)

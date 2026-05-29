@@ -1,17 +1,17 @@
 #!/bin/bash  
 
-IMAGE_NAME=cmrlab/megprep
+IMAGE_NAME=cmrlab/megflow
 VERSION="1.0.0"
-DOCKERFILE_NAME=megprep.Dockerfile 
+DOCKERFILE_NAME=megflow.Dockerfile 
 
 
 if [[ ! -f "$DOCKERFILE_NAME" ]]; then  
-    echo "Error: Dockerfile not found at $DOCKERFILE_PATH"  
+    echo "Error: Dockerfile not found at $DOCKERFILE_NAME"  
     exit 1  
 fi  
 
 
-echo "Building Docker image: $IMAGE_NAME using Dockerfile at $DOCKERFILE_PATH..."  
+echo "Building Docker image: $IMAGE_NAME using Dockerfile at $DOCKERFILE_NAME..."  
 docker build -t "$IMAGE_NAME:$VERSION" -f "$DOCKERFILE_NAME" .
 
 

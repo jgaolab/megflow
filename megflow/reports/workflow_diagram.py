@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Workflow diagram + provenance for MEGPrep static HTML reports."""
+"""Workflow diagram + provenance for MEGFlow static HTML reports."""
 
 from __future__ import annotations
 
@@ -223,8 +223,8 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
     if manifest is None:
         return (
             [],
-            "No megprep_run_manifest.json found under preprocessed/logs. "
-            "Run a recent MEGPrep Nextflow pipeline to emit the manifest, or mount/copy nextflow.config into the output root.",
+            "No megflow_run_manifest.json found under preprocessed/logs. "
+            "Run a recent MEGFlow Nextflow pipeline to emit the manifest, or mount/copy nextflow.config into the output root.",
         )
 
     parsed = manifest.get("parsed") or {}
@@ -304,7 +304,7 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
 
 
 def load_workflow_context(meg_root: Path, preprocessed_dir: Path) -> dict[str, Any]:
-    manifest_path = preprocessed_dir / "logs" / "megprep_run_manifest.json"
+    manifest_path = preprocessed_dir / "logs" / "megflow_run_manifest.json"
     manifest: dict[str, Any] | None = None
     source = "none"
     steps_raw: str | None = None
@@ -625,7 +625,7 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
     parts: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" height="{height:.0f}" '
         f'viewBox="0 0 {width:.0f} {height:.0f}" class="workflow-svg" '
-        f'role="img" aria-label="MEGPrep preprocessing workflow">',
+        f'role="img" aria-label="MEGFlow preprocessing workflow">',
         "<defs>",
         f'<marker id="{mid}-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">',
         '<path d="M0,0 L8,4 L0,8 z" class="wf-arrowhead" />',
@@ -754,7 +754,7 @@ def render_workflow_dataset_html(ctx: dict[str, Any], subject_summaries: list[di
 
     manifest_hint = (
         '<p class="small workflow-manifest-hint">Provenance: '
-        '<a href="data/megprep_run_manifest.json">megprep_run_manifest.json</a> (bundled run manifest).</p>'
+        '<a href="data/megflow_run_manifest.json">megflow_run_manifest.json</a> (bundled run manifest).</p>'
     )
     config_hint = _nextflow_config_hint_html(ctx)
 

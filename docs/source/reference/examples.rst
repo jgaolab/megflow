@@ -39,7 +39,7 @@ reconstructions for the MEG subjects.
 Structural MRI and MEG in One Run
 ---------------------------------
 
-Use ``steps = "all"`` when MEGPrep should run anatomical reconstruction before
+Use ``steps = "all"`` when MEGFlow should run anatomical reconstruction before
 the full MEG pipeline.
 
 .. code-block:: groovy
@@ -169,7 +169,7 @@ Use ``event_source = "event_file"`` when trial definitions should come from
 Empty-Room Style Covariance
 ---------------------------
 
-MEGPrep currently handles empty-room or noise recordings through
+MEGFlow currently handles empty-room or noise recordings through
 ``covar_type = "raw"`` and ``raw_covariance_task_id``. The workflow pairs each
 experimental recording with a raw recording whose filename has the same BIDS
 entities except for the task label.
@@ -220,7 +220,7 @@ processing.
      -v /data/bids:/input \
      -v /data/out:/output \
      -v /data/smri:/smri \
-     cmrlab/megprep:0.0.3 \
+     cmrlab/megflow:0.0.3 \
      -i /input -o /output --fs_subjects_dir /smri --steps report
 
 Docker End-to-End Example
@@ -240,7 +240,7 @@ add ``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"``.
      -v /data/smri:/smri \
      -v /data/license.txt:/fs_license.txt \
      -v /data/nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megprep:0.0.3 \
+     cmrlab/megflow:0.0.3 \
      -i /input \
      -o /output \
      --fs_license_file /fs_license.txt \
@@ -252,12 +252,12 @@ Cluster Example
 ---------------
 
 On a SLURM cluster, use a Nextflow config profile or process block to select the
-SLURM executor and container runtime. The important MEGPrep parameters stay the
+SLURM executor and container runtime. The important MEGFlow parameters stay the
 same.
 
 .. code-block:: groovy
 
-   workDir = "/scratch/project/megprep_work"
+   workDir = "/scratch/project/megflow_work"
 
    singularity.enabled = true
    singularity.autoMounts = true
@@ -267,12 +267,12 @@ same.
        queue = "general"
        cpus = 4
        memory = "16 GB"
-       container = "/containers/megprep_0.0.3.sif"
+       container = "/containers/megflow_0.0.3.sif"
    }
 
    params {
        dataset_dir = "/project/study/bids"
-       output_dir = "/project/study/derivatives/megprep"
+       output_dir = "/project/study/derivatives/megflow"
        fs_subjects_dir = "/project/study/derivatives/smri"
        steps = "meg_all"
    }

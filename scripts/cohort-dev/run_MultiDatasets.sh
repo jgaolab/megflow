@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Cohort runner: each immediate child directory under DATASET_ROOT is treated as
-# one MEGPrep dataset. Nextflow expands those datasets into a cohort channel,
+# one MEGFlow dataset. Nextflow expands those datasets into a cohort channel,
 # runs one shared process DAG, and then builds a cohort-level static HTML report
 # from the isolated dataset outputs.
 #

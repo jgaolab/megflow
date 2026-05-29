@@ -69,7 +69,7 @@ def ensure_vtk_headless_context():
     dummy_plotter.show(auto_close=False)
     dummy_plotter.close()
     # MNE's time_viewer/show_traces needs a live interactor; keep plotting interactive
-    # after the off-screen warm-up, matching megprep/source_localization.py.
+    # after the off-screen warm-up, matching megflow/source_localization.py.
     pv.OFF_SCREEN = False
 
     st.session_state.SOURCE_XVFB_PROCESS = proc

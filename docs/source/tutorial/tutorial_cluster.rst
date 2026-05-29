@@ -6,11 +6,11 @@ If you're using a computing cluster with SLURM as the resource manager, make sur
 
 .. code-block:: bash
 
-    container_name=cmrlab/megprep
+    container_name=cmrlab/megflow
     version=0.0.3
     singularity build ${container_name}_${version}.sif docker-daemon://${container_name}:${version}
 
-**Run MEGPrep on Slurm**
+**Run MEGFlow on Slurm**
 
 .. code-block:: bash
 
@@ -28,16 +28,16 @@ If you're using a computing cluster with SLURM as the resource manager, make sur
     #SBATCH --output=%x.%j.out
     #SBATCH --error=%x.%j.err
 
-    nextflow run megprep.nf -c nextflow.config -resume
+    nextflow run megflow.nf -c nextflow.config -resume
 
-This command will run the MegPrep pipeline on the cluster while managing resource allocation automatically.
+This command will run the MEGFlow pipeline on the cluster while managing resource allocation automatically.
 
 
 **nextflow.config**
 
 .. code-block:: groovy
 
-    //megprep.slurm.cpu.config
+    //megflow.slurm.cpu.config
 
     // Define the working directory for Nextflow
     workDir = "/lustre/grp/gjhlab/liaop/datasets/SMN4Lang/output_dir_v3/work"
@@ -67,7 +67,7 @@ This command will run the MegPrep pipeline on the cluster while managing resourc
 
         clusterOptions = { " --chdir=${workDir}" }
 
-        container = '/lustre/grp/gjhlab/liaop/codes/megprep/megprep_0.0.3.sif'
+        container = '/lustre/grp/gjhlab/liaop/codes/megflow/megflow_0.0.3.sif'
     }
 
 
@@ -79,7 +79,7 @@ This command will run the MegPrep pipeline on the cluster while managing resourc
         output_dir = "/lustre/grp/gjhlab/liaop/datasets/SMN4Lang/output_dir_v3" //"/output" // nextflow logs directory
         preproc_dir = "${params.output_dir}/preprocessed" // Output results directory
 
-        code_dir = "/program/megprep"   // all codes for preprocessing.
+        code_dir = "/program/megflow"   // all codes for preprocessing.
         t1_input_type = "nifti"                      // 'dicom' or 'nifti'
         is_bids = true                     // Whether the data is in BIDS format
 

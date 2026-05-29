@@ -4,7 +4,7 @@ $ nextflow run meg_pipeline.nf -preview -with-dag workflow.png
 $ nextflow run meg_pipeline.nf -preview -with-dag workflow.svg
 
 Docker run
-$ docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output -v /data/liaopan/datasets/SMN4Lang/smri:/smri megprep:0.0.3 -r
+$ docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output -v /data/liaopan/datasets/SMN4Lang/smri:/smri megflow:0.0.3 -r
 
 Docker output ownership is handled by the entrypoint: it prepares mounted
 output permissions as root, then drops to the host UID/GID inferred from
@@ -67,7 +67,7 @@ https://mne.tools/stable/auto_examples/inverse/mixed_source_space_inverse.html
 Coregistration:
 - coregistration plot(sensors and MRI)
 _plot_head_shape_points 中 opcity的不透明度修改：
--  vi /home/liaopan/anaconda3/envs/megprep/lib/python3.12/site-packages/mne/viz/_3d.py
+-  vi /home/liaopan/anaconda3/envs/megflow/lib/python3.12/site-packages/mne/viz/_3d.py
 - opcity=1
 
 Forward solution:

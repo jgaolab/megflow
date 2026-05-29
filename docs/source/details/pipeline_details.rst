@@ -1,7 +1,7 @@
 Pipeline Details
 ================
 
-MEGPrep is a Nextflow workflow that combines structural MRI processing,
+MEGFlow is a Nextflow workflow that combines structural MRI processing,
 continuous MEG preprocessing, artifact detection, ICA cleaning, optional
 epoching, covariance estimation, MEG-MRI coregistration, forward modeling,
 source reconstruction, and static quality-control reporting.
@@ -109,7 +109,7 @@ Interactive Edits and Resume
 ----------------------------
 
 Some sidecar files can be edited after a Nextflow run through the interactive
-reports. MEGPrep includes content hashes of those files in the relevant
+reports. MEGFlow includes content hashes of those files in the relevant
 Nextflow task inputs so ``-resume`` can invalidate only the affected downstream
 tasks:
 
@@ -149,7 +149,7 @@ selects how epochs are built:
   ``*_events.tsv`` files and applies the ``event_file`` filters or label-to-id
   mappings.
 * ``exclude_event_id`` can be set to one id or a list of ids to remove those
-  events before epoching. With ``epochs.event_id: null``, MEGPrep keeps all
+  events before epoching. With ``epochs.event_id: null``, MEGFlow keeps all
   remaining event ids.
 
 The resulting epoch FIF file and rejection log are written under
@@ -165,7 +165,7 @@ Covariance is computed only in the full MEG stage. Two modes are available:
 * ``covar_type = "raw"`` estimates noise covariance from a continuous raw
   recording selected by ``raw_covariance_task_id``.
 
-For raw covariance, MEGPrep pairs experimental recordings with a noise or
+For raw covariance, MEGFlow pairs experimental recordings with a noise or
 baseline recording by replacing the BIDS ``task-...`` part of the filename with
 ``task-${params.raw_covariance_task_id}``. This is the current mechanism for
 empty-room or empty-room-like recordings. For example, if

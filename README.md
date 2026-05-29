@@ -1,11 +1,11 @@
 
-# MEGPrep: A Scalable and Reproducible Pipeline for Large-Scale MEG Preprocessing
+# MEGFlow: A Scalable and Reproducible Pipeline for Large-Scale MEG Preprocessing
 
-[![Documentation Status](https://readthedocs.org/projects/megprep/badge/?version=latest)](https://megprep.readthedocs.io/)
-[![Docker Pulls](https://img.shields.io/docker/pulls/cmrlab/megprep)](https://hub.docker.com/r/cmrlab/megprep)
+[![Documentation Status](https://readthedocs.org/projects/megflow-docs/badge/?version=latest)](https://megflow-docs.readthedocs.io/)
+[![Docker Pulls](https://img.shields.io/docker/pulls/cmrlab/megflow)](https://hub.docker.com/r/cmrlab/megflow)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-**MEGPrep** is a fully automated preprocessing pipeline for MEG (Magnetoencephalography) data, built on the **MNE-Python** framework and leveraging the power of **Nextflow**.
+**MEGFlow** is a fully automated preprocessing pipeline for MEG (Magnetoencephalography) data, built on the **MNE-Python** framework and leveraging the power of **Nextflow**.
 
 It is specifically designed to address the challenges of large-scale MEG data processing with a strong emphasis on reproducibility, efficiency, and user-friendliness in various research environments.
 
@@ -17,7 +17,7 @@ It is specifically designed to address the challenges of large-scale MEG data pr
 Standardized environments through containerization (**Docker** and **Singularity**) guarantee consistent results across computational setups. This minimizes variability and ensures reproducibility across different systems, facilitating cross-subject and cross-site studies.
 
 ### ⚡ Acceleration and Parallelization
-By using the **Nextflow** framework, MEGPrep dramatically accelerates the pipeline. It is optimized for high parallelization, capable of managing heavy workloads and significantly speeding up data processing through concurrent execution of tasks.
+By using the **Nextflow** framework, MEGFlow dramatically accelerates the pipeline. It is optimized for high parallelization, capable of managing heavy workloads and significantly speeding up data processing through concurrent execution of tasks.
 
 ### 🧩 Modularity and Integrability
 Designed with modularity in mind, enabling users to customize workflows easily. It integrates seamlessly with various libraries (including `mne-python`) for enhanced processing and analysis.
@@ -38,13 +38,13 @@ Offers an easy-to-use configuration system. Researchers can adapt the preprocess
 
 ## 🚀 Installation
 
-MEGPrep is officially distributed as a Docker container. We recommend using the
+MEGFlow is officially distributed as a Docker container. We recommend using the
 containerized installation workflow whenever possible, because it provides the
 most reproducible environment and avoids most local dependency conflicts.
 
 If Docker cannot be installed, the Docker daemon is unavailable, or the container
 image cannot be pulled in your network environment, you can try the local
-development installation workflow instead. The local workflow installs MEGPrep
+development installation workflow instead. The local workflow installs MEGFlow
 from source without relying on a container image. Use this option cautiously,
 because differences in system libraries, package versions, and local software
 environments may lead to behavior that differs from the containerized workflow.
@@ -52,28 +52,28 @@ environments may lead to behavior that differs from the containerized workflow.
 ### Recommended: Containerized One-Click Install
 
 The scripts under `scripts/install/` install or reuse a container runtime, pull
-`cmrlab/megprep:<version>`, and verify the image by running the MEGPrep help
+`cmrlab/megflow:<version>`, and verify the image by running the MEGFlow help
 command.
 
 ```bash
 # Linux
-bash scripts/install/install_megprep_linux.sh
-bash scripts/install/install_megprep_linux.sh 0.0.3
+bash scripts/install/install_megflow_linux.sh
+bash scripts/install/install_megflow_linux.sh 0.0.3
 
 # macOS
-bash scripts/install/install_megprep_macos.sh
-bash scripts/install/install_megprep_macos.sh 0.0.3
+bash scripts/install/install_megflow_macos.sh
+bash scripts/install/install_megflow_macos.sh 0.0.3
 
 # Windows PowerShell
-powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megprep_windows.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megprep_windows.ps1 -ImageTag 0.0.3
+powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1
+powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1 -ImageTag 0.0.3
 ```
 
 On Linux, the installer can use Docker or Apptainer/Singularity:
 
 ```bash
-bash scripts/install/install_megprep_linux.sh 0.0.3 docker
-bash scripts/install/install_megprep_linux.sh 0.0.3 apptainer
+bash scripts/install/install_megflow_linux.sh 0.0.3 docker
+bash scripts/install/install_megflow_linux.sh 0.0.3 apptainer
 ```
 
 For more details, see `scripts/install/README.md`.
@@ -83,13 +83,13 @@ For more details, see `scripts/install/README.md`.
 The scripts under `scripts/install-dev/` provide a source-based local
 installation path for Linux environments where container installation is not
 available or image pulling is blocked. This workflow installs or reuses Conda,
-Nextflow, FreeSurfer, and MEGPrep source dependencies in a local installation
+Nextflow, FreeSurfer, and MEGFlow source dependencies in a local installation
 directory.
 
 ```bash
-bash scripts/install-dev/install_megprep_dev_linux.sh
-bash scripts/install-dev/install_megprep_dev_linux.sh --install-dir /data/megprep-dev
-bash scripts/install-dev/install_megprep_dev_linux.sh --no-freesurfer
+bash scripts/install-dev/install_megflow_dev_linux.sh
+bash scripts/install-dev/install_megflow_dev_linux.sh --install-dir /data/megflow-dev
+bash scripts/install-dev/install_megflow_dev_linux.sh --no-freesurfer
 ```
 
 After installation, load the generated environment:
@@ -107,7 +107,7 @@ If you prefer to install manually, install Docker following the
 image directly:
 
 ```bash
-docker pull cmrlab/megprep:<version>
+docker pull cmrlab/megflow:<version>
 ```
 
 *(Replace `<version>` with the specific version tag, e.g., `0.0.3` or `latest`)*
@@ -118,7 +118,7 @@ docker pull cmrlab/megprep:<version>
 
 ### Basic Command Structure
 ```bash
-docker run --rm -it cmrlab/megprep:<version> [nextflow_options]
+docker run --rm -it cmrlab/megflow:<version> [nextflow_options]
 ```
 
 ### Pipeline steps
@@ -167,20 +167,20 @@ Optional **Maxwell / tSSS** for Elekta-style data is supported in the same YAML 
 
 ```bash
 # Default: full MEG only, use existing FreeSurfer/DeepPrep subjects dir
-nextflow run megprep/nextflow/meg_anat_pipeline_for_docker.nf \
-  -c megprep/nextflow/nextflow.config
+nextflow run megflow/nextflow/meg_anat_pipeline_for_docker.nf \
+  -c megflow/nextflow/nextflow.config
 
 # Structural + MEG end-to-end
-nextflow run megprep/nextflow/meg_anat_pipeline_for_docker.nf \
-  -c megprep/nextflow/nextflow.config --steps all
+nextflow run megflow/nextflow/meg_anat_pipeline_for_docker.nf \
+  -c megflow/nextflow/nextflow.config --steps all
 
 # MRI only
-nextflow run megprep/nextflow/meg_anat_pipeline_for_docker.nf \
-  -c megprep/nextflow/nextflow.config --steps anatomy
+nextflow run megflow/nextflow/meg_anat_pipeline_for_docker.nf \
+  -c megflow/nextflow/nextflow.config --steps anatomy
 
 # Rebuild static HTML report only
-nextflow run megprep/nextflow/meg_anat_pipeline_for_docker.nf \
-  -c megprep/nextflow/nextflow.config --steps report
+nextflow run megflow/nextflow/meg_anat_pipeline_for_docker.nf \
+  -c megflow/nextflow/nextflow.config --steps report
 
 # Optional: two-step “anatomy first, then MEG from artifacts”
 nextflow run ... --steps anatomy
@@ -191,11 +191,11 @@ Set `params.steps` in your `nextflow.config` for a project default; override wit
 
 ### Workflow provenance in the static HTML report
 
-Every run writes `preprocessed/logs/megprep_run_manifest.json`. The static HTML report reads this manifest to draw the dataset-level **Workflow** diagram and to show the run mode, runtime, input data, paths, and only the parameters relevant to the selected stage.
+Every run writes `preprocessed/logs/megflow_run_manifest.json`. The static HTML report reads this manifest to draw the dataset-level **Workflow** diagram and to show the run mode, runtime, input data, paths, and only the parameters relevant to the selected stage.
 
 The report also bundles a plain-text config snapshot at `static_html_report/data/nextflow.config.txt` when one can be found. The workflow first snapshots the actual Nextflow config files reported by `workflow.configFiles`; this covers custom local `-c /path/to/config` runs and Docker runs that use `/program/nextflow/run_nextflow.config`. It then falls back to `nextflow.config` / `run_nextflow.config` under the launch directory or project directory.
 
-For `--steps report`, MEGPrep regenerates only the static report. If an earlier `megprep_run_manifest.json` exists, the report build uses it to keep the previous pipeline workflow in the diagram and marks the current run as report-only in the generated report bundle, but it restores the original `preprocessed/logs/megprep_run_manifest.json` afterward so the preprocessing provenance is not overwritten.
+For `--steps report`, MEGFlow regenerates only the static report. If an earlier `megflow_run_manifest.json` exists, the report build uses it to keep the previous pipeline workflow in the diagram and marks the current run as report-only in the generated report bundle, but it restores the original `preprocessed/logs/megflow_run_manifest.json` afterward so the preprocessing provenance is not overwritten.
 
 Subject pages also read the Nextflow `trace.txt` when available. `Task Details`
 lists matched tasks in a collapsed table, while `Task Failure Details` appears
@@ -212,7 +212,7 @@ You can set this in `nextflow.config` or override it for a run:
 
 ```bash
 nextflow run ... --static_task_log_mode all-command-log
-docker run ... cmrlab/megprep:<tag> ... --static_task_log_mode all-command-log
+docker run ... cmrlab/megflow:<tag> ... --static_task_log_mode all-command-log
 ```
 
 Artifact Review in the static report packages one overview plot per subject by
@@ -226,7 +226,7 @@ config snapshot.
 ### Cohort mode: multiple datasets under one root
 
 For a directory that contains many independent MEG datasets, use **`--cohort`**.
-MEGPrep treats each immediate child directory as one dataset and runs the same
+MEGFlow treats each immediate child directory as one dataset and runs the same
 native dataset-tuple DAG used by single-dataset runs. Cohort mode isolates each
 dataset's outputs, then builds a cohort-level static report that links back to
 each dataset report. Nextflow shows the real process tasks for all datasets in
@@ -238,10 +238,10 @@ do not overwrite each other.
 ```bash
 docker run --rm -it \
   -v /data/liaopan/datasets:/input \
-  -v /data/liaopan/megprep_cohort:/output \
+  -v /data/liaopan/megflow_cohort:/output \
   -v /data/liaopan/smri:/smri \
-  -v /data/liaopan/megprep/license.txt:/fs_license.txt \
-  cmrlab/megprep:0.0.3 \
+  -v /data/liaopan/megflow/license.txt:/fs_license.txt \
+  cmrlab/megflow:0.0.3 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
   --steps meg_artifacts \
@@ -256,7 +256,7 @@ Outputs are organized as:
 
 For `--steps all` and anatomy-enabled modes, each dataset's T1 input defaults to
 the same child dataset directory as the MEG input. If you pass `--t1_dir` and it
-contains matching child directories, MEGPrep uses `--t1_dir/<dataset_name>` for
+contains matching child directories, MEGFlow uses `--t1_dir/<dataset_name>` for
 each run; otherwise it uses the provided `--t1_dir` for all datasets.
 
 Use a milestone such as `--steps meg_artifacts` or `--steps meg_ica` for a quick
@@ -275,13 +275,13 @@ The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.s
 - **Modifiers** that contain commas must be **quoted for the shell**, e.g. `--steps 'meg_epochs,skip_ica'`.
 - **Cohort mode** uses `--cohort`; in that mode `-i` / `--input` should point to a directory whose immediate children are datasets, and `--fs_subjects_dir` is used as the base directory for per-dataset FreeSurfer outputs.
 - You can instead set **`steps = '...'`** inside the Nextflow file you mount at **`/program/nextflow/nextflow.config`**; a container **`--steps`** / **`-s`** argument **overrides** that for the run.
-- **`-s`** here is the **MEGPrep** flag (input path is **`-i`**), not Docker’s **`-i`** (interactive). Typical pattern: `docker run ... cmrlab/megprep:<tag> -i /input -o /output ... --steps all`.
+- **`-s`** here is the **MEGFlow** flag (input path is **`-i`**), not Docker’s **`-i`** (interactive). Typical pattern: `docker run ... cmrlab/megflow:<tag> -i /input -o /output ... --steps all`.
 - The Docker entrypoint copies the mounted config to `/program/nextflow/run_nextflow.config`, applies command-line path overrides, runs Nextflow with that file, then copies it to `<output>/nextflow.config` and snapshots it into `preprocessed/logs/` for the static HTML report.
 - The Docker entrypoint starts as root only long enough to prepare mounted output permissions, then drops to the host UID/GID inferred from `/input`; report-only runs that only mount `/output` infer ownership from `/output`.
 
 **Docker output ownership**
 
-You do **not** need to add Docker's `--user` flag or pre-create the output directory. If the host output path does not exist, Docker may create it as `root:root` before the container starts; MEGPrep fixes that at startup, then runs the pipeline as the host user inferred from `/input`. For interactive report runs such as `docker run ... -v /data/preprocessed:/output cmrlab/megprep:<version> -r`, ownership is inferred from `/output`. Outputs should therefore be writable by the submitting user, not owned by root.
+You do **not** need to add Docker's `--user` flag or pre-create the output directory. If the host output path does not exist, Docker may create it as `root:root` before the container starts; MEGFlow fixes that at startup, then runs the pipeline as the host user inferred from `/input`. For interactive report runs such as `docker run ... -v /data/preprocessed:/output cmrlab/megflow:<version> -r`, ownership is inferred from `/output`. Outputs should therefore be writable by the submitting user, not owned by root.
 
 If neither `/input` nor `/output` is owned by the user who should own generated files, pass the desired IDs explicitly:
 
@@ -289,7 +289,7 @@ If neither `/input` nor `/output` is owned by the user who should own generated 
 docker run --rm -it \
   -e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)" \
   -v /data/bids:/input -v /data/out:/output \
-  cmrlab/megprep:<version> \
+  cmrlab/megflow:<version> \
   -i /input -o /output
 ```
 
@@ -300,7 +300,7 @@ docker run --rm -it \
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   -v /data/license.txt:/fs_license.txt \
-  cmrlab/megprep:0.0.3 \
+  cmrlab/megflow:0.0.3 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
   --steps meg_all
@@ -309,7 +309,7 @@ docker run --rm -it \
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   -v /data/license.txt:/fs_license.txt \
-  cmrlab/megprep:0.0.3 \
+  cmrlab/megflow:0.0.3 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
   --steps all
@@ -317,7 +317,7 @@ docker run --rm -it \
 # Static HTML report only (existing preproc under preproc_dir)
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
-  cmrlab/megprep:0.0.3 \
+  cmrlab/megflow:0.0.3 \
   -i /input -o /output --fs_subjects_dir /smri \
   --steps report
 ```
@@ -349,9 +349,9 @@ docker run --rm -it \
     -v /data/datasets/SMN4Lang:/input \
     -v /data/datasets/SMN4Lang/preprocessed:/output \
     -v /data/datasets/SMN4Lang/smri:/smri \
-    -v /data/megprep/license.txt:/fs_license.txt \
-    -v /data/megprep/nextflow/nextflow.config:/program/nextflow/nextflow.config \
-    cmrlab/megprep:0.0.3 \
+    -v /data/megflow/license.txt:/fs_license.txt \
+    -v /data/megflow/nextflow/nextflow.config:/program/nextflow/nextflow.config \
+    cmrlab/megflow:0.0.3 \
     -i /input \
     -o /output \
     --fs_license_file /fs_license.txt \
@@ -359,19 +359,19 @@ docker run --rm -it \
     --resume
 ```
 
-For MEGPrep, the default **`steps`** is **`meg_all`** (MEG only, using existing `fs_subjects_dir`). To run **structural MRI + full MEG** together, use **`--steps all`** (or **`-s all`**) on the **`docker run ...`** command line, or set **`steps = 'all'`** in the mounted config. See [Using pipeline steps with Docker](#using-pipeline-steps-with-docker).
+For MEGFlow, the default **`steps`** is **`meg_all`** (MEG only, using existing `fs_subjects_dir`). To run **structural MRI + full MEG** together, use **`--steps all`** (or **`-s all`**) on the **`docker run ...`** command line, or set **`steps = 'all'`** in the mounted config. See [Using pipeline steps with Docker](#using-pipeline-steps-with-docker).
 
 ---
 
 ## 📈 Quality Control Reports
 
-MEGPrep generates interactive quality control reports via Streamlit.
+MEGFlow generates interactive quality control reports via Streamlit.
 
 ### How to View Reports
 Use the `-r` flag and map port `8501`:
 
 ```bash
-docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output cmrlab/megprep:<version> -r
+docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output cmrlab/megflow:<version> -r
 ```
 
 **Access via browser:**
@@ -389,18 +389,18 @@ When reporting a bug, please include:
 3.  **Logs**: The relevant part of the error log or traceback (please use code blocks).
 4.  **Description**: A clear description of what you expected to happen versus what actually happened.
 
-👉 [Report an Issue](https://github.com/liaopan/megprep/issues)
+👉 [Report an Issue](https://github.com/jgaolab/megflow/issues)
 
 ---
 
 ## 🛠️ Development
 
-We welcome contributions to MEGPrep! If you want to contribute code or improve documentation, please follow these steps:
+We welcome contributions to MEGFlow! If you want to contribute code or improve documentation, please follow these steps:
 
 1.  **Clone the repository:**
     ```bash
-    git clone https://github.com/liaopan/megprep.git
-    cd megprep
+    git clone git@github.com:jgaolab/megflow.git
+    cd megflow
     ```
 
 2. **Environment Setup:**
@@ -439,12 +439,12 @@ We welcome contributions to MEGPrep! If you want to contribute code or improve d
 
     **Using the build script (Recommended):**
     ```bash
-    bash build_megprep.sh
+    bash build_megflow.sh
     ```
 
     **Using Docker directly:**
     ```bash
-    docker build -t megprep:local -f megprep.Dockerfile .
+    docker build -t megflow:local -f megflow.Dockerfile .
     ```
 
 4.  **Submit a Pull Request:**

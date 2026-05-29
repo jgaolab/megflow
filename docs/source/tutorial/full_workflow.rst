@@ -7,7 +7,7 @@ noise covariance choices, anatomy matching, and coregistration settings. This
 page explains when to run each broader workflow mode and what to check before
 using it.
 
-Docker output ownership is handled by the MEGPrep entrypoint. It prepares
+Docker output ownership is handled by the MEGFlow entrypoint. It prepares
 mounted output permissions as root, then drops to the host UID/GID inferred
 from ``/input`` before running Nextflow. Report-only runs that only mount
 ``/output`` infer ownership from ``/output`` instead. The host output directory
@@ -47,7 +47,7 @@ For a BIDS dataset with T1w images:
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
-     cmrlab/megprep:0.0.3 \
+     cmrlab/megflow:0.0.3 \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \
@@ -56,7 +56,7 @@ For a BIDS dataset with T1w images:
      --resume
 
 This writes or updates anatomy derivatives under ``/path/to/smri`` and the
-MEGPrep output directory. After anatomy is ready and the MEG preprocessing QC
+MEGFlow output directory. After anatomy is ready and the MEG preprocessing QC
 looks reasonable, run MEG processing with the same ``--fs_subjects_dir``.
 
 Run Through Epochs
@@ -86,7 +86,7 @@ Example command:
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megprep:0.0.3 \
+     cmrlab/megflow:0.0.3 \
      -i /input \
      -o /output \
      --steps meg_epochs \
@@ -111,7 +111,7 @@ Use ``--steps meg_all`` when:
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megprep:0.0.3 \
+     cmrlab/megflow:0.0.3 \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \
@@ -133,7 +133,7 @@ both ready. This mode runs anatomy first, then the full MEG workflow.
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megprep:0.0.3 \
+     cmrlab/megflow:0.0.3 \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \

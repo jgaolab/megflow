@@ -1,7 +1,7 @@
 Quality Control Metrics
 =======================
 
-MEGPrep writes quality control sidecars during processing and packages them
+MEGFlow writes quality control sidecars during processing and packages them
 into a portable static HTML report. The current report uses measured values and
 static thresholds. It does not yet provide calibrated normative quality scores.
 
@@ -137,7 +137,7 @@ The static report writes a dataset dashboard and machine-readable summaries:
      - Full subject summary used to render the subject page.
    * - ``static_html_report/data/nextflow.config.txt``
      - Snapshot of the effective Nextflow config when available.
-   * - ``static_html_report/data/megprep_run_manifest.json``
+   * - ``static_html_report/data/megflow_run_manifest.json``
      - Workflow mode and run metadata used to render the report workflow
        diagram.
    * - ``static_html_report/files/<recording>/errors/*.txt``

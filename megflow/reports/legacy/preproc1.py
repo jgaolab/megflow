@@ -1,8 +1,6 @@
 import os
 import streamlit as st
 import mne
-import pandas as pd
-
 mne.viz.set_browser_backend('matplotlib')
 # os.environ["DISPLAY"] = ":99"
 # 设置数据目录路径
@@ -20,7 +18,7 @@ def filter_data(_raw, freqrange):
     raw_filtered = _raw.copy().filter(*freqrange, n_jobs=8)
     return raw_filtered
 
-# @st.cache_data
+@st.cache_data
 def plot_psd(_raw):
     psd_fig = _raw.compute_psd().plot(show=False)
     return psd_fig
@@ -47,12 +45,6 @@ else:
             raw = mne.io.read_raw_fif(file_path, preload=True)
             with st.expander("Raw Data Info", expanded=False):
                 st.write("Raw Data Info:", raw.info)
-
-            # 显示功率谱密度 (PSD) 图
-            st.subheader("Power Spectral Density (PSD)")
-            # psd_fig = raw.compute_psd().plot(show=False)
-            psd_fig = plot_psd(raw)
-            st.pyplot(psd_fig)
 
             # 显示原始波形图
             # st.subheader("Raw Waveform")
@@ -82,19 +74,20 @@ else:
 
             # 对应坏道和坏段文件
             bad_channels_file = os.path.join(
-                "/data/liaopan/megprep/megprep/sub-010_ses-001_tsss_preproc-raw_bad_channels.txt")
+                "/data/liaopan/megflow/megflow/sub-010_ses-001_tsss_preproc-raw_bad_channels.txt")
             bad_segments_file = os.path.join(
-                "/data/liaopan/megprep/megprep/sub-010_ses-001_tsss_preproc-raw_bad_segments.csv")
+                "/data/liaopan/megflow/megflow/sub-010_ses-001_tsss_preproc-raw_bad_segments.csv")
 
             ###############################################################################
             # 1) 检查并加载坏道文件 (xxx_bad_channels.txt)
             ###############################################################################
             if os.path.exists(bad_channels_file):
-                # st.write(f"Loading bad channels from: {bad_channels_file}")
+                st.write(f"Loading bad channels from: {bad_channels_file}")
                 with open(bad_channels_file, 'r') as f:
                     # 每一行是一个坏道名称
                     bad_channels = [ch.strip() for ch in f.read().splitlines() if ch.strip()]
                 raw.info["bads"] = bad_channels
+                st.write("Bad channels loaded:", raw.info["bads"])
             else:
                 st.write("No bad channels file found.")
 
@@ -102,7 +95,7 @@ else:
             # 2) 检查并加载坏段文件 (xxx_bad_segments.csv)
             ###############################################################################
             if os.path.exists(bad_segments_file):
-                # st.write(f"Loading bad segments from: {bad_segments_file}")
+                st.write(f"Loading bad segments from: {bad_segments_file}")
                 # 直接用 mne.read_annotations 读取 csv 文件
                 annotations = mne.read_annotations(bad_segments_file)
 
@@ -114,7 +107,7 @@ else:
                     # annotations = annotations + old_annot
                     raw.set_annotations(annotations)
                 # st.write("Bad segments loaded:", annotations.to_data_frame())
-                # st.write("Bad segments loaded:", raw.annotations.to_data_frame())
+                st.write("Bad segments loaded:", raw.annotations.to_data_frame())
                 # st.write('debug:', raw.annotations)
             else:
                 st.write("No bad segments file found.")
@@ -124,73 +117,26 @@ else:
                                     show=False, block=False, show_scrollbars=False)
             st.pyplot(fig_filtered)
 
-            # # 显示功率谱密度 (PSD) 图
-            # st.subheader("Power Spectral Density (PSD)")
-            # # psd_fig = raw.compute_psd().plot(show=False)
-            # psd_fig = plot_psd(raw)
-            # st.pyplot(psd_fig)
+            # 显示功率谱密度 (PSD) 图
+            st.subheader("Power Spectral Density (PSD)")
+            # psd_fig = raw.compute_psd().plot(show=False)
+            psd_fig = plot_psd(raw)
+            st.pyplot(psd_fig)
 
-            if "bad_segments" not in st.session_state:
-                st.session_state.bad_segments = raw.annotations
-
-            if "bad_channels" not in st.session_state:
-                st.session_state.bad_channels = bad_channels
-
-            if "save_triggered_s" not in st.session_state:
-                st.session_state.save_triggered_s = False
-
-            if "save_triggered_c" not in st.session_state:
-                st.session_state.save_triggered_c = False
-
-            with st.form("edit_bad_channels"):
-                # 显示坏道检测结果
-                st.subheader("Bad Channels")
-                raw.info["bads"] = bad_channels  # 示例坏道
-                # st.write("Bad channels:", raw.info["bads"])
-                bad_ch_df = st.data_editor(pd.DataFrame(raw.info['bads'], columns=['Bad channels']), num_rows="dynamic")
-                # if st.button("Save Bad Channels"):
-                #     bad_ch_df.to_csv(bad_channels_file, header=False, index=False, sep='\n')
-                #     st.success(f"Saved:{bad_channels_file}")
-                save_changes = st.form_submit_button("Save Bad Channels")
-
-                if save_changes:
-                    st.session_state.save_triggered_c = True
-                    st.session_state.bad_channels = bad_ch_df
-                    bad_ch_df.to_csv(bad_channels_file, header=False, index=False, sep='\n')
-                    st.success(f"Saved:{bad_channels_file}")
-                else:
-                    st.session_state.save_triggered_c = False
+            # 显示坏道检测结果
+            st.subheader("Bad Channels")
+            raw.info["bads"] = bad_channels  # 示例坏道
+            st.write("Bad channels:", raw.info["bads"])
 
             # 显示坏段检测结果
-            with st.form("edit_bad_segments"):
-                st.subheader("Bad Segments")
-                # example：raw.annotations.append(onset=10, duration=5, description="Bad segment")
-                bad_segments = raw.annotations
-                if bad_segments:
-                    # st.write("Bad Segments:", bad_segments.to_data_frame())
-                    st.data_editor(bad_segments.to_data_frame(), num_rows="dynamic")
-                else:
-                    st.write("No bad segments detected.")
-
-                # if st.button("Save Bad Segments"):
-                #     bad_segments.save(bad_segments_file, overwrite=True)
-                #     st.success(f"Saved:{bad_segments_file}")
-
-                save_changes = st.form_submit_button("Save Bad Segments")
-
-                if save_changes:
-                    st.session_state.save_triggered_s = True
-                    st.session_state.bad_segments = bad_segments
-                    bad_segments.save(bad_segments_file, overwrite=True)
-                    st.success(f"Saved:{bad_segments_file}")
-                else:
-                    st.session_state.save_triggered_s = False
-
-            # 根据保存状态提供提示
-            if st.session_state.save_triggered_c or st.session_state.save_triggered_s:
-                st.info("Save operation completed.")
+            st.subheader("Bad Segments")
+            # 假设坏段被标注在 raw.annotations 中
+            # 示例：raw.annotations.append(onset=10, duration=5, description="Bad segment")
+            bad_segments = raw.annotations
+            if bad_segments:
+                st.write("Bad Segments:", bad_segments)
             else:
-                st.info("No save operation performed.")
+                st.write("No bad segments detected.")
 
             # 可选：显示其他预处理结果
             st.subheader("Other Preprocessing Results")

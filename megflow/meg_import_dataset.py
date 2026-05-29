@@ -97,7 +97,7 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
         at least one of these substrings (case-insensitive) are kept.
     raw_exclude_dirs : list of str or Path, optional
         For ``dataset_format='raw'`` only: candidate files inside these
-        directories are skipped. This is used to keep MEGPrep output/preprocessed
+        directories are skipped. This is used to keep MEGFlow output/preprocessed
         directories out of raw input discovery.
     dataset_format : {'bids', 'raw','auto'}, optional
         Format of the dataset. If None, it will be auto-detected.

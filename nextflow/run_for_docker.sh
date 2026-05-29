@@ -1,7 +1,7 @@
 #!/bin/bash  
 # Usage:
-#$ bash run_for_docker.sh -i /data/liaopan/datasets/Holmes_cn_single/raw --fs_license_file /data/liaopan/megprep/license.txt --fs_subjects_dir /data/liaopan/datasets/Holmes_cn/smri
-#  bash run_for_docker.sh -i /data/liaopan/datasets/Holmes_cn_single/raw --fs_license_file /data/liaopan/megprep/license.txt --fs_subjects_dir /data/liaopan/datasets/Holmes_cn/smri -o /data/liaopan/datasets/Holmes_cn_single
+#$ bash run_for_docker.sh -i /data/liaopan/datasets/Holmes_cn_single/raw --fs_license_file /data/liaopan/megflow/license.txt --fs_subjects_dir /data/liaopan/datasets/Holmes_cn/smri
+#  bash run_for_docker.sh -i /data/liaopan/datasets/Holmes_cn_single/raw --fs_license_file /data/liaopan/megflow/license.txt --fs_subjects_dir /data/liaopan/datasets/Holmes_cn/smri -o /data/liaopan/datasets/Holmes_cn_single
 # Exit on error
 set -e
 
@@ -21,14 +21,14 @@ MEG_ONLY=false
 VIEW_REPORT=false
 COHORT_MODE=false
 NEXTFLOW_FILE="/program/nextflow/meg_pipeline.nf"
-STREAMLIT_APP_PATH="/program/megprep/reports/reports.py"
-COHORT_REPORT_PATH="/program/megprep/reports/cohort_static_html_report.py"
+STREAMLIT_APP_PATH="/program/megflow/reports/reports.py"
+COHORT_REPORT_PATH="/program/megflow/reports/cohort_static_html_report.py"
 STATIC_TASK_LOG_MODE=""
 STATIC_ARTIFACT_OVERVIEW_DURATION=""
 nextflow_args=()
 
 prepare_docker_user() {
-    if [ "$(id -u)" != "0" ] || [ "${MEGPREP_DOCKER_DROPPED:-}" = "1" ]; then
+    if [ "$(id -u)" != "0" ] || [ "${MEGFLOW_DOCKER_DROPPED:-}" = "1" ]; then
         return
     fi
 
@@ -85,14 +85,14 @@ prepare_docker_user() {
     fi
 
     if ! getent group "$target_gid" >/dev/null 2>&1; then
-        groupadd -g "$target_gid" megprep_host_group 2>/dev/null || true
+        groupadd -g "$target_gid" megflow_host_group 2>/dev/null || true
     fi
     if ! getent passwd "$target_uid" >/dev/null 2>&1; then
-        useradd -u "$target_uid" -g "$target_gid" -M -d /tmp/megprep_home -s /bin/bash megprep_host_user 2>/dev/null || true
+        useradd -u "$target_uid" -g "$target_gid" -M -d /tmp/megflow_home -s /bin/bash megflow_host_user 2>/dev/null || true
     fi
 
-    mkdir -p /tmp/megprep_home /tmp/megprep_cache /tmp/megprep_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR
-    chmod -R 777 /tmp/megprep_home /tmp/megprep_cache /tmp/megprep_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR
+    mkdir -p /tmp/megflow_home /tmp/megflow_cache /tmp/megflow_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR
+    chmod -R 777 /tmp/megflow_home /tmp/megflow_cache /tmp/megflow_nextflow /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR
 
     if [ -n "$scan_output_dir" ]; then
         mkdir -p "$scan_output_dir"
@@ -103,10 +103,10 @@ prepare_docker_user() {
         chmod ug+rwX "$scan_output_dir" 2>/dev/null || true
     fi
 
-    export MEGPREP_DOCKER_DROPPED=1
-    export HOME=/tmp/megprep_home
-    export XDG_CACHE_HOME=/tmp/megprep_cache
-    export NXF_HOME=/tmp/megprep_nextflow
+    export MEGFLOW_DOCKER_DROPPED=1
+    export HOME=/tmp/megflow_home
+    export XDG_CACHE_HOME=/tmp/megflow_cache
+    export NXF_HOME=/tmp/megflow_nextflow
     export NXF_TEMP=/tmp
     export TMPDIR=/tmp
     export NUMBA_CACHE_DIR=/tmp/NUMBA_CACHE_DIR
@@ -124,9 +124,9 @@ else
     id -u
 fi
 
-export HOME="${HOME:-/tmp/megprep_home}"
-export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/megprep_cache}"
-export NXF_HOME="${NXF_HOME:-/tmp/megprep_nextflow}"
+export HOME="${HOME:-/tmp/megflow_home}"
+export XDG_CACHE_HOME="${XDG_CACHE_HOME:-/tmp/megflow_cache}"
+export NXF_HOME="${NXF_HOME:-/tmp/megflow_nextflow}"
 export NXF_TEMP="${NXF_TEMP:-/tmp}"
 export TMPDIR="${TMPDIR:-/tmp}"
 export NUMBA_CACHE_DIR="${NUMBA_CACHE_DIR:-/tmp/NUMBA_CACHE_DIR}"
@@ -219,13 +219,13 @@ if [ -z "$OUTPUT_DIR" ]; then
     exit 1
 fi
 
-if ! mkdir -p "$OUTPUT_DIR" 2>/dev/null || ! touch "$OUTPUT_DIR/.megprep_write_test" 2>/dev/null; then
+if ! mkdir -p "$OUTPUT_DIR" 2>/dev/null || ! touch "$OUTPUT_DIR/.megflow_write_test" 2>/dev/null; then
     echo "Error: output directory is not writable by the container user: $OUTPUT_DIR"
     echo "If you run Docker with a custom --user, remove it or make the mounted output directory writable by that user."
     echo "You can also pass LOCAL_UID/LOCAL_GID when automatic ownership inference from /input is not suitable."
     exit 1
 fi
-rm -f "$OUTPUT_DIR/.megprep_write_test"
+rm -f "$OUTPUT_DIR/.megflow_write_test"
 
 # Check if the config file exists
 if [ ! -f "$CONFIG_FILE" ]; then

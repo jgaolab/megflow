@@ -2,45 +2,45 @@
 
 set -euo pipefail
 
-INSTALL_ROOT="${HOME}/.megprep-dev"
+INSTALL_ROOT="${HOME}/.megflow-dev"
 INSTALL_FREESURFER=1
 SKIP_REQUIREMENTS=0
 CONDA_ENV_PREFIX=""
 MINICONDA_ROOT=""
-REPO_URL="https://github.com/LiaoPan/megprep"
+REPO_URL="git@github.com:jgaolab/megflow.git"
 REPO_DIR=""
-PY_ENV_NAME="megprep"
+PY_ENV_NAME="megflow"
 PY_ENV_PREFIX=""
 NEXTFLOW_BIN=""
 CONDA_BIN=""
 FREESURFER_STATUS="not_requested"
 
 log() {
-  echo "[megprep-dev-install][linux] $*"
+  echo "[megflow-dev-install][linux] $*"
 }
 
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install-dev/install_megprep_dev_linux.sh [options]
+  bash scripts/install-dev/install_megflow_dev_linux.sh [options]
 
 Options:
-  --install-dir <dir>      Installation root directory (default: ~/.megprep-dev)
+  --install-dir <dir>      Installation root directory (default: ~/.megflow-dev)
   --no-freesurfer          Skip FreeSurfer installation
   --with-freesurfer        Force FreeSurfer installation (default behavior)
   --skip-requirements      Skip installing requirements.txt
   --conda-prefix <dir>     Conda env prefix for FreeSurfer
                            (default: <install-dir>/freesurfer/conda-env)
-  --repo-dir <dir>         Local source directory (default: <install-dir>/src/megprep)
-  --repo-url <url>         Source git URL (default: https://github.com/LiaoPan/megprep)
+  --repo-dir <dir>         Local source directory (default: <install-dir>/src/megflow)
+  --repo-url <url>         Source git URL (default: git@github.com:jgaolab/megflow.git)
   --miniconda-root <dir>   Miniconda install path when conda is absent
                            (default: <install-dir>/miniconda3)
   -h, --help               Show this help message
 
 Examples:
-  bash scripts/install-dev/install_megprep_dev_linux.sh
-  bash scripts/install-dev/install_megprep_dev_linux.sh --install-dir /data/megprep-dev
-  bash scripts/install-dev/install_megprep_dev_linux.sh --no-freesurfer
+  bash scripts/install-dev/install_megflow_dev_linux.sh
+  bash scripts/install-dev/install_megflow_dev_linux.sh --install-dir /data/megflow-dev
+  bash scripts/install-dev/install_megflow_dev_linux.sh --no-freesurfer
 EOF
 }
 
@@ -311,9 +311,9 @@ write_env_file() {
 
   {
     echo "#!/usr/bin/env bash"
-    echo "# Source this file to enable local MEGPrep dev tools"
-    echo "export MEGPREP_DEV_ROOT=\"${INSTALL_ROOT}\""
-    echo "export MEGPREP_SRC_DIR=\"${REPO_DIR}\""
+    echo "# Source this file to enable local MEGFlow dev tools"
+    echo "export MEGFLOW_DEV_ROOT=\"${INSTALL_ROOT}\""
+    echo "export MEGFLOW_SRC_DIR=\"${REPO_DIR}\""
     echo "export PATH=\"$(dirname "${NEXTFLOW_BIN}"):\${PATH}\""
     echo "# shellcheck disable=SC1091"
     echo "source \"${conda_root}/etc/profile.d/conda.sh\""
@@ -360,7 +360,7 @@ main() {
   parse_args "$@"
 
   [[ -n "${MINICONDA_ROOT}" ]] || MINICONDA_ROOT="${INSTALL_ROOT}/miniconda3"
-  [[ -n "${REPO_DIR}" ]] || REPO_DIR="${INSTALL_ROOT}/src/megprep"
+  [[ -n "${REPO_DIR}" ]] || REPO_DIR="${INSTALL_ROOT}/src/megflow"
   [[ -n "${CONDA_ENV_PREFIX}" ]] || CONDA_ENV_PREFIX="${INSTALL_ROOT}/freesurfer/conda-env"
 
   log "Install root: ${INSTALL_ROOT}"

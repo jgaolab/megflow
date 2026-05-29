@@ -4,12 +4,12 @@ set -euo pipefail
 
 IMAGE_TAG="${1:-latest}"
 RUNTIME_MODE="${2:-auto}" # auto | docker | apptainer
-IMAGE="cmrlab/megprep:${IMAGE_TAG}"
-SIF_PATH="${MEGPREP_SIF_PATH:-./megprep_${IMAGE_TAG}.sif}"
+IMAGE="cmrlab/megflow:${IMAGE_TAG}"
+SIF_PATH="${MEGFLOW_SIF_PATH:-./megflow_${IMAGE_TAG}.sif}"
 RUNTIME=""
 
 log() {
-  echo "[megprep-install][linux] $*"
+  echo "[megflow-install][linux] $*"
 }
 
 validate_inputs() {
@@ -151,7 +151,7 @@ run_docker_flow() {
   install_docker_linux
   start_docker_linux
 
-  log "Pulling MEGPrep Docker image..."
+  log "Pulling MEGFlow Docker image..."
   docker pull "${IMAGE}"
 
   log "Running '-h' to validate installation (help output should print below)..."
@@ -168,7 +168,7 @@ run_apptainer_flow() {
     exit 1
   fi
 
-  log "Pulling MEGPrep image through ${appt} from docker://..."
+  log "Pulling MEGFlow image through ${appt} from docker://..."
   log "Output SIF: ${SIF_PATH}"
   "${appt}" pull --force "${SIF_PATH}" "docker://${IMAGE}"
 
