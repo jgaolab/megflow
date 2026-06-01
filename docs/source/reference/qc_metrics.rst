@@ -131,6 +131,116 @@ The dataset dashboard includes an interactive Quality Score filter. It can show
 recordings at or above a temporary cutoff, below a temporary cutoff, or with
 missing scores without rerunning the pipeline.
 
+MEGQC Metric Families
+---------------------
+
+The default MEGQC model is ``lowcost_quota_T4_S2_Stat1_Fr1``. It groups
+low-level channel-type metrics into metric families, scores each family against
+the selected Normative Reference, and averages available family scores into the
+final ``score_0_100``. The default score scale is 0-100 and higher is better.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 18 32 50
+
+   * - Domain
+     - Metric family
+     - What it captures
+   * - Temporal
+     - ``tsfel.max_abs_diff.abs_q95``
+     - High quantile of maximum absolute adjacent-sample change across
+       channels. Sensitive to spikes, jumps, and high-frequency transients.
+   * - Temporal
+     - ``tsfel.max_abs_diff.q75``
+     - Upper-quartile adjacent-sample change. Captures sustained transient
+       instability with less emphasis on the most extreme samples.
+   * - Temporal
+     - ``tsfel.max_abs_diff.iqr``
+     - Interquartile spread of adjacent-sample changes. Captures variability of
+       fast sample-to-sample changes.
+   * - Temporal
+     - ``tsfel.max_abs_diff.mean``
+     - Mean adjacent-sample change. Captures overall temporal roughness.
+   * - Spectral
+     - ``freq_domain.skewness_amplitude``
+     - Skewness of the spectral amplitude distribution. High values can indicate
+       dominance by a few frequencies or artifact peaks.
+   * - Spectral
+     - ``freq_domain.kurtosis_amplitude``
+     - Kurtosis of the spectral amplitude distribution. Sensitive to narrow-band
+       interference and anomalous spectral peaks.
+   * - Statistic
+     - ``tsfel.ptp_amp.abs_q95``
+     - High quantile of peak-to-peak amplitude. Captures large oscillations,
+       drift, or abnormal channel amplitude ranges.
+   * - Fractal
+     - ``fractal_domain.DFA``
+     - Detrended Fluctuation Analysis. Captures long-range correlation and
+       non-stationary structure.
+
+Most default families use ``lower_is_better`` because unusually large values
+often indicate noise, transient artifacts, abnormal dynamic range, or spectral
+peaks. The ``direction`` column in ``*.component_scores.csv`` should be used as
+the source of truth for each metric because future models may mix
+``lower_is_better``, ``higher_is_better``, and ``near q50 is better`` metrics.
+
+MEGQC Component Score Columns
+-----------------------------
+
+``*.component_scores.csv`` contains one row per scored metric component. Metrics
+are often duplicated by channel type, for example ``mag`` and ``grad`` rows for
+the same family when both are available.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 72
+
+   * - Column
+     - Meaning
+   * - ``domain``
+     - Broad metric domain such as Temporal, Spectral, Statistic, or Fractal.
+   * - ``family``
+     - Metric family name. Family-level scores shown in the static report are
+       averages of valid component scores in the same family.
+   * - ``metric``
+     - Exact metric component name, usually including channel type such as
+       ``mag`` or ``grad``.
+   * - ``raw_value``
+     - Metric value measured from the current recording after the fixed MEGQC
+       reference preprocessing.
+   * - ``mode`` / ``direction``
+     - How to interpret the raw metric. ``lower_is_better`` rewards lower
+       values, ``higher_is_better`` rewards higher values, and ``near q50 is
+       better`` rewards values close to the reference median.
+   * - ``q05``, ``q50``, ``q95``
+     - Normative Reference 5th percentile, median, and 95th percentile used for
+       the selected reference pool.
+   * - ``reference_position_q05_0_q95_1``
+     - Position of the recording relative to the reference interval. ``0`` is
+       q05, ``0.5`` is q50, and ``1`` is q95. Values below 0 or above 1 are
+       outside the typical reference band.
+   * - ``component_score_0_1``
+     - Per-metric score on a 0-1 scale. Higher is better. The static report
+       displays this as 0-100.
+   * - ``status``
+     - ``within_q05_q95``, ``below_q05``, ``above_q95``, ``missing``, or
+       ``no_reference``.
+   * - ``reference_scope_used``
+     - Actual reference scope selected after fallback, such as
+       ``device_category``, ``category``, or ``global``.
+   * - ``reference_device`` / ``reference_category``
+     - Device family and recording category used to look up reference
+       quantiles.
+   * - ``interpretation``
+     - Human-readable description of what the family tends to reflect.
+
+The reference-position figure uses the same component rows. The green band is
+the typical reference interval from q05 to q95. For the default
+``lower_is_better`` families, values above q95 are usually worse; values below
+q05 may be better or unusually low depending on the metric. Always combine the
+``status``, ``direction``, component score, and interpretation columns when
+reviewing a suspicious recording.
+
 Static Report Alarms
 --------------------
 
@@ -201,6 +311,15 @@ The static report writes a dataset dashboard and machine-readable summaries:
    * - ``static_html_report/files/<recording>/artifacts/artifact_mask_heatmap.png``
      - Artifact mask heatmap showing bad-channel rows and bad-segment time
        spans when artifact image generation is enabled.
+   * - ``static_html_report/files/<recording>/quality_score/*.summary.json``
+     - Normative Reference QC summary with ``score_0_100``, selected reference
+       device/category/scope, family scores, preprocessing metadata, and quality
+       gate status.
+   * - ``static_html_report/files/<recording>/quality_score/*.component_scores.csv``
+     - Per-component MEGQC metric table with raw values, reference quantiles,
+       direction, component scores, status, and interpretation.
+   * - ``static_html_report/files/<recording>/quality_score/*.reference_position.png``
+     - Reference-relative plot used by the subject page when available.
    * - ``static_html_report/alarms.html``
      - Searchable list of report alarms.
    * - ``static_html_report/data/dataset_summary.json``

@@ -220,7 +220,7 @@ processing.
      -v /data/bids:/input \
      -v /data/out:/output \
      -v /data/smri:/smri \
-     cmrlab/megflow:0.0.3 \
+     cmrlab/megflow:1.0.0 \
      -i /input -o /output --fs_subjects_dir /smri --steps report
 
 Docker End-to-End Example
@@ -240,7 +240,7 @@ add ``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"``.
      -v /data/smri:/smri \
      -v /data/license.txt:/fs_license.txt \
      -v /data/nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megflow:0.0.3 \
+     cmrlab/megflow:1.0.0 \
      -i /input \
      -o /output \
      --fs_license_file /fs_license.txt \

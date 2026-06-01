@@ -277,7 +277,7 @@ docker run --rm -it \
   -v /data/liaopan/megflow_cohort:/output \
   -v /data/liaopan/smri:/smri \
   -v /data/liaopan/megprep/license.txt:/fs_license.txt \
-  cmrlab/megflow:0.0.3 \
+  cmrlab/megflow:1.0.0 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
   --steps meg_artifacts \
@@ -345,7 +345,7 @@ docker run --rm -it \
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   -v /data/license.txt:/fs_license.txt \
-  cmrlab/megflow:0.0.3 \
+  cmrlab/megflow:1.0.0 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
   --steps meg_all
@@ -354,7 +354,7 @@ docker run --rm -it \
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   -v /data/license.txt:/fs_license.txt \
-  cmrlab/megflow:0.0.3 \
+  cmrlab/megflow:1.0.0 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
   --steps all
@@ -362,7 +362,7 @@ docker run --rm -it \
 # Static HTML report only (existing preproc under preproc_dir)
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
-  cmrlab/megflow:0.0.3 \
+  cmrlab/megflow:1.0.0 \
   -i /input -o /output --fs_subjects_dir /smri \
   --steps report
 ```
@@ -396,7 +396,7 @@ docker run --rm -it \
     -v /data/datasets/SMN4Lang/smri:/smri \
     -v /data/megflow/license.txt:/fs_license.txt \
     -v /data/megflow/nextflow/nextflow.config:/program/nextflow/nextflow.config \
-    cmrlab/megflow:0.0.3 \
+    cmrlab/megflow:1.0.0 \
     -i /input \
     -o /output \
     --fs_license_file /fs_license.txt \

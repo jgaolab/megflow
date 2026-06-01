@@ -30,7 +30,7 @@ The static report can also be regenerated without rerunning the pipeline:
      -v /data/bids:/input \
      -v /data/out:/output \
      -v /data/smri:/smri \
-     cmrlab/megflow:1.0.0 \
+     cmrlab/megflow:0.0.3 \
      -i /input -o /output --fs_subjects_dir /smri --steps report
 
 The report directory is self-contained and includes copied figures, sidecar

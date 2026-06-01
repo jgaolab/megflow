@@ -47,7 +47,7 @@ For a BIDS dataset with T1w images:
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
-     cmrlab/megflow:0.0.3 \
+     cmrlab/megflow:1.0.0 \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \
@@ -86,7 +86,7 @@ Example command:
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megflow:0.0.3 \
+     cmrlab/megflow:1.0.0 \
      -i /input \
      -o /output \
      --steps meg_epochs \
@@ -111,7 +111,7 @@ Use ``--steps meg_all`` when:
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megflow:0.0.3 \
+     cmrlab/megflow:1.0.0 \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \
@@ -133,7 +133,7 @@ both ready. This mode runs anatomy first, then the full MEG workflow.
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
      -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
-     cmrlab/megflow:0.0.3 \
+     cmrlab/megflow:1.0.0 \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \

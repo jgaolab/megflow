@@ -16,7 +16,7 @@ processing should run in the same command.
         -v /data/datasets/SMN4Lang/smri:/smri \
         -v /data/megflow/license.txt:/fs_license.txt \
         -v /data/nextflow.config:/program/nextflow/nextflow.config \
-        cmrlab/megflow:0.0.3 \
+        cmrlab/megflow:1.0.0 \
         -i /input \
         -o /output \
         --fs_license_file /fs_license.txt \
@@ -57,7 +57,7 @@ In this command:
 + ``-v /data/nextflow.config:/program/nextflow/nextflow.config``
    This mounts the Nextflow configuration file so the program inside the container can use it.  
 
-+ ``cmrlab/megflow:0.0.3``  
++ ``cmrlab/megflow:1.0.0``  
     This specifies the Docker image and version to run, where `megflow` is the image name, and `0.0.3` is the version.  
 
 + ``-i /input``  
