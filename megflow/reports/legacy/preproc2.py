@@ -82,9 +82,9 @@ else:
 
             # 对应坏道和坏段文件
             bad_channels_file = os.path.join(
-                "/data/liaopan/megflow/megflow/sub-010_ses-001_tsss_preproc-raw_bad_channels.txt")
+                "/data/liaopan/megprep/megflow/sub-010_ses-001_tsss_preproc-raw_bad_channels.txt")
             bad_segments_file = os.path.join(
-                "/data/liaopan/megflow/megflow/sub-010_ses-001_tsss_preproc-raw_bad_segments.csv")
+                "/data/liaopan/megprep/megflow/sub-010_ses-001_tsss_preproc-raw_bad_segments.csv")
 
             ###############################################################################
             # 1) 检查并加载坏道文件 (xxx_bad_channels.txt)

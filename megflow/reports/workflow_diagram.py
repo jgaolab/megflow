@@ -29,6 +29,17 @@ _PARAMS_DATA_KEYS: tuple[str, ...] = (
     "dataset_format",
     "is_bids",
 )
+_PARAMS_MEGQC_KEYS: tuple[str, ...] = (
+    "megqc_enabled",
+    "megqc_min_score",
+    "megqc_alarm_score",
+    "megqc_device_type",
+    "megqc_category",
+    "megqc_reference_scope",
+    "megqc_preproc_config",
+    "megqc_keep_bad_annotations",
+    "megqc_omit_bad_channels",
+)
 _PARAMS_SOURCE_STAGE_KEYS: tuple[str, ...] = (
     "covar_type",
     "src_type",
@@ -57,8 +68,29 @@ _RUN_DETAIL_LABELS: dict[str, str] = {
     "covar_type": "Covariance",
     "src_type": "Source imaging",
     "is_bids": "BIDS",
+    "megqc_enabled": "Normative QC scoring",
+    "megqc_min_score": "QC processing minimum",
+    "megqc_alarm_score": "QC warning threshold",
+    "megqc_device_type": "QC reference device",
+    "megqc_category": "QC reference category",
+    "megqc_reference_scope": "QC reference scope",
+    "megqc_preproc_config": "QC preprocessing",
+    "megqc_keep_bad_annotations": "QC keeps BAD spans",
+    "megqc_omit_bad_channels": "QC omits bad channels",
     "start": "Started",
     "nextflow_version": "Nextflow",
+}
+
+_RUN_DETAIL_HELP: dict[str, str] = {
+    "megqc_enabled": "Scores each imported recording before main MEG preprocessing.",
+    "megqc_min_score": "Processing gate. Recordings below this score skip downstream MEG steps.",
+    "megqc_alarm_score": "Report warning only. It flags low scores without blocking processing.",
+    "megqc_device_type": "Normative reference device family; auto infers from channels and metadata.",
+    "megqc_category": "Normative reference category, usually auto, rest, task, or ALL.",
+    "megqc_reference_scope": "Reference pool priority used for scoring, for example device plus category.",
+    "megqc_preproc_config": "Reference-aligned scoring preprocessing. Keep the 1-100 Hz band-pass fixed.",
+    "megqc_keep_bad_annotations": "Yes keeps BAD annotations during scoring to match the reference.",
+    "megqc_omit_bad_channels": "No keeps raw.info['bads'] during scoring; omit only for diagnostics.",
 }
 
 _RUN_MODE_LABELS: dict[str, str] = {
@@ -181,7 +213,7 @@ def qc_completeness_scope_from_manifest(manifest: dict[str, Any] | None) -> dict
     If manifest is missing or unparsed, assume a full MEG pipeline (meg_stage 3)
     so older datasets without manifest keep previous strict behaviour.
     """
-    default = {"meg_stage": 3, "skip_ica": False, "run_meg": True}
+    default = {"meg_stage": 3, "skip_ica": False, "run_meg": True, "megqc_enabled": True}
     if not manifest:
         return default
     parsed = manifest.get("parsed")
@@ -189,12 +221,17 @@ def qc_completeness_scope_from_manifest(manifest: dict[str, Any] | None) -> dict
         return default
     if not _parsed_bool(parsed, "run_meg"):
         ms = _parsed_int(parsed, "meg_stage", -99)
-        return {"meg_stage": ms, "skip_ica": _parsed_bool(parsed, "skip_ica"), "run_meg": False}
+        return {"meg_stage": ms, "skip_ica": _parsed_bool(parsed, "skip_ica"), "run_meg": False, "megqc_enabled": False}
     ms = _parsed_int(parsed, "meg_stage", 3)
+    snap = manifest.get("params_snapshot") if isinstance(manifest, dict) else {}
+    megqc_enabled = True
+    if isinstance(snap, dict) and snap.get("megqc_enabled") is not None:
+        megqc_enabled = str(snap.get("megqc_enabled")).strip().lower() in {"true", "1", "yes", "y"}
     return {
         "meg_stage": ms,
         "skip_ica": _parsed_bool(parsed, "skip_ica"),
         "run_meg": True,
+        "megqc_enabled": megqc_enabled,
     }
 
 
@@ -264,8 +301,21 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
     meg_stage = _parsed_int(parsed, "meg_stage", -99)
     run_meg = _parsed_bool(parsed, "run_meg")
     skip_ica = _parsed_bool(parsed, "skip_ica")
+    snap = manifest.get("params_snapshot") if isinstance(manifest, dict) else {}
+    megqc_enabled = True
+    if isinstance(snap, dict) and snap.get("megqc_enabled") is not None:
+        megqc_enabled = str(snap.get("megqc_enabled")).strip().lower() in {"true", "1", "yes", "y"}
 
     if run_meg:
+        if megqc_enabled:
+            nodes.append(
+                {
+                    "key": "quality_score",
+                    "label": "Quality score",
+                    "lane": "meg",
+                    "plan": "run",
+                }
+            )
         nodes.append(
             {
                 "key": "basic_preproc",
@@ -410,7 +460,30 @@ def _display_value(key: str, value: Any) -> str:
         return "yes" if value else "no"
     if key == "primary":
         return _run_mode_label(value)
+    if key == "megqc_preproc_config":
+        return _summarize_preproc_config(value)
     return str(value).strip()
+
+
+def _detail_help(key: str) -> str:
+    return _RUN_DETAIL_HELP.get(key, "")
+
+
+def _summarize_preproc_config(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    flat = re.sub(r"\s+", " ", text)
+    parts: list[str] = []
+    filter_match = re.search(r"filter:\s*\{[^}]*l_freq:\s*([^,}]+)[^}]*h_freq:\s*([^,}]+)", flat)
+    if filter_match:
+        parts.append(f"filter {filter_match.group(1).strip()}-{filter_match.group(2).strip()} Hz")
+    notch_match = re.search(r"notch_filter:\s*\{[^}]*freqs:\s*([^,}]+)", flat)
+    if notch_match:
+        parts.append(f"notch {notch_match.group(1).strip()} Hz")
+    if parts:
+        return "; ".join(parts)
+    return flat[:160] + ("..." if len(flat) > 160 else "")
 
 
 def _node_label_lines(label: str, max_chars: int = 18, max_lines: int = 2) -> list[str]:
@@ -518,6 +591,10 @@ def _workflow_detail_groups(manifest: dict[str, Any]) -> list[tuple[str, list[tu
         path_rows = _snapshot_rows(snap, _PARAMS_PATH_KEYS)
         if input_rows:
             groups.append(("Input data", input_rows))
+        if _parsed_bool(parsed_dict or {}, "run_meg"):
+            megqc_rows = _snapshot_rows(snap, _PARAMS_MEGQC_KEYS)
+            if megqc_rows:
+                later_groups.append(("Normative QC", megqc_rows))
         if _show_anatomy_snapshot_fields(parsed_dict):
             anatomy_rows = _snapshot_rows(snap, _PARAMS_ANATOMY_KEYS)
             if anatomy_rows:
@@ -734,11 +811,15 @@ def render_workflow_dataset_html(ctx: dict[str, Any], subject_summaries: list[di
     if detail_groups:
         group_html = []
         for title, rows in detail_groups:
-            rows_html = "".join(
-                f'<div class="workflow-detail-row"><dt class="wf-detail-k">{html.escape(_detail_label(k))}</dt>'
-                f'<dd class="{_detail_value_class(k)}">{html.escape(v)}</dd></div>'
-                for k, v in rows
-            )
+            row_blocks = []
+            for k, v in rows:
+                help_text = _detail_help(k)
+                help_html = f'<div class="wf-detail-help">{html.escape(help_text)}</div>' if help_text else ""
+                row_blocks.append(
+                    f'<div class="workflow-detail-row"><dt class="wf-detail-k">{html.escape(_detail_label(k))}</dt>'
+                    f'<dd class="{_detail_value_class(k)}">{html.escape(v)}{help_html}</dd></div>'
+                )
+            rows_html = "".join(row_blocks)
             group_class = _detail_group_class(title)
             group_html.append(
                 f'<section class="{group_class}">'

@@ -2,8 +2,9 @@ Quality Control Metrics
 =======================
 
 MEGFlow writes quality control sidecars during processing and packages them
-into a portable static HTML report. The current report uses measured values and
-static thresholds. It does not yet provide calibrated normative quality scores.
+into a portable static HTML report. The report combines measured artifact,
+ICA, epoch, and coregistration values with Normative Reference MEG QC scores
+when ``megqc_enabled = true``.
 
 Subject-Level Metrics
 ---------------------
@@ -64,6 +65,72 @@ Subject-Level Metrics
      - Shows whether artifact, ICA, coregistration, head model, epochs,
        covariance, and source outputs exist for each recording.
 
+Normative Reference QC Score
+----------------------------
+
+When ``megqc_enabled = true``, MEGFlow scores each imported MEG recording before
+main preprocessing. The output is saved under
+``preprocessed/quality_control/<recording>/`` and copied into the static report.
+The score assumes the bundled reference-aligned MEGQC preprocessing, including
+the fixed 1-100 Hz band-pass filter. Changing that band-pass changes the metric
+distribution and makes the score less comparable to the Normative Reference.
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 32 40
+
+   * - Output
+     - Source file
+     - Interpretation
+   * - Quality score
+     - ``*.summary.json``
+     - Overall 0-100 score. Higher is better.
+   * - Processing gate status
+     - ``passed_processing_threshold`` in ``*.summary.json``
+     - ``true`` when the score is at least ``megqc_min_score``. Recordings
+       below this threshold are skipped for downstream MEG processing.
+   * - Metric family scores
+     - ``family_scores`` in ``*.summary.json``
+     - Domain-level summaries, such as temporal, spectral, statistical, or
+       fractal score families.
+   * - Component scores
+     - ``*.component_scores.csv``
+     - Per-metric raw value, reference quantiles, direction of improvement, and
+       component score.
+   * - Reference-relative metric positions
+     - ``*.reference_position.png``
+     - Figure showing where the recording sits relative to the normative
+       reference for each contributing metric.
+
+Use these two thresholds for different purposes:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 26 32 42
+
+   * - Parameter
+     - Pipeline effect
+     - Report effect
+   * - ``megqc_min_score``
+     - Blocks downstream MEG processing below this score.
+     - The subject page reports that later processing was skipped by the
+       quality gate.
+   * - ``megqc_alarm_score``
+     - Does not block processing.
+     - Flags recordings below this score in the subject report and dataset
+       dashboard.
+
+For example, setting ``megqc_min_score`` to ``70.0`` only allows recordings
+with scores of 70 or higher to continue into artifact detection, ICA, epochs,
+covariance, coregistration, forward modeling, and source reconstruction. Setting
+``megqc_min_score`` to ``0.0`` keeps all successfully scored recordings. If
+scoring fails while MEGQC is enabled, the recording does not pass the score
+gate.
+
+The dataset dashboard includes an interactive Quality Score filter. It can show
+recordings at or above a temporary cutoff, below a temporary cutoff, or with
+missing scores without rerunning the pipeline.
+
 Static Report Alarms
 --------------------
 
@@ -83,6 +150,14 @@ using simple alarm rules:
    * - Bad segments above threshold
      - ``bad_segment_threshold = 50``
      - Warning. Review raw trace plots and bad-segment annotations.
+   * - Quality score below warning threshold
+     - ``megqc_alarm_score = 70.0`` in Docker configs, configurable
+     - Warning. The recording has a low Normative Reference score but may still
+       have been processed if it is above ``megqc_min_score``.
+   * - Quality gate skipped downstream processing
+     - ``megqc_min_score``
+     - Danger. The score was below the required processing minimum, so
+       downstream MEG steps were not run for that recording.
    * - Missing expected ICA outputs
      - Stage dependent
      - Warning when the selected ``steps`` mode should have produced ICA files.

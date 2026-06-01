@@ -27,7 +27,10 @@ from osl_ephys.preprocessing.osl_wrappers import detect_badchannels, detect_bads
 from mne.preprocessing import annotate_break,annotate_amplitude,annotate_muscle_zscore
 from mne.preprocessing import find_bad_channels_lof
 from tools.pyprep.find_noisy_channels import NoisyChannels
-from utils import set_random_seed,plot_snippets
+try:
+    from .utils import infer_artifact_vendor, set_random_seed, plot_snippets
+except ImportError:  # pragma: no cover - script execution path
+    from utils import infer_artifact_vendor, set_random_seed, plot_snippets
 
 set_random_seed(2025)
 
@@ -341,7 +344,7 @@ def main(args):
     logger.info("args.input:", args.input)
 
     # Parse YAML configuration
-    config = yaml.safe_load(args.config)
+    config = yaml.safe_load(args.config) or {}
 
     base_name = Path(args.input).stem
     output_bad_segments_file = f"{args.output}/{base_name}_bad_segments.txt"
@@ -359,8 +362,12 @@ def main(args):
             force=True,
         )
     else:
-        # raw = mne.io.read_raw_fif(args.input, preload=True)
         raw = mne.io.read_raw(args.input, preload=True)
+        artifact_vendor = infer_artifact_vendor(raw, config.get('meg_vendor', 'auto'))
+        if artifact_vendor:
+            logger.info("Resolved MEG artifact vendor for plots: %s", artifact_vendor)
+        else:
+            logger.warning("Could not infer MEG artifact vendor; using generic MNE scaling for plots.")
 
         # Detect bad channels
         bad_channels = find_bad_channels(raw,config['find_bad_channels'])
@@ -408,7 +415,7 @@ def main(args):
 
         # Generate detailed artifacts check images.
         if config.get('artifact_images_enabled',True):
-            device_type = config.get('meg_vendor','')
+            device_type = artifact_vendor
             seg_fname_img_out = Path(f"{check_imgs_output_dir}/waveform/chn.#/seg_$.jpg")
             seg_fname_chn_out = Path(f"{check_imgs_output_dir}/waveform/channels.jl")
             summary_fname_img_out = Path(f"{check_imgs_output_dir}/overview/chn.#/seg_$.jpg")
@@ -479,7 +486,7 @@ if __name__ == "__main__":
     #                 threshold: 12
     #
     #     artifact_images_enabled: true
-    #     meg_vendor: '' # 'ctf', 'elekta', '4d', 'kit', 'opm', ''
+    #     meg_vendor: auto # auto, 'ctf', 'elekta', '4d', 'kit', 'opm', ''
     # """
 
     main(args)

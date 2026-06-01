@@ -127,9 +127,10 @@ Start from ``index.html``:
    ignored, open ``Task Failure Details`` first, then expand ``Task Details``
    for the full trace context.
 
-The current report uses static thresholds and measured values. It does not yet
-include calibrated normative QC scores. See :doc:`../reference/qc_metrics` for
-the complete metric list.
+The report includes measured values, static alarms, and Normative Reference MEG
+QC scores when ``megqc_enabled = true``. See
+:doc:`../reference/qc_metrics` for the complete metric list and score-gating
+details.
 
 Interactive Streamlit Report
 ----------------------------

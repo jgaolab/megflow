@@ -15,5 +15,5 @@ export SUBJECTS_DIR=/data/liaopan/megflow_demo/cog_dataset/smri
 streamlit run reports.py --server.address=0.0.0.0 --server.port=8502 --server.headless=true
 
 # Global Static Reports
-# python static_html_report.py   --report_root /data/liaopan/datasets/WAND_Extracted/g_nx   --output_dir /data/liaopan/megflow/static_html_report_WAND
+# python static_html_report.py   --report_root /data/liaopan/datasets/WAND_Extracted/g_nx   --output_dir /data/liaopan/megprep/static_html_report_WAND
 # python static_html_report.py  --report_root /data/liaopan/datasets/SMN4Lang_single2/preprocessed   --output_dir /data/liaopan/datasets/SMN4Lang_single2/test_nx/static_html_report

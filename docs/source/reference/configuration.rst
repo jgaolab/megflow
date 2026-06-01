@@ -204,7 +204,7 @@ Global Paths and Execution Settings
      - boolean
      - ``true``
      - Enables visualization outputs in coregistration and source
-      reconstruction.
+       reconstruction.
 
 Data Import
 -----------
@@ -353,6 +353,171 @@ The ``filter`` and ``notch_filter`` fields map to MNE raw filtering methods.
 downsampling mechanism. Use a target ``sfreq`` that preserves the frequencies
 needed for later analyses.
 
+In cohort mode, the same ``preproc_config`` is used as the default for every
+dataset. If only line-noise frequency differs across datasets, keep the shared
+preprocessing recipe and override only the notch frequencies with
+``preproc_notch_freqs_by_dataset``:
+
+.. code-block:: groovy
+
+   preproc_notch_freqs_by_dataset = [
+       "US_60Hz_Dataset": "60",
+       "US_60Hz_With_Harmonic": "60 120",
+       "Dataset_Without_Notch": "none"
+   ]
+
+Keys are matched against the dataset directory name and the sanitized cohort
+dataset name. A value of ``none``, ``false``, or ``off`` removes the
+``notch_filter`` step for that dataset. For rare datasets that need a fully
+different preprocessing chain, set ``preproc_config_by_dataset`` to a map whose
+values are complete YAML ``preproc`` snippets.
+
+For single-dataset runs, these cohort override maps are optional. You can omit
+``preproc_notch_freqs_by_dataset`` and ``preproc_config_by_dataset`` entirely,
+or leave them as ``[:]``. The workflow will use ``preproc_config`` directly.
+
+Use the two override levels as follows:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 28 72
+
+   * - Parameter
+     - Use case
+   * - ``preproc_notch_freqs_by_dataset``
+     - Per-dataset line-noise differences only. This replaces the
+       ``notch_filter`` frequencies while preserving the rest of
+       ``preproc_config``.
+   * - ``preproc_config_by_dataset``
+     - Rare per-dataset preprocessing differences beyond notch frequency, such
+       as a different filter range, resampling rate, or Maxwell/tSSS settings.
+       Each value must be a complete YAML ``preproc`` block.
+
+Example full override:
+
+.. code-block:: groovy
+
+   preproc_config_by_dataset = [
+       "SpecialDataset": """
+           preproc:
+           - filter: {l_freq: 0.5, h_freq: 100, method: iir, iir_params: {order: 5, ftype: butter}}
+           - notch_filter: {freqs: 60 120}
+           - resample: {sfreq: 200}
+       """
+   ]
+
+Normative Reference Quality Scoring
+-----------------------------------
+
+Normative Reference MEG QC scoring is enabled with ``megqc_enabled = true``.
+When enabled, MEGFlow scores each imported MEG recording before the main
+preprocessing chain. The score is on a 0-100 scale where higher is better.
+
+Use ``megqc_min_score`` as a processing gate when low-quality recordings should
+not continue into artifact detection, ICA, epochs, source reconstruction, or
+other downstream MEG steps:
+
+.. code-block:: groovy
+
+   megqc_enabled = true
+   megqc_min_score = 70.0      // skip downstream processing below 70
+   megqc_alarm_score = 60.0    // report warning only; does not skip processing
+
+``megqc_min_score = 0.0`` keeps all successfully scored recordings. If scoring
+fails or no score is available, the recording does not pass the processing gate
+while MEGQC is enabled. Set ``megqc_enabled = false`` to disable both scoring
+and this score-based gate.
+
+``megqc_alarm_score`` is only a static-report threshold. Scores below this value
+are flagged in the subject report and dataset dashboard, but they still proceed
+through the pipeline unless they are also below ``megqc_min_score``.
+
+The dataset-level static report includes the Normative QC score column, warning
+counts, and an interactive Quality Score filter so reviewers can temporarily
+show recordings above or below a chosen score without regenerating the report.
+
+Key MEGQC parameters:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 30 70
+
+   * - Parameter
+     - Meaning
+   * - ``megqc_enabled``
+     - Enables Normative Reference scoring before main MEG preprocessing.
+   * - ``megqc_min_score``
+     - Minimum score required for downstream MEG processing. Use this to block
+       low-quality recordings from later analysis.
+   * - ``megqc_alarm_score``
+     - Static report warning threshold. It highlights low scores but does not
+       block processing.
+   * - ``megqc_device_type``
+     - Reference device family. ``auto`` infers from channel names and metadata;
+       concrete values include ``ALL``, ``Elekta``, ``CTF``, ``KIT``, ``4D``,
+       ``QuanMag``, and ``QuSpin``.
+   * - ``megqc_category``
+     - Reference category, usually ``auto``, ``rest``, ``task``, or ``ALL``.
+   * - ``megqc_reference_scope``
+     - Reference pool priority, such as ``device_category``, ``category``, or
+       ``global``.
+   * - ``megqc_keep_bad_annotations``
+     - Keep ``BAD`` annotations during scoring by default to match the bundled
+       reference preprocessing.
+   * - ``megqc_omit_bad_channels``
+     - Keep ``raw.info['bads']`` during scoring by default. Omitting bad
+       channels is intended for diagnostics rather than reference-aligned
+       scoring.
+
+The scoring raw is preprocessed before metrics are computed. This preprocessing
+is intentionally visible in Nextflow rather than hidden inside the scorer, but
+the 1-100 Hz band-pass filter and filter method are part of the Normative
+Reference definition. Do not change ``l_freq``, ``h_freq``, ``method``,
+``iir_params.order``, or ``iir_params.ftype`` for routine runs; doing so changes
+the score distribution and can seriously reduce QC score accuracy.
+
+.. code-block:: groovy
+
+   megqc_preproc_config = """
+       preproc:
+       - filter: {l_freq: 1.0, h_freq: 100.0, method: iir, iir_params: {order: 5, ftype: butter}}
+       - notch_filter: {freqs: 50}
+   """
+
+For single-dataset runs, edit only the ``notch_filter`` frequency in
+``megqc_preproc_config`` if the default scoring notch frequency is not
+appropriate. Keep the 1-100 Hz band-pass fixed. You do not need to write
+``megqc_notch_freqs_by_dataset`` or ``megqc_preproc_config_by_dataset``.
+
+For cohort runs with mixed line-noise frequencies, use
+``megqc_notch_freqs_by_dataset`` for the common case:
+
+.. code-block:: groovy
+
+   megqc_notch_freqs_by_dataset = [
+       "US_60Hz_Dataset": "60",
+       "US_60Hz_With_Harmonic": "60 120",
+       "Dataset_Without_Notch": "none"
+   ]
+
+``megqc_preproc_config_by_dataset`` is reserved for reference maintenance or
+controlled method development. Normal runs should leave it as ``[:]``. Use
+``megqc_notch_freqs_by_dataset`` when datasets differ only in line-noise
+frequency:
+
+.. code-block:: groovy
+
+   megqc_notch_freqs_by_dataset = [
+       "US_60Hz_Dataset": "60",
+       "US_60Hz_With_Harmonic": "60 120"
+   ]
+
+The ``megqc_*_by_dataset`` keys use the same matching rule as main
+preprocessing overrides: match either the original child dataset directory name
+or the sanitized cohort dataset name. A value of ``none``, ``false``, or
+``off`` in ``megqc_notch_freqs_by_dataset`` removes the scoring ``notch_filter``
+step for that dataset.
+
 Artifact Detection
 ------------------
 
@@ -420,6 +585,12 @@ interpolated immediately in the preprocessed raw file. If ``false``, bad
 channels are retained in ``raw.info['bads']`` for later exclusion or handling.
 ``artifact_images_enabled`` controls waveform and overview image generation for
 manual review, and ``meg_vendor`` selects vendor-specific plotting assumptions.
+Set ``artifact_config.meg_vendor`` to ``auto`` for cohort runs. MEGFlow then
+infers the plotting vendor from MEG channel names first and raw metadata second,
+using ``elekta``/``neuromag``, ``ctf``, ``kit``, ``4D``/``bti``, and OPM-style
+channel naming patterns. If inference fails, artifact detection continues with
+generic MNE scaling. A concrete value such as ``elekta``, ``ctf``, ``kit``,
+``4D``, or ``opm`` still forces that plotting mode.
 
 For ICA rule-based labeling, ``ic_label_config.ICA_classify.meg_vendor`` can be
 set to ``auto``. This is the recommended cohort setting because each dataset may

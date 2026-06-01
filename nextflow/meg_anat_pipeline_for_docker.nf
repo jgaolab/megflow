@@ -43,6 +43,96 @@ String filesSha256(List paths) {
     return paths.collect { pathValue -> "${pathValue}:${fileSha256(pathValue)}" }.join("|")
 }
 
+String sanitizeDatasetName(String rawName) {
+    rawName.replace(' ', '_').replaceAll(/[^A-Za-z0-9_.-]/, '_')
+}
+
+String datasetLookupKey(def rawName) {
+    sanitizeDatasetName((rawName ?: '').toString()).toLowerCase()
+}
+
+def safeParam(def paramsObj, String paramName, def defaultValue = null) {
+    if (paramsObj == null) {
+        return defaultValue
+    }
+    try {
+        if (paramsObj instanceof Map && paramsObj.containsKey(paramName)) {
+            return paramsObj[paramName]
+        }
+    } catch (ignored) {
+    }
+    return defaultValue
+}
+
+def datasetParamOverride(def byDataset, def datasetName) {
+    if (!(byDataset instanceof Map)) {
+        return null
+    }
+    def datasetText = (datasetName ?: '').toString()
+    if (byDataset.containsKey(datasetText)) {
+        return byDataset[datasetText]
+    }
+    def datasetKey = datasetLookupKey(datasetText)
+    for (entry in byDataset.entrySet()) {
+        def keyText = (entry.key ?: '').toString()
+        if (!keyText || keyText.equalsIgnoreCase('default') || keyText == '*') {
+            continue
+        }
+        if (datasetLookupKey(keyText) == datasetKey) {
+            return entry.value
+        }
+    }
+    return null
+}
+
+String setPreprocNotchFreqs(String preprocConfig, def notchFreqs) {
+    def freqText = (notchFreqs ?: '').toString().trim()
+    def removeNotch = !freqText || freqText.equalsIgnoreCase('none') || freqText.equalsIgnoreCase('false') || freqText.equalsIgnoreCase('off')
+    def lines = (preprocConfig ?: '').readLines()
+    def withoutNotch = lines.findAll { line -> !(line ==~ /(?i)^\s*-\s*notch_filter\s*:.*$/) }
+    if (removeNotch) {
+        return withoutNotch.join('\n') + '\n'
+    }
+
+    def notchLine = "        - notch_filter: {freqs: ${freqText}}"
+    def out = []
+    def inserted = false
+    withoutNotch.each { line ->
+        out << line
+        if (!inserted && line ==~ /(?i)^\s*-\s*filter\s*:.*$/) {
+            out << notchLine
+            inserted = true
+        }
+    }
+    if (!inserted) {
+        if (!out.any { line -> line.trim() == 'preproc:' }) {
+            out << '        preproc:'
+        }
+        out << notchLine
+    }
+    return out.join('\n') + '\n'
+}
+
+String megqcPreprocConfigForDataset(def paramsObj, def datasetName) {
+    def fullOverride = datasetParamOverride(safeParam(paramsObj, 'megqc_preproc_config_by_dataset', [:]), datasetName)
+    if (fullOverride != null && fullOverride.toString().trim()) {
+        return fullOverride.toString()
+    }
+    def config = (safeParam(paramsObj, 'megqc_preproc_config', '') ?: '').toString()
+    def notchOverride = datasetParamOverride(safeParam(paramsObj, 'megqc_notch_freqs_by_dataset', [:]), datasetName)
+    return notchOverride == null ? config : setPreprocNotchFreqs(config, notchOverride)
+}
+
+String preprocConfigForDataset(def paramsObj, def datasetName) {
+    def fullOverride = datasetParamOverride(safeParam(paramsObj, 'preproc_config_by_dataset', [:]), datasetName)
+    if (fullOverride != null && fullOverride.toString().trim()) {
+        return fullOverride.toString()
+    }
+    def config = (safeParam(paramsObj, 'preproc_config', '') ?: '').toString()
+    def notchOverride = datasetParamOverride(safeParam(paramsObj, 'preproc_notch_freqs_by_dataset', [:]), datasetName)
+    return notchOverride == null ? config : setPreprocNotchFreqs(config, notchOverride)
+}
+
 process generate_cohort_static_html_report {
     tag "cohort-static-html-report"
 
@@ -243,6 +333,49 @@ process import_MEG_dataset {
     """
 }
 
+process score_MEG_quality {
+    tag "${dataset_name}:${raw_subject_basename}"
+    memory { 4.GB * task.attempt }
+
+    input:
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path)
+
+    output:
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(orig_raw_path), path("*.summary.json"), path("*.component_scores.csv"), path("*.reference_position.png"), emit: qc_subjects
+
+    script:
+    raw_subject_basename = file(orig_raw_path).getBaseName()
+    script_name = "${params.code_dir}/meg_quality_control.py"
+    qc_output_dir = "${preproc_dir}/quality_control/${raw_subject_basename}"
+    qc_preproc_config = megqcPreprocConfigForDataset(params, dataset_name)
+    """
+    set -euo pipefail
+    mkdir -p "${qc_output_dir}"
+    python "${script_name}" \\
+        --input "${orig_raw_path}" \\
+        --output_dir "${qc_output_dir}" \\
+        --model "${params.megqc_model}" \\
+        --device_type "${params.megqc_device_type}" \\
+        --category "${params.megqc_category}" \\
+        --reference_scope "${params.megqc_reference_scope}" \\
+        --min_reference_n ${params.megqc_min_reference_n} \\
+        --min_score ${params.megqc_min_score} \\
+        --alarm_score ${params.megqc_alarm_score} \\
+        --freq_max_samples ${params.megqc_freq_max_samples} \\
+        --dfa_max_samples ${params.megqc_dfa_max_samples} \\
+        --dfa_method "${params.megqc_dfa_method}" \\
+        --skip_dfa "${params.megqc_skip_dfa}" \\
+        --preproc_config "${qc_preproc_config}" \\
+        --keep_bad_annotations "${params.megqc_keep_bad_annotations}" \\
+        --omit_bad_channels "${params.megqc_omit_bad_channels}" \\
+        --n_jobs ${params.megqc_n_jobs} \\
+        --seg_length ${params.megqc_seg_length}
+    cp "${qc_output_dir}"/*.summary.json .
+    cp "${qc_output_dir}"/*.component_scores.csv .
+    cp "${qc_output_dir}"/*.reference_position.png .
+    """
+}
+
 process meg_preproc_osl {
     tag "${dataset_name}:${raw_subject_basename}"
     memory { 6.GB * task.attempt }
@@ -256,12 +389,13 @@ process meg_preproc_osl {
     script:
     script_name = "${params.code_dir}/meg_preproc_osl.py"
     raw_subject_basename = file(orig_raw_path).getBaseName()
+    preproc_config = preprocConfigForDataset(params, dataset_name)
     """
     python ${script_name} \\
         --file "${orig_raw_path}" \\
         --preproc_dir "${preproc_dir}" \\
         --seed ${params.osl_random_seed} \\
-        --config "${params.preproc_config}"
+        --config "${preproc_config}"
     """
 }
 
@@ -504,6 +638,8 @@ process generate_static_html_report {
 
     script:
     report_script = "${params.code_dir}/reports/static_html_report.py"
+    dataset_megqc_preproc_config = megqcPreprocConfigForDataset(params, dataset_name)
+    dataset_preproc_config = preprocConfigForDataset(params, dataset_name)
     manifest_json = JsonOutput.prettyPrint(JsonOutput.toJson([
         manifest_schema_version: 2,
         steps_raw: (params.steps ?: 'meg_all').toString(),
@@ -517,7 +653,25 @@ process generate_static_html_report {
             dataset_format: params.dataset_format?.toString(),
             covar_type: params.covar_type?.toString(),
             src_type: params.src_type?.toString(),
-            is_bids: params.is_bids
+            is_bids: params.is_bids,
+            preproc_config: dataset_preproc_config,
+            preproc_config_default: params.preproc_config,
+            preproc_config_by_dataset: safeParam(params, 'preproc_config_by_dataset', [:]),
+            preproc_notch_freqs_by_dataset: safeParam(params, 'preproc_notch_freqs_by_dataset', [:]),
+            artifact_config: params.artifact_config,
+            megqc_enabled: params.megqc_enabled,
+            megqc_min_score: params.megqc_min_score,
+            megqc_alarm_score: params.megqc_alarm_score,
+            megqc_model: params.megqc_model,
+            megqc_device_type: params.megqc_device_type,
+            megqc_category: params.megqc_category,
+            megqc_reference_scope: params.megqc_reference_scope,
+            megqc_preproc_config: dataset_megqc_preproc_config,
+            megqc_preproc_config_default: params.megqc_preproc_config,
+            megqc_preproc_config_by_dataset: safeParam(params, 'megqc_preproc_config_by_dataset', [:]),
+            megqc_notch_freqs_by_dataset: safeParam(params, 'megqc_notch_freqs_by_dataset', [:]),
+            megqc_keep_bad_annotations: params.megqc_keep_bad_annotations,
+            megqc_omit_bad_channels: params.megqc_omit_bad_channels
         ],
         workflow_meta: [
             session_id: workflow.sessionId?.toString() ?: '',
@@ -543,6 +697,7 @@ EOF_MANIFEST
         --coreg_mean_threshold ${params.coreg_mean_threshold} \\
         --coreg_max_threshold ${params.coreg_max_threshold} \\
         --epoch_reject_rate_threshold ${params.epoch_reject_rate_threshold} \\
+        --megqc_alarm_score ${params.megqc_alarm_score} \\
         --artifact_overview_duration ${params.static_artifact_overview_duration} \\
         --task_log_mode "${params.static_task_log_mode}" \\
         --zip_output false
@@ -644,9 +799,6 @@ workflow {
     log.info "Pipeline steps: primary=${cfg.primary}, megStage=${cfg.megStage}, runAnatomy=${cfg.runAnatomy}, runMeg=${cfg.runMeg}, skipIca=${cfg.skipIca}"
 
     def cohortMode = (params.cohort ?: false).toString().toBoolean()
-    def sanitizeDatasetName = { String rawName ->
-        rawName.replace(' ', '_').replaceAll(/[^A-Za-z0-9_.-]/, '_')
-    }
     if (cohortMode) {
         log.info "Cohort mode enabled: dataset root=${params.dataset_dir}"
     } else {
@@ -788,7 +940,28 @@ workflow {
                             }
                     }
 
-                native_preproc = meg_preproc_osl(native_raw_subject_ch)
+                def native_meg_input_ch
+                if ((params.megqc_enabled ?: true).toString().toBoolean()) {
+                    native_qc = score_MEG_quality(native_raw_subject_ch)
+                    native_meg_input_ch = native_qc.qc_subjects
+                        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, qc_summary, qc_components, qc_plot ->
+                            def scorePayload = new JsonSlurper().parse(new File(qc_summary.toString())) as Map
+                            def scoreValue = scorePayload.score_0_100
+                            boolean hasScore = scoreValue != null && scoreValue.toString() != '' && scoreValue.toString().toLowerCase() != 'nan'
+                            double scoreDouble = hasScore ? scoreValue.toString().toDouble() : Double.NaN
+                            boolean passed = hasScore && scoreDouble >= params.megqc_min_score.toString().toDouble()
+                            if (!passed) {
+                                log.warn "MEG QC skipped downstream processing: dataset=${dataset_name}, raw=${orig_raw_path}, score=${scoreValue}, threshold=${params.megqc_min_score}"
+                            }
+                            return passed ? tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path) : null
+                        }
+                        .filter { it != null }
+                    report_wait_token_ch = native_qc.qc_subjects.collect(flat: false).ifEmpty([]).map { true }
+                } else {
+                    native_meg_input_ch = native_raw_subject_ch
+                }
+
+                native_preproc = meg_preproc_osl(native_meg_input_ch)
                 native_artifacts = detect_Artifacts(native_preproc.preproc_subjects)
                 native_artifacts_with_hash = native_artifacts.artifacts
                     .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments ->

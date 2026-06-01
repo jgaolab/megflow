@@ -8,6 +8,7 @@ import getpass
 import subprocess
 import random
 import socket
+from collections import Counter
 import redis
 import mne
 import cloudpickle
@@ -34,6 +35,207 @@ def setup_logging(log_level="INFO"):
 
 
 logger = setup_logging()
+
+
+# Channel-name patterns aligned with tools/ica_classify/ICs_template_similarity.py.
+_MEG_DEVICE_CHANNEL_PATTERNS = {
+    "quspin": (
+        re.compile(r"QUSPIN"),
+    ),
+    "quanmag": (
+        re.compile(r"(?:QUANMAG|QZFM|QZFG|FIELDLINE)"),
+        re.compile(r"^FL\d{2,}[A-Z0-9-]*$"),
+    ),
+    "opm": (
+        re.compile(r"OPM"),
+    ),
+    "elekta": (
+        re.compile(r"^MEG\d{4}$"),
+    ),
+    "ctf": (
+        re.compile(r"^M[LRZ][A-Z]{1,2}\d{2,3}(?:-\d{3,5})?$"),
+    ),
+    "kit": (
+        re.compile(r"^(?:MEG|AG)\d{3}$"),
+    ),
+    "4d": (
+        re.compile(r"^A\d{1,3}$"),
+    ),
+}
+
+_DEVICE_FAMILY_TO_REFERENCE = {
+    "elekta": "Elekta",
+    "ctf": "CTF",
+    "kit": "KIT",
+    "4d": "4D",
+    "quanmag": "QuanMag",
+    "quspin": "QuSpin",
+    "opm": "ALL",
+}
+
+_DEVICE_FAMILY_TO_ARTIFACT_VENDOR = {
+    "elekta": "elekta",
+    "ctf": "ctf",
+    "kit": "kit",
+    "4d": "4D",
+    "quanmag": "opm",
+    "quspin": "opm",
+    "opm": "opm",
+}
+
+
+def _normalize_match_text(value):
+    return str(value or "").strip().lower().replace("_", "-").replace(" ", "")
+
+
+def _normalize_channel_name(ch_name):
+    return re.sub(r"[\s_]+", "", str(ch_name).upper())
+
+
+def normalize_reference_device_type(value):
+    key = _normalize_match_text(value)
+    mapping = {
+        "4d": "4D",
+        "bti": "4D",
+        "magnes": "4D",
+        "ctf": "CTF",
+        "elekta": "Elekta",
+        "neuromag": "Elekta",
+        "megin": "Elekta",
+        "kit": "KIT",
+        "yokogawa": "KIT",
+        "quanmag": "QuanMag",
+        "fieldline": "QuanMag",
+        "qzfm": "QuanMag",
+        "opm-quanmag": "QuanMag",
+        "quspin": "QuSpin",
+        "opm-quspin": "QuSpin",
+        "opm": "ALL",
+        "all": "ALL",
+        "": "ALL",
+        "auto": "auto",
+    }
+    return mapping.get(key, str(value or "ALL").strip())
+
+
+def normalize_artifact_vendor(value):
+    key = _normalize_match_text(value)
+    mapping = {
+        "": "",
+        "unknown": "",
+        "all": "",
+        "auto": "auto",
+        "elekta": "elekta",
+        "neuromag": "elekta",
+        "megin": "elekta",
+        "ctf": "ctf",
+        "kit": "kit",
+        "yokogawa": "kit",
+        "4d": "4D",
+        "bti": "4D",
+        "magnes": "4D",
+        "opm": "opm",
+        "quanmag": "opm",
+        "quspin": "opm",
+        "opm-quanmag": "opm",
+        "opm-quspin": "opm",
+        "fieldline": "opm",
+        "qzfm": "opm",
+    }
+    return mapping.get(key, str(value or "").strip())
+
+
+def meg_channel_names(raw):
+    picks = mne.pick_types(raw.info, meg=True, ref_meg=False, exclude=[])
+    if len(picks) == 0:
+        return [str(name) for name in getattr(raw, "ch_names", []) or []]
+    ch_names = getattr(raw, "ch_names", None) or raw.info.get("ch_names", [])
+    return [str(ch_names[idx]) for idx in picks]
+
+
+def infer_meg_device_family_from_channel_names(ch_names, min_hits=3):
+    normalized = [_normalize_channel_name(name) for name in ch_names if str(name).strip()]
+    if not normalized:
+        return None
+
+    scores = Counter()
+    for ch_name in normalized:
+        for device_family, patterns in _MEG_DEVICE_CHANNEL_PATTERNS.items():
+            if any(pattern.search(ch_name) for pattern in patterns):
+                scores[device_family] += 1
+                break
+
+    if not scores:
+        return None
+    (best_device, best_hits), *rest = scores.most_common()
+    if best_hits < min_hits:
+        return None
+    if rest and rest[0][1] == best_hits:
+        return None
+    return best_device
+
+
+def infer_meg_device_family_from_metadata(raw):
+    candidates = []
+    for key in ("manufacturer", "device_name"):
+        value = raw.info.get(key)
+        if value:
+            candidates.append(str(value))
+    device_info = raw.info.get("device_info")
+    if isinstance(device_info, dict):
+        candidates.extend(str(v) for v in device_info.values() if v)
+
+    text = " ".join(candidates).lower()
+    if not text.strip():
+        return None
+    for token, device_family in (
+        ("ctf", "ctf"),
+        ("kit", "kit"),
+        ("yokogawa", "kit"),
+        ("4d", "4d"),
+        ("magnes", "4d"),
+        ("bti", "4d"),
+        ("elekta", "elekta"),
+        ("neuromag", "elekta"),
+        ("megin", "elekta"),
+        ("quspin", "quspin"),
+        ("quan", "quanmag"),
+        ("fieldline", "quanmag"),
+        ("qzfm", "quanmag"),
+        ("opm", "opm"),
+    ):
+        if token in text:
+            return device_family
+    return None
+
+
+def infer_meg_device_family(raw, min_channel_hits=3):
+    return (
+        infer_meg_device_family_from_channel_names(meg_channel_names(raw), min_hits=min_channel_hits)
+        or infer_meg_device_family_from_metadata(raw)
+    )
+
+
+def infer_reference_device_type(raw, requested="auto", min_channel_hits=3):
+    requested_device = normalize_reference_device_type(requested)
+    if requested_device and requested_device.lower() != "auto":
+        return requested_device
+
+    device_family = infer_meg_device_family(raw, min_channel_hits=min_channel_hits)
+    if device_family:
+        return _DEVICE_FAMILY_TO_REFERENCE.get(device_family, "ALL")
+    return "ALL"
+
+
+def infer_artifact_vendor(raw, requested="auto", min_channel_hits=3):
+    requested_vendor = normalize_artifact_vendor(requested)
+    if requested_vendor and requested_vendor != "auto":
+        return requested_vendor
+
+    device_family = infer_meg_device_family(raw, min_channel_hits=min_channel_hits)
+    if device_family:
+        return _DEVICE_FAMILY_TO_ARTIFACT_VENDOR.get(device_family, "")
+    return ""
 
 
 def handle_yaml_scientific_notation():

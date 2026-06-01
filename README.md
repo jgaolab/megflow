@@ -163,6 +163,42 @@ The table above uses **basic preprocessing** for the first MEG-only signal steps
 
 Optional **Maxwell / tSSS** for Elekta-style data is supported in the same YAML but commented out by default; enable it there and supply calibration paths when needed. For **CTF** runs, if a matching `*_headshape.pos` is present next to the raw file, **digitization from the headshape** is merged into the preprocessed FIF after those steps.
 
+For cohort runs with mixed line-noise frequencies, keep `preproc_config` as the
+default and override only the notch frequency per dataset:
+
+```groovy
+preproc_notch_freqs_by_dataset = [
+  "US_60Hz_Dataset": "60",
+  "US_60Hz_With_Harmonic": "60 120",
+  "Dataset_Without_Notch": "none"
+]
+```
+
+For single-dataset runs, these cohort override maps are not required. Leave
+`preproc_notch_freqs_by_dataset`, `preproc_config_by_dataset`,
+`megqc_notch_freqs_by_dataset`, and `megqc_preproc_config_by_dataset` unset or
+as `[:]`; MEGFlow will use the normal `preproc_config` and
+`megqc_preproc_config` values directly.
+
+Normative Reference MEG QC scoring has its own lightweight preprocessing
+setting, `megqc_preproc_config`, so scoring stays aligned with the configured
+reference space. The QC band-pass filter is fixed at 1-100 Hz for reference
+alignment; do not change those filter values or the QC score will no longer be
+comparable to the normative reference. In cohort mode, use
+`megqc_notch_freqs_by_dataset` only for per-dataset scoring notch differences.
+
+To use the score as a quality gate, raise `megqc_min_score`. Recordings below
+that score are kept in the report but skipped for downstream MEG processing:
+
+```groovy
+megqc_enabled = true
+megqc_min_score = 70.0    // processing gate
+megqc_alarm_score = 60.0  // report warning only
+```
+
+Artifact review plots can use `artifact_config.meg_vendor: auto`; MEGFlow will
+infer the plotting vendor from channel names or raw metadata for each dataset.
+
 **Examples (local Nextflow):**
 
 ```bash
@@ -240,7 +276,7 @@ docker run --rm -it \
   -v /data/liaopan/datasets:/input \
   -v /data/liaopan/megflow_cohort:/output \
   -v /data/liaopan/smri:/smri \
-  -v /data/liaopan/megflow/license.txt:/fs_license.txt \
+  -v /data/liaopan/megprep/license.txt:/fs_license.txt \
   cmrlab/megflow:0.0.3 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
@@ -262,6 +298,15 @@ each run; otherwise it uses the provided `--t1_dir` for all datasets.
 Use a milestone such as `--steps meg_artifacts` or `--steps meg_ica` for a quick
 first pass across many public datasets, then resume selected datasets with a
 deeper step when needed.
+
+When cohort datasets come from sites with different line frequencies, set
+`preproc_notch_freqs_by_dataset` in `nextflow_for_cohort.config`. This changes
+only the `notch_filter` frequencies for matching dataset names; the rest of
+`preproc_config` stays shared.
+
+The same pattern is available for Normative Reference QC scoring via
+`megqc_notch_freqs_by_dataset`. Single-dataset configs can omit all
+`*_by_dataset` maps.
 
 Dataset tuple channels and Nextflow's normal process parallelism handle
 scheduling in one DAG. Tune process-level `maxForks`, CPU, and memory settings

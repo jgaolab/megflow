@@ -115,7 +115,17 @@ Change the config when one of these applies:
      - Before running ``meg_epochs`` or ``meg_all``, edit
        ``epoch_config.find_events`` or ``epoch_config.event_file``.
    * - Your line noise frequency is not 50 Hz.
-     - Edit ``preproc_config.notch_filter``.
+     - Edit ``preproc_config.notch_filter``. In cohort mode with mixed line
+       frequencies, use ``preproc_notch_freqs_by_dataset`` for main
+       preprocessing and ``megqc_notch_freqs_by_dataset`` for Normative
+       Reference QC scoring. Keep the MEGQC 1-100 Hz band-pass fixed; changing
+       it breaks comparability with the normative reference. Single-dataset
+       configs can omit all ``*_by_dataset`` maps.
+   * - You want low-quality recordings to stop before later MEG analysis.
+     - Set ``megqc_enabled = true`` and raise ``megqc_min_score``. For example,
+       ``megqc_min_score = 70.0`` only lets recordings scoring 70 or higher
+       continue into artifact detection, ICA, epochs, and downstream analysis.
+       Use ``megqc_alarm_score`` only for report warnings.
    * - You need a different sampling rate.
      - Edit ``preproc_config.resample.sfreq``.
    * - You have empty-room or noise recordings for covariance.

@@ -14,6 +14,7 @@ import ast
 import csv
 import html
 import json
+import math
 import os
 import re
 import shutil
@@ -42,9 +43,11 @@ DEFAULT_THRESHOLDS = {
     "coreg_max_threshold": 10.0,
     "epoch_reject_rate_threshold": 0.30,
     "artifact_overview_duration": 200.0,
+    "megqc_alarm_score": 70.0,
 }
 
 STEP_DEFS = [
+    ("quality_score", "Quality score"),
     ("basic_preproc", "Basic preproc"),
     ("artifacts", "Artifacts"),
     ("ica", "ICA"),
@@ -62,6 +65,7 @@ PROCESS_TO_STEP = {
     "run_mkheadsurf": "headmodel",
     "generate_bem": "headmodel",
     "import_MEG_dataset": "meg import",
+    "score_MEG_quality": "quality_score",
     "meg_preproc_osl": "basic_preproc",
     "detect_Artifacts": "artifacts",
     "run_ICA": "ica",
@@ -463,6 +467,23 @@ a:hover {
   grid-column: 1 / -1;
 }
 
+.workflow-detail-group-normative-qc {
+  grid-column: 1 / -1;
+}
+
+.workflow-detail-group-normative-qc .workflow-detail-list {
+  grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+  gap: 12px 18px;
+}
+
+.workflow-detail-group-normative-qc .workflow-detail-row {
+  grid-template-columns: 1fr;
+  gap: 4px;
+  align-content: start;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(49, 51, 63, 0.08);
+}
+
 .workflow-detail-title {
   margin: 0 0 10px;
   color: var(--text);
@@ -508,6 +529,14 @@ a:hover {
   min-width: 0;
   overflow-wrap: break-word;
   word-break: normal;
+}
+
+.wf-detail-help {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  line-height: 1.35;
+  font-weight: 500;
 }
 
 .workflow-detail-group-paths .wf-detail-v {
@@ -996,6 +1025,88 @@ tr.row-fail:hover td.active-sort-cell {
   display: grid;
   grid-template-columns: 1.15fr 0.85fr;
   gap: 18px;
+  align-items: start;
+}
+
+.quality-score-layout {
+  grid-template-columns: minmax(0, 1.05fr) minmax(360px, 0.95fr);
+  align-items: stretch;
+}
+
+.quality-summary-panel,
+.quality-reference-panel {
+  min-width: 0;
+}
+
+.quality-summary-panel {
+  display: grid;
+  gap: 14px;
+  align-content: start;
+}
+
+.quality-summary-panel .info-note {
+  margin-top: 0;
+}
+
+.quality-reference-panel {
+  padding: 16px;
+}
+
+.quality-reference-panel .gallery {
+  grid-template-columns: 1fr;
+  gap: 0;
+}
+
+.quality-reference-figure img {
+  box-sizing: border-box;
+  padding: 8px 10px 2px;
+}
+
+.quality-reference-figure .caption {
+  border-top: 1px solid var(--line);
+  background: #fbfdff;
+  color: var(--text);
+  font-weight: 700;
+}
+
+.quality-detail-panel {
+  margin-top: 16px;
+}
+
+.quality-components-details {
+  margin-top: 16px;
+}
+
+.quality-components-details summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.quality-components-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.quality-components-details summary .panel-title-group {
+  position: relative;
+  padding-right: 90px;
+}
+
+.quality-components-details summary .panel-title-group::after {
+  content: "Expand";
+  position: absolute;
+  right: 0;
+  top: 2px;
+  color: var(--accent-2);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.quality-components-details[open] summary .panel-title-group::after {
+  content: "Collapse";
+}
+
+.quality-components-body {
+  margin-top: 14px;
 }
 
 .gallery {
@@ -1678,6 +1789,10 @@ tr.row-fail:hover td.active-sort-cell {
     grid-template-columns: 1fr;
     gap: 4px;
   }
+
+  .workflow-detail-group-normative-qc .workflow-detail-list {
+    grid-template-columns: 1fr;
+  }
 }
 """
 
@@ -1687,6 +1802,9 @@ function normalizeText(value) {
 }
 
 function toNumber(value, fallback = -1) {
+  if (value === undefined || value === null || value.toString().trim() === "") {
+    return fallback;
+  }
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : fallback;
 }
@@ -1726,6 +1844,7 @@ function getJsonScriptData(elementId) {
 }
 
 const STEP_MATRIX_DEFS = [
+  { key: "quality_score", label: "Quality score" },
   { key: "basic_preproc", label: "Basic preproc" },
   { key: "artifacts", label: "Artifacts" },
   { key: "ica", label: "ICA" },
@@ -1834,13 +1953,14 @@ function getSortColumnIndex(sortKey) {
   const columnMap = {
     subject: 1,
     status: 2,
-    alarm_count: 3,
-    bad_channels: 4,
-    bad_segments: 5,
-    marked_ica: 6,
-    coreg_mean: 7,
-    coreg_max: 8,
-    epoch_reject: 9,
+    quality_score: 3,
+    alarm_count: 4,
+    bad_channels: 5,
+    bad_segments: 6,
+    marked_ica: 7,
+    coreg_mean: 8,
+    coreg_max: 9,
+    epoch_reject: 10,
   };
   return columnMap[sortKey] || null;
 }
@@ -1856,6 +1976,8 @@ function compareSubjectRows(a, b, sortKey, direction) {
     result = normalizeText(a.dataset.subject).localeCompare(normalizeText(b.dataset.subject));
   } else if (sortKey === "status") {
     result = statusRank(a.dataset.status) - statusRank(b.dataset.status);
+  } else if (sortKey === "quality_score") {
+    result = toNumber(a.dataset.qualityScore) - toNumber(b.dataset.qualityScore);
   } else if (sortKey === "alarm_count") {
     result = toNumber(a.dataset.alarmCount) - toNumber(b.dataset.alarmCount);
   } else if (sortKey === "bad_channels") {
@@ -1949,6 +2071,8 @@ function updateSubjectTable() {
   const query = normalizeText(document.getElementById("subjectSearch")?.value);
   const status = normalizeText(document.getElementById("subjectStatusFilter")?.value || "all");
   const missingStep = normalizeText(document.getElementById("subjectMissingStepFilter")?.value || "all");
+  const qualityMode = normalizeText(document.getElementById("qualityScoreMode")?.value || "all");
+  const qualityThreshold = toNumber(document.getElementById("qualityScoreThreshold")?.value, 70);
   const pageSize = parseInt(document.getElementById("subjectPageSize")?.value || "20", 10);
   const rows = Array.from(table.querySelectorAll("tbody tr[data-search]"));
   const sortBy = state.sortKey || normalizeText(document.getElementById("subjectSortBy")?.value || "risk");
@@ -1960,10 +2084,19 @@ function updateSubjectTable() {
     const haystack = normalizeText(row.dataset.search);
     const rowStatus = normalizeText(row.dataset.status);
     const rowMissing = normalizeText(row.dataset.missingSteps || "");
+    const rowQualityScore = toNumber(row.dataset.qualityScore, NaN);
     const queryMatch = !query || haystack.includes(query);
     const statusMatch = status === "all" || rowStatus === status;
     const missingMatch = missingStep === "all" || rowMissing.includes(missingStep);
-    return queryMatch && statusMatch && missingMatch;
+    let qualityMatch = true;
+    if (qualityMode === "gte") {
+      qualityMatch = Number.isFinite(rowQualityScore) && rowQualityScore >= qualityThreshold;
+    } else if (qualityMode === "lt") {
+      qualityMatch = Number.isFinite(rowQualityScore) && rowQualityScore < qualityThreshold;
+    } else if (qualityMode === "missing") {
+      qualityMatch = !Number.isFinite(rowQualityScore);
+    }
+    return queryMatch && statusMatch && missingMatch && qualityMatch;
   });
 
   matchedRows.sort((a, b) => {
@@ -2184,6 +2317,12 @@ def parse_args() -> argparse.Namespace:
         help="Alarm threshold for epoch rejection rate, 0-1.",
     )
     parser.add_argument(
+        "--megqc_alarm_score",
+        type=float,
+        default=DEFAULT_THRESHOLDS["megqc_alarm_score"],
+        help="Alarm threshold for Normative Reference MEG QC score, 0-100; lower scores are flagged.",
+    )
+    parser.add_argument(
         "--artifact_overview_duration",
         type=float,
         default=DEFAULT_THRESHOLDS["artifact_overview_duration"],
@@ -2232,8 +2371,32 @@ def html_text(value: Any) -> str:
     return html.escape("" if value is None else str(value))
 
 
+def json_ready(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {str(k): json_ready(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [json_ready(v) for v in value]
+    if isinstance(value, float):
+        return value if math.isfinite(value) else None
+    if isinstance(value, (str, int, bool)) or value is None:
+        return value
+    if isinstance(value, Path):
+        return str(value)
+    if hasattr(value, "item"):
+        try:
+            return json_ready(value.item())
+        except Exception:
+            pass
+    try:
+        if pd.isna(value):
+            return None
+    except Exception:
+        pass
+    return str(value)
+
+
 def json_script_text(value: Any) -> str:
-    return json.dumps(value, ensure_ascii=False).replace("</", "<\\/")
+    return json.dumps(json_ready(value), ensure_ascii=False, allow_nan=False).replace("</", "<\\/")
 
 
 def fmt_float(value: Any, digits: int = 2, suffix: str = "") -> str:
@@ -2243,6 +2406,21 @@ def fmt_float(value: Any, digits: int = 2, suffix: str = "") -> str:
         return f"{float(value):.{digits}f}{suffix}"
     except (TypeError, ValueError):
         return html_text(value)
+
+
+def fmt_metric_value(value: Any, digits: int = 4) -> str:
+    if value is None or value == "":
+        return "N/A"
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return html_text(value)
+    if not math.isfinite(number):
+        return "N/A"
+    abs_number = abs(number)
+    if number != 0 and (abs_number < 10 ** -digits or abs_number >= 10 ** (digits + 2)):
+        return f"{number:.{digits}e}"
+    return f"{number:.{digits}g}"
 
 
 def fmt_int(value: Any) -> str:
@@ -2331,6 +2509,109 @@ def copy_text_blob(text: str, output_root: Path, rel_path: Path) -> str:
     return dest.relative_to(output_root).as_posix()
 
 
+def finite_float(value: Any) -> float | None:
+    if value is None or value == "":
+        return None
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return None
+    return out if pd.notna(out) else None
+
+
+def direction_label(mode: str, direction: str = "") -> str:
+    text = f"{mode} {direction}".lower()
+    if "lower" in text:
+        return "Lower is better"
+    if "higher" in text:
+        return "Higher is better"
+    return "Closer to reference median is better"
+
+
+def find_quality_score_files(qc_dir: Path) -> tuple[Path | None, Path | None, Path | None]:
+    summary_file = next(iter(sorted(qc_dir.glob("*.summary.json"))), None)
+    component_file = next(iter(sorted(qc_dir.glob("*.component_scores.csv"))), None)
+    reference_plot = next(iter(sorted(qc_dir.glob("*.reference_position.png"))), None)
+    return summary_file, component_file, reference_plot
+
+
+def read_quality_components(component_file: Path | None, max_rows: int = 24) -> list[dict[str, Any]]:
+    if not component_file or not component_file.is_file():
+        return []
+    try:
+        df = pd.read_csv(component_file)
+    except Exception:
+        return []
+    rows: list[dict[str, Any]] = []
+    for _, row in df.head(max_rows).iterrows():
+        mode = str(row.get("mode", ""))
+        direction = str(row.get("direction", ""))
+        rows.append(
+            {
+                "family": row.get("family", ""),
+                "domain": row.get("domain", ""),
+                "metric": row.get("metric", ""),
+                "raw_value": finite_float(row.get("raw_value")),
+                "q05": finite_float(row.get("q05")),
+                "q50": finite_float(row.get("q50")),
+                "q95": finite_float(row.get("q95")),
+                "reference_scope_used": row.get("reference_scope_used", ""),
+                "reference_device": row.get("reference_device", ""),
+                "reference_category": row.get("reference_category", ""),
+                "component_score_0_1": finite_float(row.get("component_score_0_1")),
+                "status": row.get("status", ""),
+                "mode": mode,
+                "direction": direction,
+                "direction_label": direction_label(mode, direction),
+                "interpretation": row.get("interpretation", ""),
+            }
+        )
+    return rows
+
+
+def collect_quality_score_data(
+    subject: str,
+    preprocessed_dir: Path,
+    output_root: Path,
+    subject_slug: str,
+) -> dict[str, Any]:
+    qc_dir = preprocessed_dir / "quality_control" / subject
+    summary_file, component_file, reference_plot = find_quality_score_files(qc_dir)
+    summary_json = safe_json(summary_file) if summary_file else {}
+    score = finite_float(summary_json.get("score_0_100"))
+    component_rows = read_quality_components(component_file)
+    quality_data: dict[str, Any] = {
+        "exists": bool(summary_file or component_file or reference_plot),
+        "raw_file": summary_json.get("raw_file", ""),
+        "score_0_100": score,
+        "score_scale": summary_json.get("score_scale", "0-100; higher is better"),
+        "score_higher_is_better": bool(summary_json.get("score_higher_is_better", True)),
+        "model": summary_json.get("model", ""),
+        "device_type": summary_json.get("device_type", ""),
+        "category": summary_json.get("category", ""),
+        "reference_scope": summary_json.get("reference_scope", ""),
+        "processing_min_score": summary_json.get("processing_min_score"),
+        "alarm_score_threshold": summary_json.get("alarm_score_threshold"),
+        "passed_processing_threshold": summary_json.get("passed_processing_threshold"),
+        "quality_alarm": summary_json.get("quality_alarm"),
+        "status": summary_json.get("status", ""),
+        "error": summary_json.get("error", ""),
+        "reference_preprocessing": summary_json.get("reference_preprocessing", []),
+        "bad_channel_policy": summary_json.get("bad_channel_policy", ""),
+        "bad_annotation_policy": summary_json.get("bad_annotation_policy", ""),
+        "family_scores": summary_json.get("family_scores", []),
+        "components": component_rows,
+        "files": {},
+    }
+    if summary_file and summary_file.is_file():
+        quality_data["files"]["summary_json"] = copy_asset(summary_file, output_root, subject_slug, "quality_score")
+    if component_file and component_file.is_file():
+        quality_data["files"]["component_scores_csv"] = copy_asset(component_file, output_root, subject_slug, "quality_score")
+    if reference_plot and reference_plot.is_file():
+        quality_data["reference_plot_rel"] = copy_asset(reference_plot, output_root, subject_slug, "quality_score")
+    return quality_data
+
+
 def find_subjects(preprocessed_dir: Path) -> list[str]:
     subjects: set[str] = set()
 
@@ -2340,6 +2621,7 @@ def find_subjects(preprocessed_dir: Path) -> list[str]:
                 subjects.add(item.name)
 
     for step_name in [
+        "quality_control",
         "artifact_report",
         "ica_report",
         "trans",
@@ -2680,7 +2962,16 @@ def _nextflow_config_source_for_bundle(
 
 def read_raw_info(raw_file: Path) -> dict[str, Any]:
     try:
-        raw = mne.io.read_raw_fif(raw_file, preload=False, verbose="ERROR")
+        generic_reader = getattr(mne.io, "read_raw", None)
+        if generic_reader is not None:
+            try:
+                raw = generic_reader(str(raw_file), preload=False, verbose="ERROR")
+            except Exception:
+                if not str(raw_file).lower().endswith((".fif", ".fif.gz")):
+                    raise
+                raw = mne.io.read_raw_fif(str(raw_file), preload=False, verbose="ERROR")
+        else:
+            raw = mne.io.read_raw_fif(str(raw_file), preload=False, verbose="ERROR")
         sfreq = float(raw.info["sfreq"])
         n_channels = int(len(raw.ch_names))
         duration = float(raw.n_times / sfreq) if sfreq else None
@@ -2784,6 +3075,7 @@ def expected_steps_for_scope(scope: dict[str, Any] | None) -> dict[str, bool]:
     except (TypeError, ValueError):
         meg_stage = 3
     return {
+        "quality_score": bool(scope.get("megqc_enabled", True)),
         "basic_preproc": True,
         "artifacts": True,
         "ica": bool(meg_stage >= 1 and not scope.get("skip_ica")),
@@ -3092,6 +3384,10 @@ def collect_subject_data(
 
     raw_files = sorted(subject_dir.glob("*_preproc-raw.fif")) if subject_dir.exists() else []
     raw_info = read_raw_info(raw_files[0]) if raw_files else {}
+    quality_score_data = collect_quality_score_data(subject, preprocessed_dir, output_root, subject_slug)
+    if not raw_info and quality_score_data.get("raw_file"):
+        raw_path = Path(str(quality_score_data["raw_file"]))
+        raw_info = read_raw_info(raw_path) if raw_path.is_file() else {"raw_file": str(raw_path)}
 
     summary: dict[str, Any] = {
         "subject": subject,
@@ -3106,6 +3402,10 @@ def collect_subject_data(
         "task_errors": [task for task in (task_details or []) if task.get("failed")],
         "failed_steps": {},
     }
+    summary["quality_score"] = quality_score_data
+    summary["steps"]["quality_score"] = quality_score_data["exists"]
+    for label, rel_path in quality_score_data.get("files", {}).items():
+        summary["files"].append({"label": f"Quality score {label.replace('_', ' ')}", "path": rel_path})
 
     # Artifacts
     artifact_data = {
@@ -3405,6 +3705,11 @@ def collect_subject_data(
 
     scope = qc_scope if qc_scope is not None else qc_completeness_scope_from_manifest(None)
     summary["expected_steps"] = expected_steps_for_scope(scope)
+    if quality_score_data.get("passed_processing_threshold") is False:
+        for step_key in summary["expected_steps"]:
+            if step_key != "quality_score":
+                summary["expected_steps"][step_key] = False
+    expected_steps = summary["expected_steps"]
     for task_error in summary["task_errors"]:
         failed_step = task_error.get("step")
         if failed_step in STEP_KEYS:
@@ -3424,7 +3729,39 @@ def collect_subject_data(
             }
         )
 
-    if not artifact_data["exists"]:
+    qc_score = quality_score_data.get("score_0_100")
+    qc_alarm_threshold = thresholds.get("megqc_alarm_score", DEFAULT_THRESHOLDS["megqc_alarm_score"])
+    if not quality_score_data.get("exists"):
+        alarms.append({"category": "Quality Score", "severity": "warn", "message": "Normative Reference quality score is missing."})
+    elif qc_score is None:
+        error = quality_score_data.get("error") or "Score could not be computed."
+        alarms.append({"category": "Quality Score", "severity": "danger", "message": f"Normative Reference quality score failed: {error}"})
+    elif float(qc_score) < float(qc_alarm_threshold):
+        alarms.append(
+            {
+                "category": "Quality Score",
+                "severity": "warn",
+                "message": (
+                    f"Normative Reference score {fmt_float(qc_score, 1)} is below "
+                    f"the warning threshold {fmt_float(qc_alarm_threshold, 1)}. Higher is better."
+                ),
+            }
+        )
+    if quality_score_data.get("passed_processing_threshold") is False:
+        min_score = quality_score_data.get("processing_min_score")
+        if min_score not in (None, ""):
+            alarms.append(
+                {
+                    "category": "Quality Gate",
+                    "severity": "danger",
+                    "message": (
+                        f"Downstream processing was skipped because score {fmt_float(qc_score, 1)} "
+                        f"is below required minimum {fmt_float(min_score, 1)}."
+                    ),
+                }
+            )
+
+    if expected_steps.get("artifacts", True) and not artifact_data["exists"]:
         alarms.append({"category": "Completeness", "severity": "warn", "message": "Artifact outputs are missing."})
     else:
         if artifact_data["bad_channels_count"] > thresholds["bad_channel_threshold"]:
@@ -3450,7 +3787,7 @@ def collect_subject_data(
                 }
             )
 
-    if expect_ica_outputs_for_qc(scope) and not ica_data["exists"]:
+    if expected_steps.get("ica", True) and expect_ica_outputs_for_qc(scope) and not ica_data["exists"]:
         alarms.append({"category": "Completeness", "severity": "warn", "message": "ICA outputs are missing."})
     elif ica_data["exists"]:
         if not ica_data["has_ecg"]:
@@ -3475,7 +3812,7 @@ def collect_subject_data(
                 }
             )
 
-    if expect_coregistration_outputs_for_qc(scope) and not coreg_data["exists"]:
+    if expected_steps.get("coregistration", True) and expect_coregistration_outputs_for_qc(scope) and not coreg_data["exists"]:
         alarms.append({"category": "Completeness", "severity": "warn", "message": "Coregistration outputs are missing."})
     elif coreg_data["exists"]:
         if coreg_data["dist_mean"] is not None and float(coreg_data["dist_mean"]) > thresholds["coreg_mean_threshold"]:
@@ -3529,7 +3866,7 @@ def collect_subject_data(
             summary["files"].append({"label": f"{process} {log_record.get('label', 'log')}", "path": log_record["path"]})
 
     subject_json_rel = copy_text_blob(
-        json.dumps(summary, ensure_ascii=False, indent=2),
+        json.dumps(json_ready(summary), ensure_ascii=False, indent=2, allow_nan=False),
         output_root,
         Path("data") / "subjects" / f"{subject_slug}.json",
     )
@@ -3573,6 +3910,7 @@ def build_dataset_summary(
         "fail_count": fail_count,
         "alarm_count": sum(item["alarm_count"] for item in subject_summaries),
         "averages": {
+            "megqc_score": avg([item["quality_score"].get("score_0_100") for item in subject_summaries]),
             "bad_channels": avg([item["artifacts"]["bad_channels_count"] for item in subject_summaries]),
             "bad_segments": avg([item["artifacts"]["bad_segments"] for item in subject_summaries]),
             "coreg_mean_mm": avg([item["coregistration"]["dist_mean"] for item in subject_summaries]),
@@ -3591,6 +3929,7 @@ def build_dataset_summary(
                 "subject_slug": item["subject_slug"],
                 "status": item["status"],
                 "alarm_count": item["alarm_count"],
+                "megqc_score": item["quality_score"].get("score_0_100"),
                 "bad_channels": item["artifacts"]["bad_channels_count"],
                 "bad_segments": item["artifacts"]["bad_segments"],
                 "marked_ica": item["ica"]["marked_count"],
@@ -3605,7 +3944,7 @@ def build_dataset_summary(
     dataset_json_path = output_root / "data" / "dataset_summary.json"
     ensure_dir(dataset_json_path.parent)
     with open(dataset_json_path, "w", encoding="utf-8") as f:
-        json.dump(dataset_summary, f, ensure_ascii=False, indent=2)
+        json.dump(json_ready(dataset_summary), f, ensure_ascii=False, indent=2, allow_nan=False)
 
     csv_path = output_root / "data" / "subjects.csv"
     ensure_dir(csv_path.parent)
@@ -3616,12 +3955,14 @@ def build_dataset_summary(
                 "subject",
                 "status",
                 "alarm_count",
+                "megqc_score",
                 "bad_channels",
                 "bad_segments",
                 "marked_ica",
                 "coreg_mean_mm",
                 "coreg_max_mm",
                 "epoch_reject_rate",
+                "quality_score",
                 "artifacts",
                 "ica",
                 "coregistration",
@@ -3637,12 +3978,14 @@ def build_dataset_summary(
                     item["subject"],
                     item["status"],
                     item["alarm_count"],
+                    item["quality_score"].get("score_0_100"),
                     item["artifacts"]["bad_channels_count"],
                     item["artifacts"]["bad_segments"],
                     item["ica"]["marked_count"],
                     item["coregistration"]["dist_mean"],
                     item["coregistration"]["dist_max"],
                     item["epochs"].get("reject_rate"),
+                    item["steps"].get("quality_score"),
                     item["steps"].get("artifacts"),
                     item["steps"].get("ica"),
                     item["steps"].get("coregistration"),
@@ -3670,6 +4013,99 @@ def render_file_rows(file_items: list[dict[str, str]], prefix: str = "") -> str:
             """
         )
     return '<div class="path-list">' + "".join(rows) + "</div>"
+
+
+def render_quality_family_scores(family_scores: list[dict[str, Any]]) -> str:
+    if not family_scores:
+        return '<div class="small">No family scores available.</div>'
+    rows = []
+    for item in family_scores:
+        rows.append(
+            f"""
+            <tr>
+              <td>{html_text(item.get('domain', ''))}</td>
+              <td>{html_text(item.get('family', ''))}</td>
+              <td>{fmt_float(item.get('score_0_100'), 1)}</td>
+              <td>{fmt_int(item.get('n_components'))}</td>
+            </tr>
+            """
+        )
+    return f"""
+    <table>
+      <thead><tr><th>Domain</th><th>Metric family</th><th>Family score</th><th>Components</th></tr></thead>
+      <tbody>{''.join(rows)}</tbody>
+    </table>
+    """
+
+
+def render_quality_preprocessing_steps(steps: list[dict[str, Any]]) -> str:
+    if not steps:
+        return '<div class="small">No reference preprocessing metadata available.</div>'
+    rows = []
+    for step in steps:
+        if step.get("step") == "filter":
+            detail = f"{fmt_float(step.get('l_freq'), 1, ' Hz')} - {fmt_float(step.get('h_freq'), 1, ' Hz')}"
+        elif step.get("step") == "notch_filter":
+            freqs = [freq for freq in ensure_list(step.get("freqs")) if finite_float(freq) is not None]
+            detail = " ".join(f"{fmt_float(freq, 0, ' Hz')}" for freq in freqs) if freqs else html_text(step.get("reason", "auto"))
+        else:
+            detail = html_text(step.get("reason", ""))
+        rows.append(
+            f"""
+            <tr>
+              <td>{html_text(step.get('step', ''))}</td>
+              <td>{html_text(detail)}</td>
+              <td>{html_text(step.get('method', step.get('status', 'applied')))}</td>
+            </tr>
+            """
+        )
+    return f"""
+    <table>
+      <thead><tr><th>Step</th><th>Parameters</th><th>Method / status</th></tr></thead>
+      <tbody>{''.join(rows)}</tbody>
+    </table>
+    """
+
+
+def render_quality_component_table(components: list[dict[str, Any]]) -> str:
+    if not components:
+        return '<div class="small">No component scores available.</div>'
+    rows = []
+    for item in components:
+        score = item.get("component_score_0_1")
+        rows.append(
+            f"""
+            <tr>
+              <td class="mono-path">{html_text(item.get('metric', ''))}</td>
+              <td>{html_text(item.get('domain', ''))}</td>
+              <td>{fmt_metric_value(item.get('raw_value'), 4)}</td>
+              <td>{fmt_metric_value(item.get('q05'), 4)} / {fmt_metric_value(item.get('q50'), 4)} / {fmt_metric_value(item.get('q95'), 4)}</td>
+              <td>{html_text(item.get('direction_label', ''))}</td>
+              <td>{fmt_float((float(score) * 100) if score is not None else None, 1)}</td>
+              <td>{html_text(item.get('status', ''))}</td>
+              <td>{html_text(item.get('reference_scope_used', ''))} · {html_text(item.get('reference_device', ''))} · {html_text(item.get('reference_category', ''))}</td>
+              <td>{html_text(item.get('interpretation', ''))}</td>
+            </tr>
+            """
+        )
+    return f"""
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Domain</th>
+          <th>Raw</th>
+          <th>q05 / q50 / q95</th>
+          <th>Direction</th>
+          <th>Score</th>
+          <th>Status</th>
+          <th>Normative Reference</th>
+          <th>Meaning</th>
+        </tr>
+      </thead>
+      <tbody>{''.join(rows)}</tbody>
+    </table>
+    """
 
 
 def render_gallery(assets: list[dict[str, Any]], prefix: str = "") -> str:
@@ -3991,9 +4427,12 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
     status_html = render_status_pill(summary["status"])
     raw_info = summary.get("raw_info", {})
     marked_component_set = set(summary["ica"].get("marked_components", []))
+    quality_score = summary.get("quality_score", {})
+    quality_score_value = quality_score.get("score_0_100")
 
     step_chips = []
     subject_step_labels = {
+        "quality_score": "Quality Score",
         "basic_preproc": "Basic preproc",
         "artifacts": "Artifacts",
         "ica": "ICA",
@@ -4079,6 +4518,11 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
 
     <div class="grid cards">
       <div class="card">
+        <div class="label">Normative QC Score</div>
+        <div class="value">{fmt_float(quality_score_value, 1)}</div>
+        <div class="subvalue">0-100, higher is better; warning below {fmt_float(summary['thresholds'].get('megqc_alarm_score'), 1)}</div>
+      </div>
+      <div class="card">
         <div class="label">Bad Channels</div>
         <div class="value">{fmt_int(summary['artifacts']['bad_channels_count'])}</div>
         <div class="subvalue">Threshold {fmt_int(summary['thresholds']['bad_channel_threshold'])} in static QC</div>
@@ -4133,6 +4577,47 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
           <div class="metric-box"><div class="k">Summary JSON</div><div class="v"><a href="../{html_text(summary['summary_json'])}" target="_blank">Open</a></div></div>
         </div>
       </div>
+    </div>
+
+    <div class="section">
+      <h2>Normative Reference Quality Score</h2>
+      <div class="two-col quality-score-layout">
+        <div class="panel quality-summary-panel">
+          <div class="metric-list">
+            <div class="metric-box"><div class="k">Score</div><div class="v">{fmt_float(quality_score_value, 1)}</div></div>
+            <div class="metric-box"><div class="k">Processing Minimum</div><div class="v">{fmt_float(quality_score.get('processing_min_score'), 1)}</div></div>
+            <div class="metric-box"><div class="k">Warning Threshold</div><div class="v">{fmt_float(summary['thresholds'].get('megqc_alarm_score'), 1)}</div></div>
+            <div class="metric-box"><div class="k">Model</div><div class="v wrap">{html_text(quality_score.get('model', 'N/A'))}</div></div>
+            <div class="metric-box"><div class="k">Device Reference</div><div class="v">{html_text(quality_score.get('device_type', 'N/A'))}</div></div>
+            <div class="metric-box"><div class="k">Category</div><div class="v">{html_text(quality_score.get('category', 'N/A'))}</div></div>
+            <div class="metric-box wide"><div class="k">Bad Channel Policy</div><div class="v wrap">{html_text(quality_score.get('bad_channel_policy', 'N/A'))}</div></div>
+            <div class="metric-box wide"><div class="k">Bad Annotation Policy</div><div class="v wrap">{html_text(quality_score.get('bad_annotation_policy', 'N/A'))}</div></div>
+          </div>
+          <div class="info-note">Final score uses a 0-100 scale where higher is better. Before scoring, raw data is aligned to the reference space with the QC preprocessing below. The 1-100 Hz band-pass is fixed for Normative Reference scoring and should not be changed. Bad channels and BAD annotations are kept by default to match the normative reference.</div>
+          {render_quality_preprocessing_steps(quality_score.get('reference_preprocessing', []))}
+        </div>
+        <div class="panel quality-reference-panel">
+          {render_gallery([{'title': 'Reference-relative metric positions', 'rel_path': quality_score.get('reference_plot_rel'), 'figure_class': 'quality-reference-figure'}] if quality_score.get('reference_plot_rel') else [], prefix="../")}
+        </div>
+      </div>
+      <div class="panel quality-detail-panel">
+        <div class="panel-title-group">
+          <h3>Metric Family Scores</h3>
+          <div class="panel-subtitle">Domain-level score summary used by the final quality score.</div>
+        </div>
+        {render_quality_family_scores(quality_score.get('family_scores', []))}
+      </div>
+      <details class="panel quality-components-details">
+        <summary>
+          <div class="panel-title-group">
+            <h3>Component Scores</h3>
+            <div class="panel-subtitle">Reference quantiles and score direction for each contributing metric.</div>
+          </div>
+        </summary>
+        <div class="quality-components-body">
+          {render_quality_component_table(quality_score.get('components', []))}
+        </div>
+      </details>
     </div>
 
     <div class="section">
@@ -4271,6 +4756,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
 def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[dict[str, Any]], output_root: Path) -> None:
     sorted_subjects = sorted(subject_summaries, key=lambda item: (str(item["subject"]).lower(), str(item["subject"])))
     threshold_counts = {
+        "megqc_score": 0,
         "bad_channels": 0,
         "bad_segments": 0,
         "coreg_mean": 0,
@@ -4281,6 +4767,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
     for summary in sorted_subjects:
         bad_channels = summary["artifacts"]["bad_channels_count"]
         bad_segments = summary["artifacts"]["bad_segments"]
+        megqc_score = summary["quality_score"].get("score_0_100")
         coreg_mean = summary["coregistration"]["dist_mean"]
         epoch_reject_rate = summary["epochs"].get("reject_rate")
         expected_steps = summary.get("expected_steps") or {}
@@ -4292,12 +4779,18 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
         risk_score = summary["alarm_count"] * 100
         risk_score += bad_channels
         risk_score += bad_segments
+        if megqc_score is None:
+            risk_score += 75
+        else:
+            risk_score += max(0, int((summary["thresholds"].get("megqc_alarm_score", 70) - float(megqc_score)) * 2))
         risk_score += int((epoch_reject_rate or 0) * 100)
         risk_score += len(missing_steps) * 25
         if coreg_mean is not None:
             risk_score += int(float(coreg_mean) * 10)
         summary["_static_risk_score"] = risk_score
 
+        if megqc_score is None or float(megqc_score) < summary["thresholds"].get("megqc_alarm_score", 70):
+            threshold_counts["megqc_score"] += 1
         if bad_channels > summary["thresholds"]["bad_channel_threshold"]:
             threshold_counts["bad_channels"] += 1
         if bad_segments > summary["thresholds"]["bad_segment_threshold"]:
@@ -4313,6 +4806,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             [
                 summary["subject"],
                 summary["status"],
+                f"megqc:{megqc_score}",
                 " ".join(alarm["category"] for alarm in summary["alarms"]),
                 " ".join(alarm["message"] for alarm in summary["alarms"]),
                 missing_steps_str,
@@ -4330,9 +4824,10 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
         )
         subject_rows.append(
             f"""
-            <tr class="{row_class}" data-search="{html_text(search_blob)}" data-status="{html_text(summary['status'].lower())}" data-subject="{html_text(summary['subject'])}" data-subject-url="subjects/{html_text(summary['subject_slug'])}.html" data-alarm-count="{summary['alarm_count']}" data-bad-channels="{bad_channels}" data-bad-segments="{bad_segments}" data-marked-ica="{summary['ica']['marked_count']}" data-coreg-mean="{'' if coreg_mean is None else coreg_mean}" data-coreg-max="{'' if summary['coregistration']['dist_max'] is None else summary['coregistration']['dist_max']}" data-epoch-reject="{'' if epoch_reject_rate is None else epoch_reject_rate}" data-risk-score="{risk_score}" data-missing-steps="{html_text(missing_steps_str)}" data-missing-count="{len(missing_steps)}" {step_data_attrs}>
+            <tr class="{row_class}" data-search="{html_text(search_blob)}" data-status="{html_text(summary['status'].lower())}" data-subject="{html_text(summary['subject'])}" data-subject-url="subjects/{html_text(summary['subject_slug'])}.html" data-quality-score="{'' if megqc_score is None else megqc_score}" data-alarm-count="{summary['alarm_count']}" data-bad-channels="{bad_channels}" data-bad-segments="{bad_segments}" data-marked-ica="{summary['ica']['marked_count']}" data-coreg-mean="{'' if coreg_mean is None else coreg_mean}" data-coreg-max="{'' if summary['coregistration']['dist_max'] is None else summary['coregistration']['dist_max']}" data-epoch-reject="{'' if epoch_reject_rate is None else epoch_reject_rate}" data-risk-score="{risk_score}" data-missing-steps="{html_text(missing_steps_str)}" data-missing-count="{len(missing_steps)}" {step_data_attrs}>
               <td><a href="subjects/{html_text(summary['subject_slug'])}.html">{html_text(summary['subject'])}</a></td>
               <td>{render_status_pill(summary['status'])}</td>
+              <td>{fmt_float(megqc_score, 1)}</td>
               <td>{fmt_int(summary['alarm_count'])}</td>
               <td>{fmt_int(bad_channels)}</td>
               <td>{fmt_int(bad_segments)}</td>
@@ -4400,6 +4895,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
                 <span class="pill neutral">Alarms: {fmt_int(summary['alarm_count'])}</span>
               </div>
               <div class="small" style="margin-top:8px">Bad channels {fmt_int(summary['artifacts']['bad_channels_count'])}, bad segments {fmt_int(summary['artifacts']['bad_segments'])}, coreg mean {fmt_float(summary['coregistration']['dist_mean'], 2, ' mm')}</div>
+              <div class="small">Normative QC score {fmt_float(summary['quality_score'].get('score_0_100'), 1)} / 100</div>
             </div>
             """
         )
@@ -4410,6 +4906,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
     )
 
     threshold_cards = [
+        ("Quality score below threshold", threshold_counts["megqc_score"]),
         ("Bad channels above threshold", threshold_counts["bad_channels"]),
         ("Bad segments above threshold", threshold_counts["bad_segments"]),
         ("Coreg mean above threshold", threshold_counts["coreg_mean"]),
@@ -4483,6 +4980,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <label for="subjectMissingStepFilter">Missing Step</label>
             <select id="subjectMissingStepFilter" onchange="resetSubjectPage()">
               <option value="all">All step completeness</option>
+              <option value="quality_score">Missing quality score</option>
               <option value="basic_preproc">Missing basic preproc</option>
               <option value="artifacts">Missing artifacts</option>
               <option value="ica">Missing ICA</option>
@@ -4500,6 +4998,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               <option value="status">Sort by status</option>
               <option value="subject">Sort by subject</option>
               <option value="missing_steps">Sort by missing steps</option>
+              <option value="quality_score">Sort by quality score</option>
               <option value="alarm_count">Sort by alarms</option>
               <option value="bad_channels">Sort by bad channels</option>
               <option value="bad_segments">Sort by bad segments</option>
@@ -4508,6 +5007,19 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               <option value="coreg_max">Sort by coreg max</option>
               <option value="epoch_reject">Sort by epoch reject</option>
             </select>
+          </div>
+          <div class="control-group">
+            <label for="qualityScoreMode">Quality Score</label>
+            <select id="qualityScoreMode" onchange="resetSubjectPage()">
+              <option value="all">All scores</option>
+              <option value="gte">Score at or above</option>
+              <option value="lt">Score below</option>
+              <option value="missing">Missing score</option>
+            </select>
+          </div>
+          <div class="control-group">
+            <label for="qualityScoreThreshold">Score Cutoff</label>
+            <input id="qualityScoreThreshold" type="number" min="0" max="100" step="1" value="{fmt_float(dataset_summary['thresholds'].get('megqc_alarm_score'), 0)}" oninput="resetSubjectPage()">
           </div>
           <div class="control-group">
             <label for="subjectPageSize">Page Size</label>
@@ -4562,6 +5074,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             </div>
           </div>
           <div class="metric-list">
+            <div class="metric-box"><div class="k">Avg Quality Score</div><div class="v">{fmt_float(dataset_summary['averages']['megqc_score'], 1)}</div></div>
             <div class="metric-box"><div class="k">Avg Bad Channels</div><div class="v">{fmt_float(dataset_summary['averages']['bad_channels'], 1)}</div></div>
             <div class="metric-box"><div class="k">Avg Bad Segments</div><div class="v">{fmt_float(dataset_summary['averages']['bad_segments'], 1)}</div></div>
             <div class="metric-box"><div class="k">Avg Coreg Mean</div><div class="v">{fmt_float(dataset_summary['averages']['coreg_mean_mm'], 2, ' mm')}</div></div>
@@ -4647,6 +5160,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <div class="rule-item"><strong>Passed</strong><div class="small">No alarms under the current static thresholds.</div></div>
             <div class="rule-item"><strong>Warning</strong><div class="small">1-2 alarms and no danger-level alarm.</div></div>
             <div class="rule-item"><strong>Failed</strong><div class="small">3 or more alarms, or at least one danger-level alarm such as a coregistration threshold breach.</div></div>
+            <div class="rule-item"><strong>Normative QC Score</strong><div class="small">0-100, higher is better. Files below the processing minimum are skipped downstream; files below the warning threshold remain visible and are flagged.</div></div>
             <div class="rule-item"><strong>Step Completion</strong><div class="small">Completion is presence-based. A step counts as complete when its expected report outputs exist, not when it necessarily passes QC.</div></div>
             <div class="rule-item"><strong>Adjust Thresholds</strong><div class="small">Regenerate the static report with CLI flags such as <code>--bad_channel_threshold</code>, <code>--bad_segment_threshold</code>, <code>--coreg_mean_threshold</code>, <code>--coreg_max_threshold</code>, and <code>--epoch_reject_rate_threshold</code>.</div></div>
           </div>
@@ -4683,6 +5197,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <tr>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="subject" onclick="setSubjectSort('subject')"><span>Subject</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="status" onclick="setSubjectSort('status')"><span>Status</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="quality_score" onclick="setSubjectSort('quality_score')"><span>Quality Score</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarm_count" onclick="setSubjectSort('alarm_count')"><span>Alarms</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_channels" onclick="setSubjectSort('bad_channels')"><span>Bad Channels</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_segments" onclick="setSubjectSort('bad_segments')"><span>Bad Segments</span><span class="sort-indicator">↕</span></button></th>
@@ -4694,7 +5209,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             </tr>
           </thead>
           <tbody>
-            {''.join(subject_rows) or '<tr><td colspan="10">No subjects found.</td></tr>'}
+            {''.join(subject_rows) or '<tr><td colspan="11">No subjects found.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -4784,6 +5299,7 @@ def generate_static_report(args: argparse.Namespace) -> Path:
         "coreg_mean_threshold": args.coreg_mean_threshold,
         "coreg_max_threshold": args.coreg_max_threshold,
         "epoch_reject_rate_threshold": args.epoch_reject_rate_threshold,
+        "megqc_alarm_score": args.megqc_alarm_score,
     }
 
     if output_root.exists():

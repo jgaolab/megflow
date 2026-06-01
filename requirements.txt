@@ -252,6 +252,7 @@ autoreject==0.4.3
 redis==5.2.1
 #vtk-osmesa==9.0.1
 # mayavi
+antropy==0.2.2
 streamlit==1.51.0 #1.45.0
 streamlit_shortcuts==1.2.1
 plotly==6.5.0

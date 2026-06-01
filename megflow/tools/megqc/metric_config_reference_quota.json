@@ -1,0 +1,307 @@
+{
+  "score_name": "reference_quota_qc_score",
+  "default_model": "lowcost_quota_T4_S2_Stat1_Fr1",
+  "score_scale": "0-100; higher is better",
+  "reference_scope_default": "device_category",
+  "models": {
+    "lowcost_quota_T4_S2_Stat1_Fr1": {
+      "model": "lowcost_quota_T4_S2_Stat1_Fr1",
+      "families": [
+        {
+          "rank": 1,
+          "family": "tsfel.max_abs_diff.abs_q95",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.abs_q95",
+            "tsfel.max_abs_diff.grad.abs_q95"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.abs_q95": "lower_is_better",
+            "tsfel.max_abs_diff.grad.abs_q95": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 2,
+          "family": "tsfel.max_abs_diff.q75",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.q75",
+            "tsfel.max_abs_diff.grad.q75"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.q75": "lower_is_better",
+            "tsfel.max_abs_diff.grad.q75": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 3,
+          "family": "tsfel.max_abs_diff.iqr",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.iqr",
+            "tsfel.max_abs_diff.grad.iqr"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.iqr": "lower_is_better",
+            "tsfel.max_abs_diff.grad.iqr": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 4,
+          "family": "tsfel.max_abs_diff.mean",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.mean",
+            "tsfel.max_abs_diff.grad.mean"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.mean": "lower_is_better",
+            "tsfel.max_abs_diff.grad.mean": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 5,
+          "family": "freq_domain.skewness_amplitude",
+          "domain": "Spectral",
+          "metrics": [
+            "freq_domain.skewness_amplitude.mag",
+            "freq_domain.skewness_amplitude.grad"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "freq_domain.skewness_amplitude.mag": "lower_is_better",
+            "freq_domain.skewness_amplitude.grad": "lower_is_better"
+          },
+          "meaning": "Skewness of the spectral amplitude distribution",
+          "quality_interpretation": "Reflects whether spectral energy is dominated by a few frequency or artifact peaks.",
+          "cost_note": "Moderately low cost; requires FFT/spectral-domain features."
+        },
+        {
+          "rank": 6,
+          "family": "freq_domain.kurtosis_amplitude",
+          "domain": "Spectral",
+          "metrics": [
+            "freq_domain.kurtosis_amplitude.mag",
+            "freq_domain.kurtosis_amplitude.grad"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "freq_domain.kurtosis_amplitude.mag": "lower_is_better",
+            "freq_domain.kurtosis_amplitude.grad": "lower_is_better"
+          },
+          "meaning": "Kurtosis of the spectral amplitude distribution",
+          "quality_interpretation": "Reflects spectral peakiness; sensitive to narrow-band interference and anomalous frequency components.",
+          "cost_note": "Moderately low cost; requires FFT/spectral-domain features."
+        },
+        {
+          "rank": 7,
+          "family": "tsfel.ptp_amp.abs_q95",
+          "domain": "Statistic",
+          "metrics": [
+            "tsfel.ptp_amp.mag.abs_q95",
+            "tsfel.ptp_amp.grad.abs_q95"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.ptp_amp.mag.abs_q95": "lower_is_better",
+            "tsfel.ptp_amp.grad.abs_q95": "lower_is_better"
+          },
+          "meaning": "Peak-to-peak amplitude range",
+          "quality_interpretation": "Reflects increased overall dynamic range due to large oscillations, drift, or abnormal channels.",
+          "cost_note": "Low cost."
+        },
+        {
+          "rank": 8,
+          "family": "fractal_domain.DFA",
+          "domain": "Fractal",
+          "metrics": [
+            "fractal_domain.DFA.mag",
+            "fractal_domain.DFA.grad"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "fractal_domain.DFA.mag": "lower_is_better",
+            "fractal_domain.DFA.grad": "lower_is_better"
+          },
+          "meaning": "Detrended Fluctuation Analysis (DFA) fractal metric",
+          "quality_interpretation": "Characterizes long-range correlation and non-stationary structure.",
+          "cost_note": "High-cost candidate; not recommended for the fast primary model until optimized."
+        }
+      ]
+    },
+    "lowcost_quota_T5_S2_Stat1_Fr1": {
+      "model": "lowcost_quota_T5_S2_Stat1_Fr1",
+      "families": [
+        {
+          "rank": 1,
+          "family": "tsfel.max_abs_diff.abs_q95",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.abs_q95",
+            "tsfel.max_abs_diff.grad.abs_q95"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.abs_q95": "lower_is_better",
+            "tsfel.max_abs_diff.grad.abs_q95": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 2,
+          "family": "tsfel.max_abs_diff.q75",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.q75",
+            "tsfel.max_abs_diff.grad.q75"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.q75": "lower_is_better",
+            "tsfel.max_abs_diff.grad.q75": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 3,
+          "family": "tsfel.max_abs_diff.iqr",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.iqr",
+            "tsfel.max_abs_diff.grad.iqr"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.iqr": "lower_is_better",
+            "tsfel.max_abs_diff.grad.iqr": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 4,
+          "family": "tsfel.max_abs_diff.mean",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.mean",
+            "tsfel.max_abs_diff.grad.mean"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.mean": "lower_is_better",
+            "tsfel.max_abs_diff.grad.mean": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 5,
+          "family": "tsfel.max_abs_diff.median",
+          "domain": "Temporal",
+          "metrics": [
+            "tsfel.max_abs_diff.mag.median",
+            "tsfel.max_abs_diff.grad.median"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.max_abs_diff.mag.median": "lower_is_better",
+            "tsfel.max_abs_diff.grad.median": "lower_is_better"
+          },
+          "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
+          "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
+          "cost_note": "Low cost; suitable for long-duration multi-channel data."
+        },
+        {
+          "rank": 6,
+          "family": "freq_domain.skewness_amplitude",
+          "domain": "Spectral",
+          "metrics": [
+            "freq_domain.skewness_amplitude.mag",
+            "freq_domain.skewness_amplitude.grad"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "freq_domain.skewness_amplitude.mag": "lower_is_better",
+            "freq_domain.skewness_amplitude.grad": "lower_is_better"
+          },
+          "meaning": "Skewness of the spectral amplitude distribution",
+          "quality_interpretation": "Reflects whether spectral energy is dominated by a few frequency or artifact peaks.",
+          "cost_note": "Moderately low cost; requires FFT/spectral-domain features."
+        },
+        {
+          "rank": 7,
+          "family": "freq_domain.kurtosis_amplitude",
+          "domain": "Spectral",
+          "metrics": [
+            "freq_domain.kurtosis_amplitude.mag",
+            "freq_domain.kurtosis_amplitude.grad"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "freq_domain.kurtosis_amplitude.mag": "lower_is_better",
+            "freq_domain.kurtosis_amplitude.grad": "lower_is_better"
+          },
+          "meaning": "Kurtosis of the spectral amplitude distribution",
+          "quality_interpretation": "Reflects spectral peakiness; sensitive to narrow-band interference and anomalous frequency components.",
+          "cost_note": "Moderately low cost; requires FFT/spectral-domain features."
+        },
+        {
+          "rank": 8,
+          "family": "tsfel.ptp_amp.abs_q95",
+          "domain": "Statistic",
+          "metrics": [
+            "tsfel.ptp_amp.mag.abs_q95",
+            "tsfel.ptp_amp.grad.abs_q95"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "tsfel.ptp_amp.mag.abs_q95": "lower_is_better",
+            "tsfel.ptp_amp.grad.abs_q95": "lower_is_better"
+          },
+          "meaning": "Peak-to-peak amplitude range",
+          "quality_interpretation": "Reflects increased overall dynamic range due to large oscillations, drift, or abnormal channels.",
+          "cost_note": "Low cost."
+        },
+        {
+          "rank": 9,
+          "family": "fractal_domain.DFA",
+          "domain": "Fractal",
+          "metrics": [
+            "fractal_domain.DFA.mag",
+            "fractal_domain.DFA.grad"
+          ],
+          "mode": "lower_is_better",
+          "mode_by_metric": {
+            "fractal_domain.DFA.mag": "lower_is_better",
+            "fractal_domain.DFA.grad": "lower_is_better"
+          },
+          "meaning": "Detrended Fluctuation Analysis (DFA) fractal metric",
+          "quality_interpretation": "Characterizes long-range correlation and non-stationary structure.",
+          "cost_note": "High-cost candidate; not recommended for the fast primary model until optimized."
+        }
+      ]
+    }
+  }
+}
