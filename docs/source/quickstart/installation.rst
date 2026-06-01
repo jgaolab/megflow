@@ -23,28 +23,28 @@ Linux:
 .. code-block:: bash
 
    bash scripts/install/install_megflow_linux.sh
-   bash scripts/install/install_megflow_linux.sh 0.0.3
+   bash scripts/install/install_megflow_linux.sh 1.0.0
 
 macOS:
 
 .. code-block:: bash
 
    bash scripts/install/install_megflow_macos.sh
-   bash scripts/install/install_megflow_macos.sh 0.0.3
+   bash scripts/install/install_megflow_macos.sh 1.0.0
 
 Windows PowerShell:
 
 .. code-block:: powershell
 
    powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1
-   powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1 -ImageTag 0.0.3
+   powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1 -ImageTag 1.0.0
 
 On Linux, the installer can use Docker or Apptainer/Singularity:
 
 .. code-block:: bash
 
-   bash scripts/install/install_megflow_linux.sh 0.0.3 docker
-   bash scripts/install/install_megflow_linux.sh 0.0.3 apptainer
+   bash scripts/install/install_megflow_linux.sh 1.0.0 docker
+   bash scripts/install/install_megflow_linux.sh 1.0.0 apptainer
 
 See ``scripts/install/README.md`` for installer options and troubleshooting.
 
@@ -66,7 +66,7 @@ Pull the MEGFlow image:
 
    docker pull cmrlab/megflow:<version>
 
-Replace ``<version>`` with a release tag such as ``0.0.3`` or ``latest``.
+Replace ``<version>`` with a release tag such as ``1.0.0`` or ``latest``.
 
 Alternative: Local Installation Without Docker
 ----------------------------------------------

@@ -267,7 +267,7 @@ same.
        queue = "general"
        cpus = 4
        memory = "16 GB"
-       container = "/containers/megflow_0.0.3.sif"
+       container = "/containers/megflow_1.0.0.sif"
    }
 
    params {

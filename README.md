@@ -58,22 +58,22 @@ command.
 ```bash
 # Linux
 bash scripts/install/install_megflow_linux.sh
-bash scripts/install/install_megflow_linux.sh 0.0.3
+bash scripts/install/install_megflow_linux.sh 1.0.0
 
 # macOS
 bash scripts/install/install_megflow_macos.sh
-bash scripts/install/install_megflow_macos.sh 0.0.3
+bash scripts/install/install_megflow_macos.sh 1.0.0
 
 # Windows PowerShell
 powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1 -ImageTag 0.0.3
+powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1 -ImageTag 1.0.0
 ```
 
 On Linux, the installer can use Docker or Apptainer/Singularity:
 
 ```bash
-bash scripts/install/install_megflow_linux.sh 0.0.3 docker
-bash scripts/install/install_megflow_linux.sh 0.0.3 apptainer
+bash scripts/install/install_megflow_linux.sh 1.0.0 docker
+bash scripts/install/install_megflow_linux.sh 1.0.0 apptainer
 ```
 
 For more details, see `scripts/install/README.md`.
@@ -110,7 +110,7 @@ image directly:
 docker pull cmrlab/megflow:<version>
 ```
 
-*(Replace `<version>` with the specific version tag, e.g., `0.0.3` or `latest`)*
+*(Replace `<version>` with the specific version tag, e.g., `1.0.0` or `latest`)*
 
 ---
 

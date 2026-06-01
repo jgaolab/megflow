@@ -7,7 +7,7 @@ If you're using a computing cluster with SLURM as the resource manager, make sur
 .. code-block:: bash
 
     container_name=cmrlab/megflow
-    version=0.0.3
+    version=1.0.0
     singularity build ${container_name}_${version}.sif docker-daemon://${container_name}:${version}
 
 **Run MEGFlow on Slurm**
@@ -67,7 +67,7 @@ This command will run the MEGFlow pipeline on the cluster while managing resourc
 
         clusterOptions = { " --chdir=${workDir}" }
 
-        container = '/lustre/grp/gjhlab/liaop/codes/megflow/megflow_0.0.3.sif'
+        container = '/lustre/grp/gjhlab/liaop/codes/megflow/megflow_1.0.0.sif'
     }
 
 

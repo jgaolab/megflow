@@ -58,7 +58,7 @@ In this command:
    This mounts the Nextflow configuration file so the program inside the container can use it.  
 
 + ``cmrlab/megflow:1.0.0``  
-    This specifies the Docker image and version to run, where `megflow` is the image name, and `0.0.3` is the version.  
+    This specifies the Docker image and version to run, where `megflow` is the image name, and `1.0.0` is the version.  
 
 + ``-i /input``  
     This is a parameter passed to the program, specifying the input data directory as `/input`.  
