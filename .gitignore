@@ -30,6 +30,7 @@ megflow/tools/MEGNet
 megflow/reports/__pycache__/
 megflow/reports/reports/__pycache__/
 megflow/__pycache__
+megflow/tools/megqc/__pycache__/
 run_*.sh
 start_vpn.sh
 license.txt
