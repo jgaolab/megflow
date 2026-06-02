@@ -123,7 +123,7 @@ docker run --rm -it cmrlab/megflow:<version> [nextflow_options]
 
 ### Pipeline steps
 
-The file [`nextflow/meg_anat_pipeline_for_docker.nf`](nextflow/meg_anat_pipeline_for_docker.nf) is controlled by **`params.steps`** in the config, or by **`--steps`** on the command line. The default in [`nextflow.config`](nextflow/nextflow.config) is **`meg_all`**.
+The file [`nextflow/megflow.nf`](nextflow/megflow.nf) is controlled by **`params.steps`** in the config, or by **`--steps`** on the command line. The default in [`nextflow.config`](nextflow/nextflow.config) is **`meg_all`**.
 
 | Primary `steps` | What it does |
 | :--- | :--- |
@@ -203,13 +203,13 @@ megqc_meg_vendor_by_dataset = [
 ```
 
 MEGQC parallelism is controlled by Nextflow resources, not a separate
-`megqc_n_jobs` config value. The `score_MEG_quality` process passes `task.cpus`
+`megqc_n_jobs` config value. The `score_meg_quality` process passes `task.cpus`
 to the scorer; tune it with the global `process.cpus` setting or a process
 override:
 
 ```groovy
 process {
-  withName: score_MEG_quality {
+  withName: score_meg_quality {
     cpus = 4
   }
 }
@@ -237,20 +237,20 @@ default because ONNX Runtime or OpenVINO must be available in the runtime.
 
 ```bash
 # Default: full MEG only, use existing FreeSurfer/DeepPrep subjects dir
-nextflow run megflow/nextflow/meg_anat_pipeline_for_docker.nf \
-  -c megflow/nextflow/nextflow.config
+nextflow run nextflow/megflow.nf \
+  -c nextflow/nextflow.config
 
 # Structural + MEG end-to-end
-nextflow run megflow/nextflow/meg_anat_pipeline_for_docker.nf \
-  -c megflow/nextflow/nextflow.config --steps all
+nextflow run nextflow/megflow.nf \
+  -c nextflow/nextflow.config --steps all
 
 # MRI only
-nextflow run megflow/nextflow/meg_anat_pipeline_for_docker.nf \
-  -c megflow/nextflow/nextflow.config --steps anatomy
+nextflow run nextflow/megflow.nf \
+  -c nextflow/nextflow.config --steps anatomy
 
 # Rebuild static HTML report only
-nextflow run megflow/nextflow/meg_anat_pipeline_for_docker.nf \
-  -c megflow/nextflow/nextflow.config --steps report
+nextflow run nextflow/megflow.nf \
+  -c nextflow/nextflow.config --steps report
 
 # Optional: two-step “anatomy first, then MEG from artifacts”
 nextflow run ... --steps anatomy
@@ -421,7 +421,7 @@ docker run --rm -it \
 | `-c`, `--config` | Specify the Nextflow config file (default: `nextflow.config`) |
 | `-i`, `--input` | Specify the input directory |
 | `-o`, `--output` | Specify the output directory (including report results) |
-| `-s`, `--steps` | **Nextflow (`meg_anat_pipeline_for_docker.nf`):** sets `params.steps` (e.g. `all`, `meg_all`, `anatomy`, `report`). With **Docker**, pass this **after the image name**; see [Using pipeline steps with Docker](#using-pipeline-steps-with-docker). Same semantics as [Pipeline steps](#pipeline-steps). |
+| `-s`, `--steps` | **Nextflow (`megflow.nf`):** sets `params.steps` (e.g. `all`, `meg_all`, `anatomy`, `report`). With **Docker**, pass this **after the image name**; see [Using pipeline steps with Docker](#using-pipeline-steps-with-docker). Same semantics as [Pipeline steps](#pipeline-steps). |
 | `-r`, `--view-report` | Run Streamlit to view the report (does not run Nextflow) |
 | `--cohort` | Treat the input directory as a collection of datasets, run each child through the native dataset tuple DAG, and generate a cohort-level static report |
 | `--static_task_log_mode` | Static report task log bundling mode: `all-command-log` (default), `failed`, or `none` |

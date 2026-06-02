@@ -1,6 +1,6 @@
 #!/usr/bin/env nextflow
 // Run with a project-specific config, for example:
-// nextflow run nextflow/meg_anat_pipeline_for_docker.nf -c nextflow/nextflow.config
+// nextflow run nextflow/megflow.nf -c nextflow/nextflow.config
 nextflow.enable.dsl=2
 
 import groovy.json.JsonOutput
@@ -189,7 +189,7 @@ process generate_cohort_static_html_report {
     """
 }
 
-process import_MRI_dataset {
+process import_mri_dataset {
     tag "${dataset_name}"
 
     input:
@@ -340,7 +340,7 @@ process generate_bem {
     """
 }
 
-process import_MEG_dataset {
+process import_meg_dataset {
     tag "${dataset_name}"
 
     input:
@@ -366,7 +366,7 @@ process import_MEG_dataset {
     """
 }
 
-process score_MEG_quality {
+process score_meg_quality {
     tag "${dataset_name}:${raw_subject_basename}"
     memory { 4.GB * task.attempt }
 
@@ -412,7 +412,7 @@ process score_MEG_quality {
     """
 }
 
-process meg_preproc_osl {
+process meg_basic_preproc {
     tag "${dataset_name}:${raw_subject_basename}"
     memory { 6.GB * task.attempt }
 
@@ -435,7 +435,7 @@ process meg_preproc_osl {
     """
 }
 
-process detect_Artifacts {
+process detect_artifacts {
     tag "${dataset_name}:${raw_subject_basename}"
 
     input:
@@ -457,7 +457,7 @@ process detect_Artifacts {
     """
 }
 
-process run_ICA {
+process run_ica {
     tag "${dataset_name}:${raw_subject_basename}"
     memory { 8.GB * task.attempt }
 
@@ -484,7 +484,7 @@ process run_ICA {
     """
 }
 
-process run_IC_label {
+process run_ic_label {
     tag "${dataset_name}:${raw_subject_basename}"
 
     input:
@@ -506,7 +506,7 @@ process run_IC_label {
     """
 }
 
-process apply_ICA {
+process apply_ica {
     tag "${dataset_name}:${raw_subject_basename}"
 
     input:
@@ -905,7 +905,7 @@ workflow {
                 if (cfg.runAnatomy) {
                     def native_t1_inputs_ch
                     if (params.is_bids) {
-                        native_t1_imported = import_MRI_dataset(native_dataset_ch)
+                        native_t1_imported = import_mri_dataset(native_dataset_ch)
                         native_t1_inputs_ch = native_t1_imported.imported_t1_data
                             .flatMap { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, imported_file ->
                                 imported_file.readLines()
@@ -989,7 +989,7 @@ workflow {
                 if (!cfg.runMeg) {
                     report_wait_token_ch = reportTokenForStage(native_anatomy_subject_ch, 'anatomy')
                 } else {
-                native_imported = import_MEG_dataset(native_dataset_ch, params.dataset_format, params.file_suffix)
+                native_imported = import_meg_dataset(native_dataset_ch, params.dataset_format, params.file_suffix)
 
                 native_raw_subject_ch = native_imported.imported_meg_data
                     .flatMap { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, imported_file ->
@@ -1003,7 +1003,7 @@ workflow {
 
                 def native_meg_input_ch
                 if ((params.megqc_enabled ?: true).toString().toBoolean()) {
-                    native_qc = score_MEG_quality(native_raw_subject_ch)
+                    native_qc = score_meg_quality(native_raw_subject_ch)
                     native_meg_input_ch = native_qc.qc_subjects
                         .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, qc_summary, qc_components, qc_plot ->
                             def scorePayload = new JsonSlurper().parse(new File(qc_summary.toString())) as Map
@@ -1021,8 +1021,8 @@ workflow {
                     native_meg_input_ch = native_raw_subject_ch
                 }
 
-                native_preproc = meg_preproc_osl(native_meg_input_ch)
-                native_artifacts = detect_Artifacts(native_preproc.preproc_subjects)
+                native_preproc = meg_basic_preproc(native_meg_input_ch)
+                native_artifacts = detect_artifacts(native_preproc.preproc_subjects)
                 native_artifacts_with_hash = native_artifacts.artifacts
                     .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments ->
                         def artifactHash = filesSha256([bad_channels, bad_segments])
@@ -1035,14 +1035,14 @@ workflow {
                 def native_epoch_subject_ch = null
 
                 if (cfg.megStage >= 1 && !cfg.skipIca) {
-                    native_ica = run_ICA(native_artifacts_with_hash)
-                    native_labels = run_IC_label(native_ica.ica_subjects)
+                    native_ica = run_ica(native_artifacts_with_hash)
+                    native_labels = run_ic_label(native_ica.ica_subjects)
                     native_labelled_with_hash = native_labels.labelled_subjects
                         .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, marked_components ->
                             def markedHash = fileSha256(marked_components)
                             tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, marked_components, markedHash)
                         }
-                    native_clean = apply_ICA(native_labelled_with_hash)
+                    native_clean = apply_ica(native_labelled_with_hash)
                     native_clean_subject_ch = native_clean.clean_subjects
                     report_wait_token_ch = reportTokenForStage(native_clean_subject_ch, 'clean')
                 }

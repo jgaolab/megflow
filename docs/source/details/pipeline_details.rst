@@ -6,7 +6,7 @@ continuous MEG preprocessing, artifact detection, ICA cleaning, optional
 epoching, covariance estimation, MEG-MRI coregistration, forward modeling,
 source reconstruction, and static quality-control reporting.
 
-The main workflow is implemented in ``nextflow/meg_anat_pipeline_for_docker.nf``.
+The main workflow is implemented in ``nextflow/megflow.nf``.
 Configuration is supplied through ``nextflow.config`` and can be overridden by
 selected command-line options. See :doc:`../reference/configuration` for the
 complete configuration reference.
@@ -77,31 +77,31 @@ Continuous Core Preprocessing
 The continuous MEG core is task independent and applies to both resting-state
 and task-based recordings.
 
-1. ``import_MEG_dataset`` discovers input recordings.
+1. ``import_meg_dataset`` discovers input recordings.
    BIDS input is filtered by ``meg_import_config`` entities. Raw input is
    selected by ``file_suffix`` and optional ``raw_include_keywords`` /
    ``raw_exclude_keywords``. Raw discovery matches both files and directories,
    so CTF ``.ds`` folders are supported.
 
-2. ``meg_preproc_osl`` calls ``meg_preproc_osl.py``, which passes
+2. ``meg_basic_preproc`` calls ``meg_preproc_osl.py``, which passes
    ``preproc_config`` to OSL-Ephys ``run_proc_batch``. The listed preprocessing
    steps are executed in order. Common steps include Maxwell/tSSS for
    Elekta/MEGIN data, band-pass filtering, notch filtering, and resampling.
    Resampling is the current configurable downsampling mechanism.
 
-3. ``detect_Artifacts`` calls ``meg_detect_artifacts.py``. It detects bad
+3. ``detect_artifacts`` calls ``meg_detect_artifacts.py``. It detects bad
    channels and bad time spans using the configured PyPREP, PSD, OSL, MNE, and
    optional DeepReject methods. It writes ``*_bad_channels.txt`` and
    ``*_bad_segments.txt`` and can generate waveform images for manual review.
 
-4. ``run_ICA`` loads the preprocessed raw file plus the artifact sidecars. Bad
+4. ``run_ica`` loads the preprocessed raw file plus the artifact sidecars. Bad
    channels are excluded from picks, and bad annotations are ignored during ICA
    fitting through ``reject_by_annotation=True``.
 
-5. ``run_IC_label`` labels artifact-related ICA components using the configured
+5. ``run_ic_label`` labels artifact-related ICA components using the configured
    ECG, EOG, MNE-ICLabel, and rule-based settings.
 
-6. ``apply_ICA`` loads the marked components, applies the ICA solution, and
+6. ``apply_ica`` loads the marked components, applies the ICA solution, and
    saves ``*_clean_raw.fif``. The cleaned continuous file keeps the bad-channel
    and bad-segment metadata.
 

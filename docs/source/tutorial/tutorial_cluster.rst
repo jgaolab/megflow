@@ -28,7 +28,7 @@ If you're using a computing cluster with SLURM as the resource manager, make sur
     #SBATCH --output=%x.%j.out
     #SBATCH --error=%x.%j.err
 
-    nextflow run megflow.nf -c nextflow.config -resume
+    nextflow run nextflow/megflow.nf -c nextflow/nextflow.config -resume
 
 This command will run the MEGFlow pipeline on the cluster while managing resource allocation automatically.
 

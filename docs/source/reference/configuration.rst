@@ -474,14 +474,14 @@ Key MEGQC parameters:
        scoring.
 
 MEGQC parallelism follows Nextflow process resources. The workflow passes
-``task.cpus`` from ``score_MEG_quality`` into the scorer, so there is no separate
+``task.cpus`` from ``score_meg_quality`` into the scorer, so there is no separate
 ``megqc_n_jobs`` parameter. Tune scoring CPU use through the standard process
 configuration:
 
 .. code-block:: groovy
 
    process {
-       withName: score_MEG_quality {
+       withName: score_meg_quality {
            cpus = 4
        }
    }
