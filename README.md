@@ -11,32 +11,32 @@ It supports containerized execution, staged workflows, quality-control reports, 
 
 ---
 
-## <img src="docs/source/_static/readme-icons/features.svg" width="20" height="20" alt="" aria-hidden="true"> Key Features
+## 🔬 Key Features
 
-### <img src="docs/source/_static/readme-icons/runtime.svg" width="18" height="18" alt="" aria-hidden="true"> Reproducible Runtime
+### 📦 Reproducible Runtime
 Containerized environments through **Docker** and **Singularity** reduce runtime differences across computational setups and support cross-subject or cross-site studies.
 
-### <img src="docs/source/_static/readme-icons/parallel.svg" width="18" height="18" alt="" aria-hidden="true"> Parallel Execution
+### ⚙️ Parallel Execution
 MEGFlow uses **Nextflow** to schedule independent tasks concurrently and manage large preprocessing workloads.
 
-### <img src="docs/source/_static/readme-icons/workflow.svg" width="18" height="18" alt="" aria-hidden="true"> Modular Workflow
+### 🧩 Modular Workflow
 The workflow is organized into configurable stages so users can run the full pipeline or stop at selected milestones.
 
-### <img src="docs/source/_static/readme-icons/detection.svg" width="18" height="18" alt="" aria-hidden="true"> Automated Detection Steps
+### 🔎 Automated Detection Steps
 MEGFlow includes automated steps that reduce repeated manual work:
 *   Artifact rejection
 *   ICA (Independent Component Analysis) component detection
 *   Coregistration
 
-### <img src="docs/source/_static/readme-icons/report.svg" width="18" height="18" alt="" aria-hidden="true"> Quality Control Reports
+### 📊 Quality Control Reports
 The reporting tools summarize quality-control metrics for each processing stage and flag potential anomalies.
 
-### <img src="docs/source/_static/readme-icons/config.svg" width="18" height="18" alt="" aria-hidden="true"> Parameter Configuration
+### 📝 Parameter Configuration
 Configuration files expose dataset paths, preprocessing settings, workflow steps, and report options without requiring changes to pipeline code.
 
 ---
 
-## <img src="docs/source/_static/readme-icons/install.svg" width="20" height="20" alt="" aria-hidden="true"> Installation
+## 📦 Installation
 
 MEGFlow is officially distributed as a Docker container. We recommend using the
 containerized installation workflow whenever possible, because it provides the
@@ -114,7 +114,7 @@ docker pull cmrlab/megflow:<version>
 
 ---
 
-## <img src="docs/source/_static/readme-icons/usage.svg" width="20" height="20" alt="" aria-hidden="true"> Usage
+## 💻 Usage
 
 ### Basic Command Structure
 ```bash
@@ -455,7 +455,7 @@ For MEGFlow, the default **`steps`** is **`meg_all`** (MEG only, using existing 
 
 ---
 
-## <img src="docs/source/_static/readme-icons/report.svg" width="20" height="20" alt="" aria-hidden="true"> Quality Control Reports
+## 📊 Quality Control Reports
 
 MEGFlow generates interactive quality control reports via Streamlit.
 
@@ -475,7 +475,7 @@ docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output cm
 
 ---
 
-## <img src="docs/source/_static/readme-icons/issue.svg" width="20" height="20" alt="" aria-hidden="true"> Bug Reports and Feedback
+## 🐞 Bug Reports and Feedback
 
 Please report bugs, unexpected behavior, or improvement suggestions through the **GitHub Issues** page.
 
@@ -489,7 +489,7 @@ When reporting a bug, please include:
 
 ---
 
-## <img src="docs/source/_static/readme-icons/development.svg" width="20" height="20" alt="" aria-hidden="true"> Development
+## 🛠️ Development
 
 Contributions to MEGFlow are welcome. To contribute code or documentation:
 
