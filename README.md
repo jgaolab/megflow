@@ -11,15 +11,15 @@ It supports containerized execution, staged workflows, quality-control reports, 
 
 ---
 
-## 🔬 Key Features
+## 📌 Key Features
 
-### 📦 Reproducible Runtime
+### 🐳 Reproducible Runtime
 Containerized environments through **Docker** and **Singularity** reduce runtime differences across computational setups and support cross-subject or cross-site studies.
 
-### ⚙️ Parallel Execution
+### ⚡ Parallel Execution
 MEGFlow uses **Nextflow** to schedule independent tasks concurrently and manage large preprocessing workloads.
 
-### 🧩 Modular Workflow
+### 🔗 Modular Workflow
 The workflow is organized into configurable stages so users can run the full pipeline or stop at selected milestones.
 
 ### 🔎 Automated Detection Steps
@@ -28,15 +28,15 @@ MEGFlow includes automated steps that reduce repeated manual work:
 *   ICA (Independent Component Analysis) component detection
 *   Coregistration
 
-### 📊 Quality Control Reports
+### 📐 Quality Control Reports
 The reporting tools summarize quality-control metrics for each processing stage and flag potential anomalies.
 
-### 📝 Parameter Configuration
+### ⚙️ Parameter Configuration
 Configuration files expose dataset paths, preprocessing settings, workflow steps, and report options without requiring changes to pipeline code.
 
 ---
 
-## 📦 Installation
+## `❯_` Installation
 
 MEGFlow is officially distributed as a Docker container. We recommend using the
 containerized installation workflow whenever possible, because it provides the
@@ -455,7 +455,7 @@ For MEGFlow, the default **`steps`** is **`meg_all`** (MEG only, using existing 
 
 ---
 
-## 📊 Quality Control Reports
+## 📐 Quality Control Reports
 
 MEGFlow generates interactive quality control reports via Streamlit.
 
