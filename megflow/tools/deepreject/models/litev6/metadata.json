@@ -1,0 +1,127 @@
+{
+  "ckpt_path": "/home/changpsyshi1/changping/liaopan/deepreject/codes/exps/best_weights/Final-litev6-multilabel-2s/fold_0/best.pt",
+  "model_config_path": "/home/changpsyshi1/changping/liaopan/deepreject/codes/exps/best_weights/Final-litev6-multilabel-2s/fold_0/model_config.json",
+  "window_duration_sec": 2.0,
+  "manifest": "/home/changpsyshi1/changping/liaopan/deepreject/codes/exps/graph_cache/unified_w2s/manifest.tsv",
+  "manifest_index": 0,
+  "input_signature": {
+    "x_raw": {
+      "shape": [
+        5508,
+        500
+      ],
+      "dtype": "float32"
+    },
+    "edge_index": {
+      "shape": [
+        2,
+        45504
+      ],
+      "dtype": "int64"
+    },
+    "batch_idx": {
+      "shape": [
+        5508
+      ],
+      "dtype": "int64"
+    },
+    "ptr": {
+      "shape": [
+        19
+      ],
+      "dtype": "int64"
+    },
+    "x_raw_scale": {
+      "shape": [
+        5508
+      ],
+      "dtype": "float32"
+    },
+    "node_valid": {
+      "shape": [
+        5508
+      ],
+      "dtype": "float32"
+    },
+    "sensor_type": {
+      "shape": [
+        5508
+      ],
+      "dtype": "int64"
+    },
+    "meg_ch_pos": {
+      "shape": [
+        5508,
+        3
+      ],
+      "dtype": "float32"
+    }
+  },
+  "input_names": [
+    "x_raw",
+    "edge_index",
+    "batch_idx",
+    "ptr",
+    "x_raw_scale",
+    "node_valid",
+    "sensor_type",
+    "meg_ch_pos"
+  ],
+  "output_names": [
+    "artifact_logits",
+    "bad_channel_logits"
+  ],
+  "note": "ONNX/OpenVINO artifacts are fixed-shape for this benchmark recording.",
+  "validation": {
+    "onnxruntime": {
+      "safe_to_use": true,
+      "status": "ok",
+      "latency_ms": 535.6127321720123,
+      "diff_vs_torch": {
+        "artifact_logits": {
+          "shape": [
+            18,
+            2
+          ],
+          "max_abs": 9.5367431640625e-07,
+          "mean_abs": 2.3510720836839027e-07,
+          "allclose_1e-4": true
+        },
+        "bad_channel_logits": {
+          "shape": [
+            306,
+            2
+          ],
+          "max_abs": 4.246830940246582e-07,
+          "mean_abs": 9.191365535343721e-08,
+          "allclose_1e-4": true
+        }
+      }
+    },
+    "openvino": {
+      "safe_to_use": true,
+      "status": "ok",
+      "latency_ms": 85.11491119861603,
+      "diff_vs_torch": {
+        "artifact_logits": {
+          "shape": [
+            18,
+            2
+          ],
+          "max_abs": 8.344650268554688e-07,
+          "mean_abs": 2.168946764413704e-07,
+          "allclose_1e-4": true
+        },
+        "bad_channel_logits": {
+          "shape": [
+            306,
+            2
+          ],
+          "max_abs": 4.76837158203125e-07,
+          "mean_abs": 1.0077995682422625e-07,
+          "allclose_1e-4": true
+        }
+      }
+    }
+  }
+}

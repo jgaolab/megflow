@@ -21,7 +21,6 @@ from typing import Iterable
 
 import numpy as np
 import pandas as pd
-from PIL import Image, ImageDraw, ImageFont
 
 
 SCRIPT_DIR = Path(__file__).resolve().parent
@@ -619,16 +618,38 @@ def score_metrics(
 
 STATUS_STYLES = {
     "within_q05_q95": {"color": "#059669", "label": "Within reference"},
-    "above_q95": {"color": "#dc2626", "label": "Above q95 (worse)"},
-    "below_q05": {"color": "#2563eb", "label": "Below q05 (better)"},
+    "above_q95": {"color": "#dc2626", "label": "Worse (above q95)"},
+    "below_q05": {"color": "#2563eb", "label": "Better (below q05)"},
     "missing": {"color": "#94a3b8", "label": "Not computed"},
 }
 
 
-def _domain_prefix(domain: str, prev_domain: str | None) -> str:
-    if domain and domain != prev_domain:
-        return f"[{domain}] "
-    return ""
+PLOTTED_STATUSES = {"within_q05_q95", "above_q95", "below_q05"}
+
+DOMAIN_STYLES = {
+    "Temporal": {"color": "#2563EB", "fill": "#EFF6FF"},
+    "Statistic": {"color": "#7C3AED", "fill": "#F5F3FF"},
+    "Spectral": {"color": "#D97706", "fill": "#FFFBEB"},
+    "Fractal": {"color": "#059669", "fill": "#ECFDF5"},
+}
+DEFAULT_DOMAIN_STYLE = {"color": "#475569", "fill": "#F8FAFC"}
+
+
+def _computed_plot_rows(detail: pd.DataFrame) -> pd.DataFrame:
+    rows = detail.copy()
+    rows["pos_plot"] = pd.to_numeric(rows["reference_position_q05_0_q95_1"], errors="coerce")
+    rows["component_pct"] = pd.to_numeric(rows["component_score_0_1"], errors="coerce") * 100.0
+    rows["status"] = rows["status"].astype(str)
+    rows = rows[
+        rows["status"].isin(PLOTTED_STATUSES)
+        & np.isfinite(rows["pos_plot"])
+        & np.isfinite(rows["component_pct"])
+    ].copy()
+    return rows.sort_values(["domain", "family", "metric"]).reset_index(drop=True)
+
+
+def _domain_style(domain: str) -> dict[str, str]:
+    return DOMAIN_STYLES.get(str(domain), DEFAULT_DOMAIN_STYLE)
 
 
 def _metric_row_label(row: pd.Series, *, domain_prefix: str = "") -> str:
@@ -654,98 +675,27 @@ def _status_label(status: str, mode: str) -> str:
     if status == "within_q05_q95":
         return "Within reference"
     if status == "above_q95":
-        return "Above q95 (worse)" if lower_better else "Above q95"
+        return "Worse (above q95)" if lower_better else "Above q95"
     if status == "below_q05":
-        return "Below q05 (better)" if lower_better else "Below q05 (worse)"
+        return "Better (below q05)" if lower_better else "Worse (below q05)"
     if status == "missing":
         return "Not computed"
     return status.replace("_", " ")
 
 
-def load_font(size: int, bold: bool = False) -> ImageFont.FreeTypeFont | ImageFont.ImageFont:
-    paths = [
-        "/System/Library/Fonts/Supplemental/Arial Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Arial.ttf",
-        "/System/Library/Fonts/Supplemental/Helvetica Bold.ttf" if bold else "/System/Library/Fonts/Supplemental/Helvetica.ttf",
-        "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
-        "/usr/share/fonts/dejavu/DejaVuSans-Bold.ttf" if bold else "/usr/share/fonts/dejavu/DejaVuSans.ttf",
-    ]
-    for path in paths:
-        try:
-            return ImageFont.truetype(path, size=size)
-        except Exception:
-            pass
-    return ImageFont.load_default()
+def _draw_reference_placeholder_plot(out_png: Path, message: str) -> None:
+    import matplotlib
 
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
 
-def _draw_reference_position_plot_pil(
-    detail: pd.DataFrame,
-    out_png: Path,
-    title: str,
-    *,
-    subtitle: str | None = None,
-) -> None:
-    rows = detail.copy()
-    rows["pos_plot"] = pd.to_numeric(rows["reference_position_q05_0_q95_1"], errors="coerce").clip(-0.35, 1.35)
-    rows = rows.sort_values(["domain", "family", "metric"]).reset_index(drop=True)
-    n = max(1, len(rows))
-    width = 1800
-    row_h = 58
-    top = 120 if subtitle else 95
-    bottom = 120
-    left = 520
-    right = 320
-    height = top + bottom + n * row_h
-    image = Image.new("RGB", (width, height), "white")
-    draw = ImageDraw.Draw(image)
-    title_font = load_font(34, True)
-    subtitle_font = load_font(22)
-    label_font = load_font(22)
-    small_font = load_font(18)
-    draw.text((40, 24), title, fill="#111827", font=title_font)
-    if subtitle:
-        draw.text((40, 64), subtitle, fill="#4B5563", font=subtitle_font)
-    plot_w = width - left - right
-
-    def sx(v: float) -> float:
-        return left + (v + 0.35) / 1.70 * plot_w
-
-    for tick, label in [(-0.35, "Below q05"), (0.0, "q05"), (0.5, "q50"), (1.0, "q95"), (1.35, "Above q95")]:
-        x = sx(tick)
-        draw.line((x, top - 18, x, top + n * row_h), fill="#E5E7EB", width=1)
-        draw.text((x - 34, top + n * row_h + 16), label, fill="#374151", font=small_font)
-    draw.rectangle((sx(0.0), top - 8, sx(1.0), top + n * row_h), fill="#ECFDF5", outline="#A7F3D0")
-    draw.line((sx(0.5), top - 8, sx(0.5), top + n * row_h), fill="#6B7280", width=2)
-    for i, row in rows.iterrows():
-        y = top + i * row_h + row_h / 2
-        draw.text((24, y - 12), _metric_row_label(row), fill="#111827", font=label_font)
-        draw.line((sx(0.0), y, sx(1.0), y), fill="#CBD5E1", width=8)
-        status = str(row["status"])
-        style = STATUS_STYLES.get(status, STATUS_STYLES["missing"])
-        pos = row["pos_plot"]
-        if np.isfinite(pos):
-            x = sx(float(pos))
-            draw.ellipse((x - 11, y - 11, x + 11, y + 11), fill=style["color"], outline="white", width=2)
-        score_pct = pd.to_numeric(row.get("component_score_0_1"), errors="coerce")
-        score_text = f"{score_pct * 100:.0f}/100" if np.isfinite(score_pct) else "—"
-        draw.text(
-            (width - right + 8, y - 12),
-            f"{_status_label(status, row.get('mode', ''))}  ·  {score_text}",
-            fill="#374151",
-            font=small_font,
-        )
-    draw.text(
-        (40, height - 78),
-        "Each dot shows where this recording sits relative to the normative reference.",
-        fill="#111827",
-        font=small_font,
-    )
-    draw.text(
-        (40, height - 48),
-        "Green band = typical range (q05–q95). Higher component scores (0–100) are better.",
-        fill="#4B5563",
-        font=small_font,
-    )
-    image.save(out_png)
+    out_png.parent.mkdir(parents=True, exist_ok=True)
+    fig, ax = plt.subplots(figsize=(10, 4), dpi=160)
+    fig.patch.set_facecolor("white")
+    ax.set_axis_off()
+    ax.text(0.5, 0.55, message, ha="center", va="center", fontsize=14, color="#374151")
+    fig.savefig(out_png, facecolor="white", bbox_inches="tight", pad_inches=0.35)
+    plt.close(fig)
 
 
 def draw_reference_position_plot(
@@ -755,20 +705,16 @@ def draw_reference_position_plot(
     *,
     subtitle: str | None = None,
 ) -> None:
-    try:
-        import matplotlib
+    import matplotlib
 
-        matplotlib.use("Agg")
-        import matplotlib.pyplot as plt
-        from matplotlib.patches import Patch
-    except Exception:
-        _draw_reference_position_plot_pil(detail, out_png, title, subtitle=subtitle)
+    matplotlib.use("Agg")
+    import matplotlib.pyplot as plt
+    from matplotlib.patches import Patch, Rectangle
+
+    rows = _computed_plot_rows(detail)
+    if rows.empty:
+        _draw_reference_placeholder_plot(out_png, "No computed reference-relative metrics are available for this recording.")
         return
-
-    rows = detail.copy()
-    rows["pos_plot"] = pd.to_numeric(rows["reference_position_q05_0_q95_1"], errors="coerce")
-    rows["component_pct"] = pd.to_numeric(rows["component_score_0_1"], errors="coerce") * 100.0
-    rows = rows.sort_values(["domain", "family", "metric"]).reset_index(drop=True)
 
     plot_rows: list[dict[str, object]] = []
     y = 0.0
@@ -788,16 +734,39 @@ def draw_reference_position_plot(
     fig.patch.set_facecolor("white")
     ax.set_facecolor("#FAFAFA")
 
-    ax.axvspan(0.0, 1.0, color="#D1FAE5", alpha=0.55, zorder=0)
-    ax.axvline(0.5, color="#6B7280", linewidth=1.4, linestyle="--", alpha=0.85, zorder=1)
-    for tick in (0.0, 0.5, 1.0):
-        ax.axvline(tick, color="#D1D5DB", linewidth=1.0, zorder=0)
-
     pos_values = pd.to_numeric(rows["reference_position_q05_0_q95_1"], errors="coerce")
     pos_max = float(pos_values.max()) if pos_values.notna().any() else 1.0
     pos_min = float(pos_values.min()) if pos_values.notna().any() else 0.0
     x_right = max(1.12, min(pos_max + 0.15, 3.0))
     x_left = min(-0.12, max(pos_min - 0.08, -0.35))
+
+    domain_ranges: list[tuple[str, float, float]] = []
+    current_domain = None
+    start_y = 0.0
+    last_y = 0.0
+    for item in plot_rows:
+        domain = str(item["domain"])
+        y_pos = float(item["y"])
+        if current_domain is None:
+            current_domain = domain
+            start_y = y_pos
+        elif domain != current_domain:
+            domain_ranges.append((current_domain, start_y, last_y))
+            current_domain = domain
+            start_y = y_pos
+        last_y = y_pos
+    if current_domain is not None:
+        domain_ranges.append((current_domain, start_y, last_y))
+
+    for domain, start, end in domain_ranges:
+        style = _domain_style(domain)
+        ax.axhspan(start - 0.44, end + 0.44, color=style["fill"], zorder=0)
+        ax.vlines(x_left + 0.01, start - 0.36, end + 0.36, color=style["color"], linewidth=5.0, zorder=1)
+
+    ax.axvspan(0.0, 1.0, color="#D1FAE5", alpha=0.46, zorder=0)
+    ax.axvline(0.5, color="#6B7280", linewidth=1.4, linestyle="--", alpha=0.85, zorder=1)
+    for tick in (0.0, 0.5, 1.0):
+        ax.axvline(tick, color="#D1D5DB", linewidth=1.0, zorder=0)
 
     for item in plot_rows:
         row = item["row"]
@@ -846,13 +815,9 @@ def draw_reference_position_plot(
                 )
 
     yticks = [item["y"] for item in plot_rows]
-    prev_domain = None
     fixed_labels = []
     for item in plot_rows:
-        domain = str(item["domain"])
-        prefix = _domain_prefix(domain, prev_domain)
-        fixed_labels.append(_metric_row_label(item["row"], domain_prefix=prefix))
-        prev_domain = domain
+        fixed_labels.append(_metric_row_label(item["row"]))
 
     ax.set_yticks(yticks)
     ax.set_yticklabels(fixed_labels, fontsize=12)
@@ -883,7 +848,8 @@ def draw_reference_position_plot(
 
     legend_handles = [
         Patch(facecolor=style["color"], edgecolor="white", label=style["label"])
-        for style in STATUS_STYLES.values()
+        for key, style in STATUS_STYLES.items()
+        if key in PLOTTED_STATUSES
     ]
     fig.legend(
         handles=legend_handles,
@@ -913,6 +879,36 @@ def draw_reference_position_plot(
     def _data_y_to_fig_y(y_data: float) -> float:
         frac = (y_data - y_min) / (y_max - y_min)
         return ax_pos.y0 + frac * ax_pos.height
+
+    domain_label_x = 0.055
+    domain_bar_x = 0.045
+    domain_bar_w = 0.006
+    for domain, start, end in domain_ranges:
+        style = _domain_style(domain)
+        fig_y0 = _data_y_to_fig_y(start - 0.36)
+        fig_y1 = _data_y_to_fig_y(end + 0.36)
+        fig_y0, fig_y1 = sorted((fig_y0, fig_y1))
+        fig.patches.append(
+            Rectangle(
+                (domain_bar_x, fig_y0),
+                domain_bar_w,
+                fig_y1 - fig_y0,
+                transform=fig.transFigure,
+                facecolor=style["color"],
+                edgecolor="none",
+                zorder=5,
+            )
+        )
+        fig.text(
+            domain_label_x,
+            (fig_y0 + fig_y1) / 2.0,
+            domain,
+            ha="left",
+            va="center",
+            fontsize=11.5,
+            fontweight="bold",
+            color=style["color"],
+        )
 
     status_x = min(ax_pos.x1 + 0.012, 0.97)
     for item in plot_rows:
@@ -969,7 +965,7 @@ def self_test(config: dict, ref_df: pd.DataFrame) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Score one FIF file with the selected MEG QC reference-quota model.")
     parser.add_argument("--fif", type=Path, default=None, help="Input FIF file.")
-    parser.add_argument("--device-type", default="ALL", help="Device type used for reference lookup, e.g. Elekta, CTF, KIT, 4D.")
+    parser.add_argument("--meg-vendor", dest="meg_vendor", default="all", help="Case-insensitive MEG vendor/reference device used for lookup, e.g. elekta, ctf, kit, 4d.")
     parser.add_argument("--category", default="rest", help="Recording category, usually rest or task.")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--config", type=Path, default=SCRIPT_DIR / "metric_config_reference_quota.json")
@@ -1036,7 +1032,7 @@ def main() -> None:
         metrics,
         config,
         ref_df,
-        args.device_type,
+        args.meg_vendor,
         args.category,
         args.reference_scope,
         args.min_reference_n,

@@ -80,6 +80,43 @@ def _validate_epoch_events(events, context):
     return events
 
 
+def _read_events_text(events_file):
+    """Read a BIDS events.tsv file."""
+    with open(events_file, 'r', encoding='utf-8-sig') as f:
+        return f.read().splitlines()
+
+
+def _should_read_bids_events(events_file):
+    """Return True only for explicit BIDS-style tabular event files."""
+    if not events_file:
+        return False
+
+    path = Path(events_file)
+    suffix = path.suffix.lower()
+    if suffix == ".tsv":
+        if not path.exists():
+            raise FileNotFoundError(f"BIDS events file does not exist: {events_file}")
+        return True
+
+    if path.exists():
+        print(
+            f"Event source is 'event_file', but {events_file} is not a BIDS "
+            "events.tsv file. Falling back to mne.find_events."
+        )
+    else:
+        print(
+            f"Event source is 'event_file', but inferred events file does not exist: "
+            f"{events_file}. Falling back to mne.find_events."
+        )
+    return False
+
+
+def _find_events(raw, config, exclude_event_id):
+    events = mne.find_events(raw, **config.get('find_events', {}))
+    events = filter_events_by_exclude(events, exclude_event_id)
+    return _validate_epoch_events(events, "find_events")
+
+
 def filter_events_by_exclude(events, exclude_event_id):
     """
     Remove events whose id (third column) is listed in exclude_event_id.
@@ -128,56 +165,58 @@ def read_bids_events(events_file,sfreq,event_types=None,exclude_event_id=None):
     events = []
     exclude_ids = _normalize_exclude_event_ids(exclude_event_id)
 
-    with open(events_file, 'r') as f:
-        header = f.readline().strip().split('\t')
-        # Remove any leading BOM characters (if not done by encoding)
-        header = [col.lstrip('\ufeff') for col in header]
-        onset_idx = header.index('onset')
+    lines = [line for line in _read_events_text(events_file) if line.strip()]
+    if not lines:
+        raise ValueError(f"Events file has no non-empty rows: {events_file}")
 
-        try:
-            value_idx = header.index('value')
-        except ValueError as e:
-            value_idx = None
+    header = lines[0].strip().split('\t')
+    # Remove any leading BOM characters (if not done by encoding)
+    header = [col.lstrip('\ufeff') for col in header]
+    onset_idx = header.index('onset')
 
-        event_types = event_types or {'trial_type': None}
-        type_key = list(event_types.keys())[0]
-        type_idx = header.index(type_key)
+    try:
+        value_idx = header.index('value')
+    except ValueError as e:
+        value_idx = None
+
+    event_types = event_types or {'trial_type': None}
+    type_key = list(event_types.keys())[0]
+    type_idx = header.index(type_key)
+
+    if event_types[type_key] is not None:
+        filtered_events = []
+        for evt in event_types.values():
+            if isinstance(evt, dict):
+                filtered_events.extend(list(evt.keys()))
+            else:
+                filtered_events.extend(evt)
+        print("filtered_events:", filtered_events)
+        print("type_key:", type_key)
+
+    for line in lines[1:]:
+        columns = line.strip().split('\t')
+        onset = float(columns[onset_idx])
+        event_type_value = columns[type_idx].strip() if type_idx is not None else None
 
         if event_types[type_key] is not None:
-            filtered_events = []
-            for evt in event_types.values():
-                if isinstance(evt, dict):
-                    filtered_events.extend(list(evt.keys()))
-                else:
-                    filtered_events.extend(evt)
-            print("filtered_events:", filtered_events)
-            print("type_key:", type_key)
+            if event_type_value not in filtered_events:
+                continue
 
-        for line in f:
-            if line.strip():
-                columns = line.strip().split('\t')
-                onset = float(columns[onset_idx])
-                event_type_value = columns[type_idx].strip() if type_idx is not None else None
+        # handle the problem that value is not int
+        try:
+            if isinstance(event_types[type_key], dict):
+                value = event_types[type_key][event_type_value]
+            else:
+                value = int(columns[value_idx].strip('"'))  # Remove quotes and convert to int.
+        except ValueError as e:
+            print(f"ValueError: The value:{columns[value_idx]} is not int.(Please check the event file.)", e)
+            break
 
-                if event_types[type_key] is not None:
-                    if event_type_value not in filtered_events:
-                        continue
+        value = int(value)
+        if value in (0, -1) or value in exclude_ids:
+            continue
 
-                # handle the problem that value is not int
-                try:
-                    if isinstance(event_types[type_key], dict):
-                        value = event_types[type_key][event_type_value]
-                    else:
-                        value = int(columns[value_idx].strip('"'))  # Remove quotes and convert to int.
-                except ValueError as e:
-                    print(f"ValueError: The value:{columns[value_idx]} is not int.(Please check the event file.)", e)
-                    break
-
-                value = int(value)
-                if value in (0, -1) or value in exclude_ids:
-                    continue
-
-                events.append([int(onset * sfreq), 0, value])
+        events.append([int(onset * sfreq), 0, value])
 
     return np.array(events, dtype=int)
 
@@ -205,22 +244,25 @@ def epochs(subj_data_file,output_epoch_file, output_dir, events_file, config):
         epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
     elif task_type == 'task':
         if event_source == 'find_events':
-            events = mne.find_events(raw, **config.get('find_events', {}))
-            events = filter_events_by_exclude(events, exclude_event_id)
-            events = _validate_epoch_events(events, "find_events")
+            events = _find_events(raw, config, exclude_event_id)
             epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
-        else:
+        elif event_source == 'event_file':
             # According to the event file to generate epochs (in BIDS format)
             # events = mne.read_events(events_file)
-            print("Load bids events file from {}".format(events_file))
-            events = read_bids_events(
-                events_file, raw.info['sfreq'], config.get('event_file'), exclude_event_id
-            )
-            events = _validate_epoch_events(events, "event_file")
-            # add first sample
-            events[:, 0] = events[:, 0] + raw.first_samp
-            print("bids events:\n", events)
+            if _should_read_bids_events(events_file):
+                print("Load bids events file from {}".format(events_file))
+                events = read_bids_events(
+                    events_file, raw.info['sfreq'], config.get('event_file'), exclude_event_id
+                )
+                events = _validate_epoch_events(events, "event_file")
+                # add first sample
+                events[:, 0] = events[:, 0] + raw.first_samp
+                print("bids events:\n", events)
+            else:
+                events = _find_events(raw, config, exclude_event_id)
             epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
+        else:
+            raise ValueError("Unknown event_source specified in the config. Use 'find_events' or 'event_file'.")
     else:
         raise ValueError("Unknown task_type specified in the config. Use 'resting' or 'task'.")
 

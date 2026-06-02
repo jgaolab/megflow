@@ -90,9 +90,9 @@ and task-based recordings.
    Resampling is the current configurable downsampling mechanism.
 
 3. ``detect_Artifacts`` calls ``meg_detect_artifacts.py``. It detects bad
-   channels and bad time spans using the configured PyPREP, PSD, OSL, and MNE
-   methods. It writes ``*_bad_channels.txt`` and ``*_bad_segments.txt`` and can
-   generate waveform images for manual review.
+   channels and bad time spans using the configured PyPREP, PSD, OSL, MNE, and
+   optional DeepReject methods. It writes ``*_bad_channels.txt`` and
+   ``*_bad_segments.txt`` and can generate waveform images for manual review.
 
 4. ``run_ICA`` loads the preprocessed raw file plus the artifact sidecars. Bad
    channels are excluded from picks, and bad annotations are ignored during ICA
@@ -121,6 +121,15 @@ tasks:
 * Editing ``trans/*/coreg-trans.fif`` invalidates forward modelling and source
   reconstruction for that recording.
 
+This downstream hash mechanism is separate from published-output deletion.
+Normal Nextflow ``-resume`` reuses the work cache for unchanged tasks and
+invalidates tasks when their inputs, scripts, or configuration change. Editable
+sidecars such as bad-channel lists, bad-segment lists, marked ICA components,
+and coregistration transforms are hashed from their published locations, so
+manual edits are preserved and invalidate downstream tasks as above. Deleting a
+published result should be handled by an explicit pre-resume guard when that
+deletion is intended to force the producing step to recompute.
+
 Bad Segments: Marking vs Exclusion
 ----------------------------------
 
@@ -147,7 +156,9 @@ selects how epochs are built:
   ``find_events`` and the ``find_events`` config block.
 * ``task_type: task`` with ``event_source: event_file`` reads BIDS
   ``*_events.tsv`` files and applies the ``event_file`` filters or label-to-id
-  mappings.
+  mappings. If the inferred event path is not a tabular ``.tsv`` event file
+  (for example a non-BIDS raw ``.fif`` input), MEGFlow falls back to
+  ``mne.find_events`` so raw datasets are not parsed as text.
 * ``exclude_event_id`` can be set to one id or a list of ids to remove those
   events before epoching. With ``epochs.event_id: null``, MEGFlow keeps all
   remaining event ids.

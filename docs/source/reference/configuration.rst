@@ -452,10 +452,14 @@ Key MEGQC parameters:
    * - ``megqc_alarm_score``
      - Static report warning threshold. It highlights low scores but does not
        block processing.
-   * - ``megqc_device_type``
-     - Reference device family. ``auto`` infers from channel names and metadata;
-       concrete values include ``ALL``, ``Elekta``, ``CTF``, ``KIT``, ``4D``,
-       ``QuanMag``, and ``QuSpin``.
+   * - ``megqc_meg_vendor``
+     - MEG vendor/reference device family. ``auto`` infers from channel names
+       and metadata. Values are case-insensitive; use lowercase in configs for
+       consistency. Concrete values include ``all``, ``elekta``, ``neuromag``,
+       ``ctf``, ``kit``, ``4d``, ``quanmag``, and ``quspin``.
+   * - ``megqc_meg_vendor_by_dataset``
+     - Cohort-only override map for datasets whose vendor should be fixed
+       explicitly. Single-dataset runs can leave it unset or ``[:]``.
    * - ``megqc_category``
      - Reference category, usually ``auto``, ``rest``, ``task``, or ``ALL``.
    * - ``megqc_reference_scope``
@@ -468,6 +472,22 @@ Key MEGQC parameters:
      - Keep ``raw.info['bads']`` during scoring by default. Omitting bad
        channels is intended for diagnostics rather than reference-aligned
        scoring.
+
+MEGQC parallelism follows Nextflow process resources. The workflow passes
+``task.cpus`` from ``score_MEG_quality`` into the scorer, so there is no separate
+``megqc_n_jobs`` parameter. Tune scoring CPU use through the standard process
+configuration:
+
+.. code-block:: groovy
+
+   process {
+       withName: score_MEG_quality {
+           cpus = 4
+       }
+   }
+
+When ``meg_quality_control.py`` is run outside Nextflow, its standalone
+``--n_jobs`` default is ``-1``.
 
 The scoring raw is preprocessed before metrics are computed. This preprocessing
 is intentionally visible in Nextflow rather than hidden inside the scorer, but
@@ -498,6 +518,19 @@ For cohort runs with mixed line-noise frequencies, use
        "US_60Hz_Dataset": "60",
        "US_60Hz_With_Harmonic": "60 120",
        "Dataset_Without_Notch": "none"
+   ]
+
+For cohort runs with mixed MEG vendors, keep ``megqc_meg_vendor = "auto"`` as
+the default and override only datasets that need an explicit reference family.
+Vendor values are case-insensitive; examples use lowercase for consistency:
+
+.. code-block:: groovy
+
+   megqc_meg_vendor = "auto"
+   megqc_meg_vendor_by_dataset = [
+       "SQUID-REST-ClosedEYE": "elekta",
+       "CTF_Dataset": "ctf",
+       "OPM-Artifacts": "quanmag"
    ]
 
 ``megqc_preproc_config_by_dataset`` is reserved for reference maintenance or
@@ -592,6 +625,28 @@ channel naming patterns. If inference fails, artifact detection continues with
 generic MNE scaling. A concrete value such as ``elekta``, ``ctf``, ``kit``,
 ``4D``, or ``opm`` still forces that plotting mode.
 
+``artifact_config.deepreject`` enables optional DeepReject model inference
+inside ``meg_detect_artifacts.py``. It is disabled by default because the
+runtime needs ONNX Runtime or OpenVINO in addition to the bundled exported
+model files. When enabled, DeepReject bad-channel predictions are merged into
+``*_bad_channels.txt`` and predicted artifact intervals are added as
+``BAD_deepreject`` annotations in ``*_bad_segments.txt``. A
+``deepreject_summary.json`` sidecar is also written and bundled into the static
+report. The bundled exported model directory and recording category are chosen
+automatically, so they do not need user-facing configuration.
+
+.. code-block:: yaml
+
+   deepreject:
+     enabled: true
+     backend: auto      # auto, onnx, openvino
+     device: cpu        # cpu, cuda, gpu
+     artifact_prob_threshold: 0.9
+     bad_channel_prob_threshold: null
+     artifact_merge_gap_sec: 2.0
+     artifact_min_duration_sec: 0.5
+     on_error: warn     # warn or raise
+
 For ICA rule-based labeling, ``ic_label_config.ICA_classify.meg_vendor`` can be
 set to ``auto``. This is the recommended cohort setting because each dataset may
 come from a different MEG system. When ``auto`` is used, MEGFlow infers the
@@ -658,7 +713,9 @@ preprocessing and ICA stages.
      - Duration used by MNE fixed-length event generation.
    * - ``event_source``
      - ``find_events`` or ``event_file``
-     - Selects MNE trigger discovery or BIDS ``events.tsv`` parsing.
+     - Selects MNE trigger discovery or BIDS ``events.tsv`` parsing. When
+       ``event_file`` is selected but the inferred path is not a ``.tsv`` file,
+       non-BIDS raw inputs fall back to ``find_events``.
    * - ``find_events``
      - MNE ``find_events`` kwargs
      - Fields such as ``stim_channel``, ``shortest_event``, and

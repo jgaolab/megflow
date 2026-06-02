@@ -160,3 +160,18 @@ Then open:
 
 Use ``http://localhost:8501`` when running locally. The Streamlit report is a
 viewer and does not run Nextflow preprocessing.
+
+For cohort outputs, mount the cohort output root and pass it as ``-o``:
+
+.. code-block:: bash
+
+   docker run --rm -it -p 8501:8501 \
+     -v /data/megflow_cohort_output:/output \
+     cmrlab/megflow:<version> \
+     -r -o /output
+
+The Streamlit entrypoint detects ``/output/datasets/<dataset_name>/`` and adds
+a cohort dataset selector in the sidebar. After selecting a dataset, the usual
+interactive pages read that dataset's ``preprocessed/`` tree. If
+``/output/smri/<dataset_name>/`` exists, it is used as that dataset's
+FreeSurfer ``SUBJECTS_DIR``.

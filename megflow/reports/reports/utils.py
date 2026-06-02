@@ -5,6 +5,8 @@ import mne
 import pandas as pd
 import numpy as np
 def in_docker():
+    if os.getenv("DATASET_REPORT_PATH"):
+        return False
     return os.path.exists('/.dockerenv')
 
 

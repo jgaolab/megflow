@@ -5,6 +5,7 @@ nextflow.enable.dsl=2
 
 import groovy.json.JsonOutput
 import groovy.json.JsonSlurper
+import groovy.io.FileType
 import java.security.MessageDigest
 // include { deepprep } from '/opt/DeepPrep/deepprep/nextflow/deepprep.nf'
 
@@ -41,6 +42,29 @@ String fileSha256(def pathValue) {
 
 String filesSha256(List paths) {
     return paths.collect { pathValue -> "${pathValue}:${fileSha256(pathValue)}" }.join("|")
+}
+
+String artifactReportSha256(def preprocDirValue) {
+    def artifactRoot = new File(preprocDirValue.toString(), 'artifact_report')
+    if (!artifactRoot.exists()) {
+        return "artifact_report:missing:${artifactRoot.absolutePath}"
+    }
+
+    def files = []
+    artifactRoot.eachFileRecurse(FileType.FILES) { file ->
+        if (file.name.endsWith('_bad_channels.txt') || file.name.endsWith('_bad_segments.txt')) {
+            files << file
+        }
+    }
+
+    if (!files) {
+        return "artifact_report:empty:${artifactRoot.absolutePath}"
+    }
+
+    return files
+        .sort { it.absolutePath }
+        .collect { file -> "${file.absolutePath}:${fileSha256(file)}" }
+        .join("|")
 }
 
 String sanitizeDatasetName(String rawName) {
@@ -123,6 +147,14 @@ String megqcPreprocConfigForDataset(def paramsObj, def datasetName) {
     return notchOverride == null ? config : setPreprocNotchFreqs(config, notchOverride)
 }
 
+String megqcMegVendorForDataset(def paramsObj, def datasetName) {
+    def override = datasetParamOverride(safeParam(paramsObj, 'megqc_meg_vendor_by_dataset', [:]), datasetName)
+    if (override != null && override.toString().trim()) {
+        return override.toString()
+    }
+    return (safeParam(paramsObj, 'megqc_meg_vendor', 'auto') ?: 'auto').toString()
+}
+
 String preprocConfigForDataset(def paramsObj, def datasetName) {
     def fullOverride = datasetParamOverride(safeParam(paramsObj, 'preproc_config_by_dataset', [:]), datasetName)
     if (fullOverride != null && fullOverride.toString().trim()) {
@@ -135,6 +167,7 @@ String preprocConfigForDataset(def paramsObj, def datasetName) {
 
 process generate_cohort_static_html_report {
     tag "cohort-static-html-report"
+    cache false
 
     input:
     path dataset_markers
@@ -346,16 +379,19 @@ process score_MEG_quality {
     script:
     raw_subject_basename = file(orig_raw_path).getBaseName()
     script_name = "${params.code_dir}/meg_quality_control.py"
+    qc_code_hash = filesSha256([script_name, "${params.code_dir}/tools/megqc/score_meg_reference_quota_standalone.py"])
     qc_output_dir = "${preproc_dir}/quality_control/${raw_subject_basename}"
     qc_preproc_config = megqcPreprocConfigForDataset(params, dataset_name)
+    qc_meg_vendor = megqcMegVendorForDataset(params, dataset_name)
     """
     set -euo pipefail
     mkdir -p "${qc_output_dir}"
+    echo "${qc_code_hash}" > megqc_code_hash.txt
     python "${script_name}" \\
         --input "${orig_raw_path}" \\
         --output_dir "${qc_output_dir}" \\
         --model "${params.megqc_model}" \\
-        --device_type "${params.megqc_device_type}" \\
+        --meg_vendor "${qc_meg_vendor}" \\
         --category "${params.megqc_category}" \\
         --reference_scope "${params.megqc_reference_scope}" \\
         --min_reference_n ${params.megqc_min_reference_n} \\
@@ -364,11 +400,11 @@ process score_MEG_quality {
         --freq_max_samples ${params.megqc_freq_max_samples} \\
         --dfa_max_samples ${params.megqc_dfa_max_samples} \\
         --dfa_method "${params.megqc_dfa_method}" \\
-        --skip_dfa "${params.megqc_skip_dfa}" \\
+        --skip_dfa "false" \\
         --preproc_config "${qc_preproc_config}" \\
         --keep_bad_annotations "${params.megqc_keep_bad_annotations}" \\
         --omit_bad_channels "${params.megqc_omit_bad_channels}" \\
-        --n_jobs ${params.megqc_n_jobs} \\
+        --n_jobs ${task.cpus} \\
         --seg_length ${params.megqc_seg_length}
     cp "${qc_output_dir}"/*.summary.json .
     cp "${qc_output_dir}"/*.component_scores.csv .
@@ -629,59 +665,15 @@ process source_imaging {
 
 process generate_static_html_report {
     tag "${dataset_name}"
+    cache false
 
     input:
-    tuple val(dataset_name), val(output_dir), val(preproc_dir), val(source_artifacts)
+    tuple val(dataset_name), val(output_dir), val(preproc_dir), val(source_artifacts), val(report_script), val(manifest_json), val(bad_channel_threshold), val(bad_segment_threshold), val(coreg_mean_threshold), val(coreg_max_threshold), val(epoch_reject_rate_threshold), val(megqc_alarm_score), val(static_artifact_overview_duration), val(static_task_log_mode)
 
     output:
     tuple val(dataset_name), val(output_dir), val(preproc_dir), path("static_html_report_${dataset_name}.done"), emit: dataset_reports
 
     script:
-    report_script = "${params.code_dir}/reports/static_html_report.py"
-    dataset_megqc_preproc_config = megqcPreprocConfigForDataset(params, dataset_name)
-    dataset_preproc_config = preprocConfigForDataset(params, dataset_name)
-    manifest_json = JsonOutput.prettyPrint(JsonOutput.toJson([
-        manifest_schema_version: 2,
-        steps_raw: (params.steps ?: 'meg_all').toString(),
-        parsed: parseMegPipelineSteps(params.steps ?: 'meg_all'),
-        params_snapshot: [
-            dataset_name: dataset_name,
-            output_dir: output_dir,
-            preproc_dir: preproc_dir,
-            code_dir: params.code_dir?.toString(),
-            fs_subjects_dir: params.fs_subjects_dir?.toString(),
-            dataset_format: params.dataset_format?.toString(),
-            covar_type: params.covar_type?.toString(),
-            src_type: params.src_type?.toString(),
-            is_bids: params.is_bids,
-            preproc_config: dataset_preproc_config,
-            preproc_config_default: params.preproc_config,
-            preproc_config_by_dataset: safeParam(params, 'preproc_config_by_dataset', [:]),
-            preproc_notch_freqs_by_dataset: safeParam(params, 'preproc_notch_freqs_by_dataset', [:]),
-            artifact_config: params.artifact_config,
-            megqc_enabled: params.megqc_enabled,
-            megqc_min_score: params.megqc_min_score,
-            megqc_alarm_score: params.megqc_alarm_score,
-            megqc_model: params.megqc_model,
-            megqc_device_type: params.megqc_device_type,
-            megqc_category: params.megqc_category,
-            megqc_reference_scope: params.megqc_reference_scope,
-            megqc_preproc_config: dataset_megqc_preproc_config,
-            megqc_preproc_config_default: params.megqc_preproc_config,
-            megqc_preproc_config_by_dataset: safeParam(params, 'megqc_preproc_config_by_dataset', [:]),
-            megqc_notch_freqs_by_dataset: safeParam(params, 'megqc_notch_freqs_by_dataset', [:]),
-            megqc_keep_bad_annotations: params.megqc_keep_bad_annotations,
-            megqc_omit_bad_channels: params.megqc_omit_bad_channels
-        ],
-        workflow_meta: [
-            session_id: workflow.sessionId?.toString() ?: '',
-            run_name: workflow.runName?.toString() ?: '',
-            start: workflow.start?.toString() ?: '',
-            nextflow_version: workflow.nextflow?.version?.toString() ?: '',
-            launch_dir: workflow.launchDir?.toString() ?: '',
-            project_dir: workflow.projectDir?.toString() ?: ''
-        ]
-    ]))
     """
     set -euo pipefail
     mkdir -p "${preproc_dir}/logs"
@@ -692,14 +684,14 @@ EOF_MANIFEST
     python "${report_script}" \\
         --report_root "${preproc_dir}" \\
         --output_dir "${output_dir}/static_html_report" \\
-        --bad_channel_threshold ${params.bad_channel_threshold} \\
-        --bad_segment_threshold ${params.bad_segment_threshold} \\
-        --coreg_mean_threshold ${params.coreg_mean_threshold} \\
-        --coreg_max_threshold ${params.coreg_max_threshold} \\
-        --epoch_reject_rate_threshold ${params.epoch_reject_rate_threshold} \\
-        --megqc_alarm_score ${params.megqc_alarm_score} \\
-        --artifact_overview_duration ${params.static_artifact_overview_duration} \\
-        --task_log_mode "${params.static_task_log_mode}" \\
+        --bad_channel_threshold ${bad_channel_threshold} \\
+        --bad_segment_threshold ${bad_segment_threshold} \\
+        --coreg_mean_threshold ${coreg_mean_threshold} \\
+        --coreg_max_threshold ${coreg_max_threshold} \\
+        --epoch_reject_rate_threshold ${epoch_reject_rate_threshold} \\
+        --megqc_alarm_score ${megqc_alarm_score} \\
+        --artifact_overview_duration ${static_artifact_overview_duration} \\
+        --task_log_mode "${static_task_log_mode}" \\
         --zip_output false
 
     echo "Static HTML report generated at ${output_dir}/static_html_report" > "static_html_report_${dataset_name}.done"
@@ -829,15 +821,84 @@ workflow {
 
             native_dataset_report_row_ch = native_dataset_ch
                 .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir ->
-                    tuple(dataset_name, output_dir, preproc_dir)
+                    def dataset_megqc_preproc_config = megqcPreprocConfigForDataset(params, dataset_name)
+                    def dataset_preproc_config = preprocConfigForDataset(params, dataset_name)
+                    def manifest_json = JsonOutput.prettyPrint(JsonOutput.toJson([
+                        manifest_schema_version: 2,
+                        steps_raw: (params.steps ?: 'meg_all').toString(),
+                        parsed: cfg,
+                        params_snapshot: [
+                            dataset_name: dataset_name,
+                            output_dir: output_dir,
+                            preproc_dir: preproc_dir,
+                            code_dir: params.code_dir?.toString(),
+                            fs_subjects_dir: params.fs_subjects_dir?.toString(),
+                            dataset_format: params.dataset_format?.toString(),
+                            covar_type: params.covar_type?.toString(),
+                            src_type: params.src_type?.toString(),
+                            is_bids: params.is_bids,
+                            preproc_config: dataset_preproc_config,
+                            preproc_config_default: params.preproc_config,
+                            preproc_config_by_dataset: safeParam(params, 'preproc_config_by_dataset', [:]),
+                            preproc_notch_freqs_by_dataset: safeParam(params, 'preproc_notch_freqs_by_dataset', [:]),
+                            artifact_config: params.artifact_config,
+                            megqc_enabled: params.megqc_enabled,
+                            megqc_min_score: params.megqc_min_score,
+                            megqc_alarm_score: params.megqc_alarm_score,
+                            megqc_model: params.megqc_model,
+                            megqc_meg_vendor: megqcMegVendorForDataset(params, dataset_name),
+                            megqc_meg_vendor_default: safeParam(params, 'megqc_meg_vendor', 'auto'),
+                            megqc_meg_vendor_by_dataset: safeParam(params, 'megqc_meg_vendor_by_dataset', [:]),
+                            megqc_category: params.megqc_category,
+                            megqc_reference_scope: params.megqc_reference_scope,
+                            megqc_preproc_config: dataset_megqc_preproc_config,
+                            megqc_preproc_config_default: params.megqc_preproc_config,
+                            megqc_preproc_config_by_dataset: safeParam(params, 'megqc_preproc_config_by_dataset', [:]),
+                            megqc_notch_freqs_by_dataset: safeParam(params, 'megqc_notch_freqs_by_dataset', [:]),
+                            megqc_keep_bad_annotations: params.megqc_keep_bad_annotations,
+                            megqc_omit_bad_channels: params.megqc_omit_bad_channels
+                        ],
+                        workflow_meta: [
+                            nextflow_version: workflow.nextflow?.version?.toString() ?: '',
+                            launch_dir: workflow.launchDir?.toString() ?: '',
+                            project_dir: workflow.projectDir?.toString() ?: '',
+                            volatile_fields: 'session_id, run_name, and start are omitted from the report task signature for stable -resume caching.'
+                        ]
+                    ]))
+                    tuple(
+                        dataset_name,
+                        output_dir,
+                        preproc_dir,
+                        "${params.code_dir}/reports/static_html_report.py",
+                        manifest_json,
+                        params.bad_channel_threshold,
+                        params.bad_segment_threshold,
+                        params.coreg_mean_threshold,
+                        params.coreg_max_threshold,
+                        params.epoch_reject_rate_threshold,
+                        params.megqc_alarm_score,
+                        params.static_artifact_overview_duration,
+                        params.static_task_log_mode
+                    )
                 }
 
             def native_report_input_ch
+            def reportTokenForStage = { terminal_ch, stage_name ->
+                def stage_done_ch = terminal_ch
+                    .collect(flat: false)
+                    .ifEmpty([])
+                    .map { rows -> "${stage_name}:done:${rows ? rows.size() : 0}" }
+                native_dataset_report_row_ch
+                    .combine(stage_done_ch)
+                    .map { dataset_name, output_dir, preproc_dir, report_script, manifest_json, bad_channel_threshold, bad_segment_threshold, coreg_mean_threshold, coreg_max_threshold, epoch_reject_rate_threshold, megqc_alarm_score, static_artifact_overview_duration, static_task_log_mode, wait_token ->
+                        tuple(dataset_name, wait_token)
+                    }
+            }
 
             if (cfg.primary == 'report') {
                 native_report_input_ch = native_dataset_report_row_ch
-                    .map { dataset_name, output_dir, preproc_dir ->
-                        tuple(dataset_name, output_dir, preproc_dir, true)
+                    .map { dataset_name, output_dir, preproc_dir, report_script, manifest_json, bad_channel_threshold, bad_segment_threshold, coreg_mean_threshold, coreg_max_threshold, epoch_reject_rate_threshold, megqc_alarm_score, static_artifact_overview_duration, static_task_log_mode ->
+                        tuple(dataset_name, output_dir, preproc_dir, true, report_script, manifest_json, bad_channel_threshold, bad_segment_threshold, coreg_mean_threshold, coreg_max_threshold, epoch_reject_rate_threshold, megqc_alarm_score, static_artifact_overview_duration, static_task_log_mode)
                     }
             } else {
                 def native_anatomy_subject_ch = null
@@ -926,7 +987,7 @@ workflow {
                 def report_wait_token_ch = null
 
                 if (!cfg.runMeg) {
-                    report_wait_token_ch = native_anatomy_subject_ch.collect(flat: false).ifEmpty([]).map { true }
+                    report_wait_token_ch = reportTokenForStage(native_anatomy_subject_ch, 'anatomy')
                 } else {
                 native_imported = import_MEG_dataset(native_dataset_ch, params.dataset_format, params.file_suffix)
 
@@ -956,7 +1017,6 @@ workflow {
                             return passed ? tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path) : null
                         }
                         .filter { it != null }
-                    report_wait_token_ch = native_qc.qc_subjects.collect(flat: false).ifEmpty([]).map { true }
                 } else {
                     native_meg_input_ch = native_raw_subject_ch
                 }
@@ -969,7 +1029,7 @@ workflow {
                         tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifactHash)
                     }
 
-                report_wait_token_ch = native_artifacts.artifacts.collect(flat: false).ifEmpty([]).map { true }
+                report_wait_token_ch = reportTokenForStage(native_artifacts_with_hash, 'artifacts')
 
                 def native_clean_subject_ch = null
                 def native_epoch_subject_ch = null
@@ -984,7 +1044,7 @@ workflow {
                         }
                     native_clean = apply_ICA(native_labelled_with_hash)
                     native_clean_subject_ch = native_clean.clean_subjects
-                    report_wait_token_ch = native_clean_subject_ch.collect(flat: false).ifEmpty([]).map { true }
+                    report_wait_token_ch = reportTokenForStage(native_clean_subject_ch, 'clean')
                 }
 
                 if (cfg.megStage >= 2) {
@@ -1004,7 +1064,7 @@ workflow {
                     }
                     native_epochs = epochs(epoch_input_ch)
                     native_epoch_subject_ch = native_epochs.epoch_subjects
-                    report_wait_token_ch = native_epoch_subject_ch.collect(flat: false).ifEmpty([]).map { true }
+                    report_wait_token_ch = reportTokenForStage(native_epoch_subject_ch, 'epochs')
                 }
 
                 if (cfg.megStage >= 3) {
@@ -1064,14 +1124,14 @@ workflow {
                     native_fwds = forward_solution(native_fwd_inputs)
                     native_source_inputs = native_fwds.fwd_subjects.combine(native_cov.cov_subjects, by: 0)
                     native_source = source_imaging(native_source_inputs)
-                    report_wait_token_ch = native_source.source_subjects.collect(flat: false).ifEmpty([]).map { true }
+                    report_wait_token_ch = reportTokenForStage(native_source.source_subjects, 'source')
                 }
                 }
 
                 native_report_input_ch = native_dataset_report_row_ch
-                    .combine(report_wait_token_ch)
-                    .map { dataset_name, output_dir, preproc_dir, wait_token ->
-                        tuple(dataset_name, output_dir, preproc_dir, wait_token)
+                    .combine(report_wait_token_ch, by: 0)
+                    .map { dataset_name, output_dir, preproc_dir, report_script, manifest_json, bad_channel_threshold, bad_segment_threshold, coreg_mean_threshold, coreg_max_threshold, epoch_reject_rate_threshold, megqc_alarm_score, static_artifact_overview_duration, static_task_log_mode, wait_token ->
+                        tuple(dataset_name, output_dir, preproc_dir, wait_token, report_script, manifest_json, bad_channel_threshold, bad_segment_threshold, coreg_mean_threshold, coreg_max_threshold, epoch_reject_rate_threshold, megqc_alarm_score, static_artifact_overview_duration, static_task_log_mode)
                     }
             }
 

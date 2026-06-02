@@ -23,7 +23,7 @@ Basic usage:
 ```bash
 python3 score_meg_reference_quota_standalone.py \
   --fif /path/to/new_file.fif \
-  --device-type Elekta \
+  --meg-vendor elekta \
   --category task \
   --output-dir ./score_out
 ```

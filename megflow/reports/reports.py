@@ -1,14 +1,41 @@
 # !/usr/bin/env python3
 # -*- coding: utf-8 -*-
 import os
+from pathlib import Path
 import streamlit as st
 
-dataset_report_path = os.getenv('DATASET_REPORT_PATH', '/')
-st.session_state.dataset_report_path = dataset_report_path
-subjects_dir = os.getenv('SUBJECTS_DIR', '/smri')
-st.session_state.subjects_dir = subjects_dir
-
 st.set_page_config(page_title="MEG Prep Reports", layout="wide", page_icon="_static/favicon.png",)
+
+
+def _discover_cohort_datasets(root: Path):
+    datasets_root = root / "datasets"
+    if not datasets_root.is_dir():
+        return []
+    candidates = []
+    for item in sorted(datasets_root.iterdir(), key=lambda p: p.name.lower()):
+        if item.is_dir() and (item / "preprocessed").is_dir():
+            candidates.append(item)
+    return candidates
+
+
+base_report_path = Path(os.getenv("DATASET_REPORT_PATH", "/output")).resolve()
+subjects_root = Path(os.getenv("SUBJECTS_DIR", "/smri")).resolve()
+cohort_datasets = _discover_cohort_datasets(base_report_path)
+
+if cohort_datasets:
+    dataset_names = [path.name for path in cohort_datasets]
+    selected_name = st.sidebar.selectbox("Cohort dataset", dataset_names)
+    selected_path = cohort_datasets[dataset_names.index(selected_name)]
+    st.session_state.dataset_report_path = str(selected_path)
+    dataset_subjects_dir = base_report_path / "smri" / selected_name
+    st.session_state.subjects_dir = str(dataset_subjects_dir if dataset_subjects_dir.is_dir() else subjects_root)
+    st.sidebar.caption(f"Dataset output: `{selected_path}`")
+    cohort_index = base_report_path / "cohort_static_html_report" / "index.html"
+    if cohort_index.is_file():
+        st.sidebar.markdown(f"[Open cohort static report]({cohort_index.as_uri()})")
+else:
+    st.session_state.dataset_report_path = str(base_report_path)
+    st.session_state.subjects_dir = str(subjects_root)
 
 preproc_page = st.Page("reports/preproc.py", title="Preprocessing", icon=":material/dashboard:")
 ica_page = st.Page("reports/ICA.py", title="ICA", icon=":material/dashboard:")

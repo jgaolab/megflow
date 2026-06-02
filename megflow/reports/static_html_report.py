@@ -3419,6 +3419,7 @@ def collect_subject_data(
     summary["steps"]["basic_preproc"] = summary["preproc_done"]
     bad_channels_file = next(iter(sorted(artifact_dir.glob("*_bad_channels.txt"))), None)
     bad_segments_file = next(iter(sorted(artifact_dir.glob("*_bad_segments.txt"))), None)
+    deepreject_summary_file = artifact_dir / "deepreject_summary.json"
 
     if bad_channels_file:
         artifact_data["bad_channels"] = read_lines(bad_channels_file)
@@ -3453,6 +3454,12 @@ def collect_subject_data(
                 artifact_data["bad_ratio"] = artifact_data["bad_duration_sec"] / duration_sec
         except Exception as exc:
             artifact_data["error"] = str(exc)
+
+    if deepreject_summary_file.is_file():
+        rel = copy_asset(deepreject_summary_file, output_root, subject_slug, "artifacts")
+        artifact_data["deepreject_summary_rel"] = rel
+        artifact_data["deepreject"] = safe_json(deepreject_summary_file)
+        summary["files"].append({"label": "DeepReject summary", "path": rel})
 
     heatmap_file = next(
         (
@@ -3850,7 +3857,6 @@ def collect_subject_data(
                     ),
                 }
             )
-
     summary["alarms"] = alarms
     summary["alarm_count"] = len(alarms)
     if len(alarms) >= 3 or any(alarm["severity"] == "danger" for alarm in alarms):

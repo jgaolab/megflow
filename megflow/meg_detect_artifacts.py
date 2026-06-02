@@ -17,6 +17,7 @@ import yaml
 import logging
 import numpy as np
 import matplotlib as mpl
+import json
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt
@@ -31,6 +32,17 @@ try:
     from .utils import infer_artifact_vendor, set_random_seed, plot_snippets
 except ImportError:  # pragma: no cover - script execution path
     from utils import infer_artifact_vendor, set_random_seed, plot_snippets
+
+try:
+    from .tools.deepreject import DeepRejectPredictor
+    from .tools.deepreject.runtime import DEFAULT_EXPORT_DIR as DEEPREJECT_DEFAULT_EXPORT_DIR
+except ImportError:  # pragma: no cover - script execution path
+    try:
+        from tools.deepreject import DeepRejectPredictor
+        from tools.deepreject.runtime import DEFAULT_EXPORT_DIR as DEEPREJECT_DEFAULT_EXPORT_DIR
+    except ImportError:  # pragma: no cover - optional dependency path
+        DeepRejectPredictor = None
+        DEEPREJECT_DEFAULT_EXPORT_DIR = None
 
 set_random_seed(2025)
 
@@ -339,9 +351,108 @@ def find_bad_segments(raw, config):
         except Exception as e:
             logger.error(e)
     return raw
+
+
+def _infer_deepreject_category(raw_path, requested):
+    requested = str(requested or "auto").strip().lower()
+    if requested and requested != "auto":
+        return requested
+    text = Path(raw_path).name.lower()
+    if "rest" in text or "closedeye" in text or "openeye" in text:
+        return "rest"
+    return "task"
+
+
+def _merge_annotations(base_annotations, extra_annotations):
+    if len(extra_annotations) == 0:
+        return base_annotations
+    if len(base_annotations) == 0:
+        return extra_annotations
+    return base_annotations + extra_annotations
+
+
+def run_deepreject_detection(raw, input_path, config, output_dir):
+    """Run optional DeepReject detection and return bad channels plus annotations."""
+    deep_config = config.get("deepreject") or {}
+    if not deep_config or not deep_config.get("enabled", False):
+        return [], mne.Annotations([], [], []), None
+
+    if DeepRejectPredictor is None:
+        raise RuntimeError("DeepReject runtime is not importable. Install its dependencies or disable artifact_config.deepreject.enabled.")
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    export_dir = DEEPREJECT_DEFAULT_EXPORT_DIR
+    category = _infer_deepreject_category(input_path, "auto")
+    dataset = deep_config.get("dataset") or Path(input_path).parent.name
+    predictor = DeepRejectPredictor(
+        device=deep_config.get("device", "cpu"),
+        backend=deep_config.get("backend", "auto"),
+        export_dir=Path(export_dir),
+        batch_size=int(deep_config.get("batch_size", 32)),
+        encoder_chunk_size=deep_config.get("encoder_chunk_size"),
+        artifact_prob_threshold=deep_config.get("artifact_prob_threshold", 0.9),
+        bad_channel_prob_threshold=deep_config.get("bad_channel_prob_threshold"),
+        artifact_hysteresis_high_threshold=deep_config.get("artifact_hysteresis_high_threshold"),
+        artifact_hysteresis_low_threshold=deep_config.get("artifact_hysteresis_low_threshold"),
+        artifact_merge_gap_sec=float(deep_config.get("artifact_merge_gap_sec", 2.0)),
+        artifact_min_duration_sec=float(deep_config.get("artifact_min_duration_sec", 0.5)),
+        artifact_short_keep_threshold=deep_config.get("artifact_short_keep_threshold"),
+    )
+    pred = predictor.predict_fif(
+        Path(input_path),
+        category=category,
+        dataset=dataset,
+        pick_exclude_marked_bads=bool(deep_config.get("pick_exclude_marked_bads", False)),
+        edge_k=int(deep_config.get("edge_k", 6)),
+    )
+
+    bad_channels = []
+    if pred.bad_channel_pred is not None and pred.ch_names:
+        bad_channels = [
+            ch_name
+            for ch_name, is_bad in zip(pred.ch_names, np.asarray(pred.bad_channel_pred).reshape(-1))
+            if int(is_bad) == 1
+        ]
+
+    annots = mne.Annotations(
+        onset=[float(start) for start, _ in pred.bad_intervals],
+        duration=[max(0.0, float(stop) - float(start)) for start, stop in pred.bad_intervals],
+        description=["BAD_deepreject"] * len(pred.bad_intervals),
+        orig_time=raw.annotations.orig_time,
+    )
+
+    summary = {
+        "enabled": True,
+        "backend": pred.backend,
+        "export_dir": str(export_dir),
+        "category": category,
+        "dataset": dataset,
+        "artifact_window_count": int(np.asarray(pred.artifact_probs).size),
+        "artifact_probability_threshold": deep_config.get("artifact_prob_threshold", 0.9),
+        "bad_interval_count": len(pred.bad_intervals),
+        "bad_intervals": [{"onset_sec": float(s), "stop_sec": float(e), "duration_sec": float(e - s)} for s, e in pred.bad_intervals],
+        "bad_channel_count": len(bad_channels),
+        "bad_channels": bad_channels,
+    }
+    if pred.bad_channel_probs is not None and pred.ch_names:
+        summary["bad_channel_probs"] = {
+            ch_name: float(prob)
+            for ch_name, prob in zip(pred.ch_names, np.asarray(pred.bad_channel_probs).reshape(-1))
+        }
+    with open(output_dir / "deepreject_summary.json", "w", encoding="utf-8") as f:
+        json.dump(summary, f, ensure_ascii=False, indent=2)
+
+    logger.info(
+        "DeepReject detected %d bad channels and %d bad intervals using backend=%s",
+        len(bad_channels),
+        len(pred.bad_intervals),
+        pred.backend,
+    )
+    return bad_channels, annots, summary
     
 def main(args):
-    logger.info("args.input:", args.input)
+    logger.info("args.input: %s", args.input)
 
     # Parse YAML configuration
     config = yaml.safe_load(args.config) or {}
@@ -378,6 +489,23 @@ def main(args):
 
         # Detect bad segments
         raw = find_bad_segments(raw,config['find_bad_segments'])
+
+        deep_config = config.get("deepreject") or {}
+        if deep_config.get("enabled", False):
+            try:
+                deep_bad_channels, deep_annots, _ = run_deepreject_detection(
+                    raw=raw,
+                    input_path=args.input,
+                    config=config,
+                    output_dir=args.output,
+                )
+                raw.info["bads"] = sorted(set(list(raw.info.get("bads", [])) + list(deep_bad_channels)))
+                raw.set_annotations(_merge_annotations(raw.annotations, deep_annots))
+            except Exception as exc:
+                on_error = str(deep_config.get("on_error", "warn")).strip().lower()
+                logger.exception("DeepReject detection failed: %s", exc)
+                if on_error in {"raise", "error", "fail"}:
+                    raise
 
         if not os.path.exists(f"{args.output}"):
             os.makedirs(f"{args.output}")

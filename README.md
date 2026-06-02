@@ -5,38 +5,38 @@
 [![Docker Pulls](https://img.shields.io/docker/pulls/cmrlab/megflow)](https://hub.docker.com/r/cmrlab/megflow)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
-**MEGFlow** is a fully automated preprocessing pipeline for MEG (Magnetoencephalography) data, built on the **MNE-Python** framework and leveraging the power of **Nextflow**.
+**MEGFlow** is a preprocessing pipeline for MEG (Magnetoencephalography) data, built on **MNE-Python** and **Nextflow**.
 
-It is specifically designed to address the challenges of large-scale MEG data processing with a strong emphasis on reproducibility, efficiency, and user-friendliness in various research environments.
-
----
-
-## 🌟 Key Features
-
-### 🛡️ Reliability and Robustness
-Standardized environments through containerization (**Docker** and **Singularity**) guarantee consistent results across computational setups. This minimizes variability and ensures reproducibility across different systems, facilitating cross-subject and cross-site studies.
-
-### ⚡ Acceleration and Parallelization
-By using the **Nextflow** framework, MEGFlow dramatically accelerates the pipeline. It is optimized for high parallelization, capable of managing heavy workloads and significantly speeding up data processing through concurrent execution of tasks.
-
-### 🧩 Modularity and Integrability
-Designed with modularity in mind, enabling users to customize workflows easily. It integrates seamlessly with various libraries (including `mne-python`) for enhanced processing and analysis.
-
-### 🤖 Automated Processes
-Streamlines preprocessing with automated detection processes to reduce manual intervention:
-*   Automatic Artifacts Rejection
-*   ICA (Independent Component Analysis) Automatic Detection
-*   Auto-coregistration
-
-### 📊 Interoperability and Standards
-Includes an interactive reporting feature based on **Streamlit**, allowing users to visualize quality control metrics at each step and receive alerts for anomalies.
-
-### ⚙️ Parameter Configuration
-Offers an easy-to-use configuration system. Researchers can adapt the preprocessing pipeline to unique datasets without complex coding.
+It supports containerized execution, staged workflows, quality-control reports, and cohort-level processing for research environments where reproducibility and scalable execution are required.
 
 ---
 
-## 🚀 Installation
+## <img src="docs/source/_static/readme-icons/features.svg" width="20" height="20" alt="" aria-hidden="true"> Key Features
+
+### <img src="docs/source/_static/readme-icons/runtime.svg" width="18" height="18" alt="" aria-hidden="true"> Reproducible Runtime
+Containerized environments through **Docker** and **Singularity** reduce runtime differences across computational setups and support cross-subject or cross-site studies.
+
+### <img src="docs/source/_static/readme-icons/parallel.svg" width="18" height="18" alt="" aria-hidden="true"> Parallel Execution
+MEGFlow uses **Nextflow** to schedule independent tasks concurrently and manage large preprocessing workloads.
+
+### <img src="docs/source/_static/readme-icons/workflow.svg" width="18" height="18" alt="" aria-hidden="true"> Modular Workflow
+The workflow is organized into configurable stages so users can run the full pipeline or stop at selected milestones.
+
+### <img src="docs/source/_static/readme-icons/detection.svg" width="18" height="18" alt="" aria-hidden="true"> Automated Detection Steps
+MEGFlow includes automated steps that reduce repeated manual work:
+*   Artifact rejection
+*   ICA (Independent Component Analysis) component detection
+*   Coregistration
+
+### <img src="docs/source/_static/readme-icons/report.svg" width="18" height="18" alt="" aria-hidden="true"> Quality Control Reports
+The reporting tools summarize quality-control metrics for each processing stage and flag potential anomalies.
+
+### <img src="docs/source/_static/readme-icons/config.svg" width="18" height="18" alt="" aria-hidden="true"> Parameter Configuration
+Configuration files expose dataset paths, preprocessing settings, workflow steps, and report options without requiring changes to pipeline code.
+
+---
+
+## <img src="docs/source/_static/readme-icons/install.svg" width="20" height="20" alt="" aria-hidden="true"> Installation
 
 MEGFlow is officially distributed as a Docker container. We recommend using the
 containerized installation workflow whenever possible, because it provides the
@@ -49,7 +49,7 @@ from source without relying on a container image. Use this option cautiously,
 because differences in system libraries, package versions, and local software
 environments may lead to behavior that differs from the containerized workflow.
 
-### Recommended: Containerized One-Click Install
+### Recommended: Containerized Install
 
 The scripts under `scripts/install/` install or reuse a container runtime, pull
 `cmrlab/megflow:<version>`, and verify the image by running the MEGFlow help
@@ -78,7 +78,7 @@ bash scripts/install/install_megflow_linux.sh 1.0.0 apptainer
 
 For more details, see `scripts/install/README.md`.
 
-### Alternative: Local Development One-Click Install
+### Alternative: Local Development Install
 
 The scripts under `scripts/install-dev/` provide a source-based local
 installation path for Linux environments where container installation is not
@@ -114,7 +114,7 @@ docker pull cmrlab/megflow:<version>
 
 ---
 
-## 💻 Usage
+## <img src="docs/source/_static/readme-icons/usage.svg" width="20" height="20" alt="" aria-hidden="true"> Usage
 
 ### Basic Command Structure
 ```bash
@@ -176,9 +176,10 @@ preproc_notch_freqs_by_dataset = [
 
 For single-dataset runs, these cohort override maps are not required. Leave
 `preproc_notch_freqs_by_dataset`, `preproc_config_by_dataset`,
-`megqc_notch_freqs_by_dataset`, and `megqc_preproc_config_by_dataset` unset or
-as `[:]`; MEGFlow will use the normal `preproc_config` and
-`megqc_preproc_config` values directly.
+`megqc_notch_freqs_by_dataset`, `megqc_preproc_config_by_dataset`, and
+`megqc_meg_vendor_by_dataset` unset or as `[:]`; MEGFlow will use the normal
+`preproc_config`, `megqc_preproc_config`, and `megqc_meg_vendor` values
+directly.
 
 Normative Reference MEG QC scoring has its own lightweight preprocessing
 setting, `megqc_preproc_config`, so scoring stays aligned with the configured
@@ -186,6 +187,33 @@ reference space. The QC band-pass filter is fixed at 1-100 Hz for reference
 alignment; do not change those filter values or the QC score will no longer be
 comparable to the normative reference. In cohort mode, use
 `megqc_notch_freqs_by_dataset` only for per-dataset scoring notch differences.
+Use `megqc_meg_vendor = "auto"` by default so each recording is matched to the
+appropriate reference device family. Vendor values are case-insensitive; the
+examples use lowercase for consistency. If a cohort contains datasets whose
+vendor is known and should be fixed explicitly, use
+`megqc_meg_vendor_by_dataset`:
+
+```groovy
+megqc_meg_vendor = "auto"
+megqc_meg_vendor_by_dataset = [
+  "SQUID-REST-ClosedEYE": "elekta",
+  "CTF_Dataset": "ctf",
+  "OPM-Artifacts": "quanmag"
+]
+```
+
+MEGQC parallelism is controlled by Nextflow resources, not a separate
+`megqc_n_jobs` config value. The `score_MEG_quality` process passes `task.cpus`
+to the scorer; tune it with the global `process.cpus` setting or a process
+override:
+
+```groovy
+process {
+  withName: score_MEG_quality {
+    cpus = 4
+  }
+}
+```
 
 To use the score as a quality gate, raise `megqc_min_score`. Recordings below
 that score are kept in the report but skipped for downstream MEG processing:
@@ -198,6 +226,12 @@ megqc_alarm_score = 60.0  // report warning only
 
 Artifact review plots can use `artifact_config.meg_vendor: auto`; MEGFlow will
 infer the plotting vendor from channel names or raw metadata for each dataset.
+Optional DeepReject artifact detection can be enabled inside
+`artifact_config.deepreject`. When enabled, `meg_detect_artifacts.py` merges
+DeepReject bad-channel predictions into `*_bad_channels.txt`, adds predicted
+bad intervals as `BAD_deepreject` annotations in `*_bad_segments.txt`, and
+writes `deepreject_summary.json` for the static report. It is disabled by
+default because ONNX Runtime or OpenVINO must be available in the runtime.
 
 **Examples (local Nextflow):**
 
@@ -224,6 +258,19 @@ nextflow run ... --steps meg_artifacts -resume
 ```
 
 Set `params.steps` in your `nextflow.config` for a project default; override with `--steps` when needed.
+
+### Resume and interactive edits
+
+MEGFlow relies on Nextflow `-resume` for normal task caching. Unchanged tasks
+reuse the work cache, while input, script, or configuration changes invalidate
+only the affected task chain.
+
+Sidecar hashes are used for downstream invalidation. For example, editing
+bad-channel/bad-segment files changes the hash that ICA receives, so downstream
+tasks recompute even when the upstream artifact-detection task itself is cached.
+Editable sidecars are hashed from their published locations, so interactive
+report edits are preserved. Deleting published results is handled separately
+from normal `-resume` and should be guarded explicitly before a resumed run.
 
 ### Workflow provenance in the static HTML report
 
@@ -387,7 +434,7 @@ docker run --rm -it \
 | `--resume` | Resume the previous run (Nextflow option) |
 
 ### Example: Running a Full Pipeline
-Here is a comprehensive example mapping input/output volumes and license files:
+Example with input/output volumes and license files:
 
 ```bash
 docker run --rm -it \
@@ -408,9 +455,13 @@ For MEGFlow, the default **`steps`** is **`meg_all`** (MEG only, using existing 
 
 ---
 
-## 📈 Quality Control Reports
+## <img src="docs/source/_static/readme-icons/report.svg" width="20" height="20" alt="" aria-hidden="true"> Quality Control Reports
 
 MEGFlow generates interactive quality control reports via Streamlit.
+
+For cohort outputs, pass the cohort output root with `-o`. The Streamlit viewer
+detects `datasets/<dataset_name>/` and adds a dataset selector in the sidebar;
+each page then reads the selected dataset's `preprocessed/` tree.
 
 ### How to View Reports
 Use the `-r` flag and map port `8501`:
@@ -420,13 +471,13 @@ docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output cm
 ```
 
 **Access via browser:**
-👉 `http://<server_ip>:8501` (or `http://localhost:8501` if running locally)
+`http://<server_ip>:8501` (or `http://localhost:8501` if running locally)
 
 ---
 
-## 🐛 Bug Reports & Feedback
+## <img src="docs/source/_static/readme-icons/issue.svg" width="20" height="20" alt="" aria-hidden="true"> Bug Reports and Feedback
 
-If you encounter any bugs, anomalies, or have suggestions for improvements, please report them via the **GitHub Issues** page.
+Please report bugs, unexpected behavior, or improvement suggestions through the **GitHub Issues** page.
 
 When reporting a bug, please include:
 1.  **System Information**: OS version, Docker version.
@@ -434,13 +485,13 @@ When reporting a bug, please include:
 3.  **Logs**: The relevant part of the error log or traceback (please use code blocks).
 4.  **Description**: A clear description of what you expected to happen versus what actually happened.
 
-👉 [Report an Issue](https://github.com/jgaolab/megflow/issues)
+[Report an Issue](https://github.com/jgaolab/megflow/issues)
 
 ---
 
-## 🛠️ Development
+## <img src="docs/source/_static/readme-icons/development.svg" width="20" height="20" alt="" aria-hidden="true"> Development
 
-We welcome contributions to MEGFlow! If you want to contribute code or improve documentation, please follow these steps:
+Contributions to MEGFlow are welcome. To contribute code or documentation:
 
 1.  **Clone the repository:**
     ```bash
@@ -482,7 +533,7 @@ We welcome contributions to MEGFlow! If you want to contribute code or improve d
 3.  **Build Docker Image Locally (Optional):**
     If you modified the Dockerfile or dependencies, you can build the image manually using Docker or the provided helper script.
 
-    **Using the build script (Recommended):**
+    **Using the build script:**
     ```bash
     bash build_megflow.sh
     ```

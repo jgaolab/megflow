@@ -178,7 +178,8 @@ def write_failure_outputs(
         "status": "scoring_failed",
         "error": str(error),
         "traceback": traceback.format_exc(limit=8),
-        "device_type": str(args.device_type),
+        "device_type": str(args.meg_vendor),
+        "meg_vendor_requested": str(args.meg_vendor),
         "category": infer_category(args.input, args.category),
         "reference_scope": args.reference_scope,
         "reference_preprocessing": [],
@@ -210,7 +211,7 @@ def score_file(args: argparse.Namespace) -> Path:
         config = load_config(Path(args.config), args.model)
         ref_df = pd.read_csv(args.reference_csv, low_memory=False)
         raw = read_raw_meg(args.input)
-        device_type = infer_reference_device_type(raw, args.device_type)
+        device_type = infer_reference_device_type(raw, args.meg_vendor)
         category = infer_category(args.input, args.category)
         scorer_args = SimpleNamespace(
             omit_bad_annotations=not str_to_bool(args.keep_bad_annotations),
@@ -247,7 +248,7 @@ def score_file(args: argparse.Namespace) -> Path:
         summary.update(
             {
                 "raw_file": str(args.input),
-                "device_type_requested": str(args.device_type),
+                "meg_vendor_requested": str(args.meg_vendor),
                 "score_scale": "0-100; higher is better",
                 "score_higher_is_better": True,
                 "status": "ok" if score is not None else "missing_score",
@@ -286,9 +287,9 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--config", type=Path, default=MEGQC_DIR / "metric_config_reference_quota.json")
     parser.add_argument("--reference_csv", type=Path, default=MEGQC_DIR / "reference_intervals_reference_quota.csv")
     parser.add_argument(
-        "--device_type",
+        "--meg_vendor",
         default="auto",
-        help="Reference device type: auto (infer from channel names), ALL, Elekta, CTF, KIT, 4D, QuanMag, or QuSpin.",
+        help="Case-insensitive MEG vendor/reference device: auto, all, elekta/neuromag, ctf, kit, 4d, quanmag, or quspin.",
     )
     parser.add_argument("--category", default="auto", help="Reference category: rest, task, ALL, or auto from filename.")
     parser.add_argument("--reference_scope", default="device_category", choices=["device_category", "category", "global"])
@@ -314,7 +315,12 @@ def parse_args() -> argparse.Namespace:
         default="false",
         help="Exclude raw.info['bads'] channels. Reference uses all MEG channels (process_1).",
     )
-    parser.add_argument("--n_jobs", type=int, default=1)
+    parser.add_argument(
+        "--n_jobs",
+        type=int,
+        default=-1,
+        help="Parallel workers for MEGQC metric computation. Nextflow passes task.cpus; standalone default uses all available cores.",
+    )
     parser.add_argument("--seg_length", type=int, default=100)
     return parser.parse_args()
 

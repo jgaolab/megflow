@@ -23,7 +23,6 @@ from utils import set_random_seed
 from collections import defaultdict
 
 set_random_seed(2025)
-# from mne_icalabel import label_components
 
 
 

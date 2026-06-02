@@ -24,6 +24,7 @@ from typing import Any
 
 
 STEP_DEFS = [
+    ("quality_score", "Quality score"),
     ("basic_preproc", "Basic preproc"),
     ("artifacts", "Artifacts"),
     ("ica", "ICA"),
@@ -96,7 +97,7 @@ p { color: var(--muted); margin: 6px 0; }
   gap: 16px;
 }
 .kpi-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   margin-bottom: 22px;
 }
 .panel {
@@ -248,6 +249,23 @@ def fmt_float(value: Any, digits: int = 1, suffix: str = "") -> str:
         return "N/A"
 
 
+def finite_float(value: Any) -> float | None:
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    if number != number:
+        return None
+    return number
+
+
+def average(values: list[float | None]) -> float | None:
+    cleaned = [float(value) for value in values if value is not None]
+    if not cleaned:
+        return None
+    return sum(cleaned) / len(cleaned)
+
+
 def status_pill(status: str) -> str:
     status = (status or "UNKNOWN").upper()
     labels = {
@@ -367,6 +385,10 @@ def build_cohort_summary(
     warn_count = sum(int(report.summary.get("warn_count") or 0) for report in reports)
     fail_count = sum(int(report.summary.get("fail_count") or 0) for report in reports)
     alarm_count = sum(int(report.summary.get("alarm_count") or 0) for report in reports)
+    all_megqc_scores: list[float | None] = []
+    total_qc_scored = 0
+    total_qc_missing = 0
+    total_qc_warning = 0
 
     step_completion = {
         key: sum(int((report.summary.get("step_completion") or {}).get(key) or 0) for report in reports)
@@ -387,6 +409,22 @@ def build_cohort_summary(
         bundled_rel_index = bundled_links.get(report.summary_path, source_rel_index)
         summary = report.summary
         total = int(summary.get("total_subjects") or 0)
+        thresholds = summary.get("thresholds") or {}
+        megqc_alarm_score = finite_float(thresholds.get("megqc_alarm_score"))
+        subjects = summary.get("subjects") or []
+        subject_scores = [finite_float(item.get("megqc_score")) for item in subjects if isinstance(item, dict)]
+        scored_scores = [score for score in subject_scores if score is not None]
+        qc_scored_count = len(scored_scores)
+        qc_missing_count = max(total - qc_scored_count, 0)
+        qc_warning_count = (
+            sum(1 for score in scored_scores if megqc_alarm_score is not None and score < megqc_alarm_score)
+            if megqc_alarm_score is not None
+            else 0
+        )
+        all_megqc_scores.extend(scored_scores)
+        total_qc_scored += qc_scored_count
+        total_qc_missing += qc_missing_count
+        total_qc_warning += qc_warning_count
         status = "PASS"
         if int(summary.get("fail_count") or 0) > 0:
             status = "FAIL"
@@ -407,6 +445,13 @@ def build_cohort_summary(
                 "step_completion": summary.get("step_completion") or {},
                 "expected_steps": summary.get("expected_steps") or {},
                 "averages": summary.get("averages") or {},
+                "quality_score": {
+                    "avg_score": average(scored_scores),
+                    "scored_count": qc_scored_count,
+                    "missing_count": qc_missing_count,
+                    "warning_count": qc_warning_count,
+                    "alarm_score": megqc_alarm_score,
+                },
             }
         )
 
@@ -419,6 +464,12 @@ def build_cohort_summary(
         "warn_count": warn_count,
         "fail_count": fail_count,
         "alarm_count": alarm_count,
+        "quality_score": {
+            "avg_score": average(all_megqc_scores),
+            "scored_count": total_qc_scored,
+            "missing_count": total_qc_missing,
+            "warning_count": total_qc_warning,
+        },
         "step_completion": step_completion,
         "step_expected_subjects": step_expected_subjects,
         "datasets": datasets,
@@ -441,6 +492,11 @@ def write_data_files(summary: dict[str, Any], output_dir: Path) -> None:
                 "warn_count",
                 "fail_count",
                 "alarm_count",
+                "avg_megqc_score",
+                "megqc_scored_count",
+                "megqc_missing_count",
+                "megqc_warning_count",
+                "megqc_alarm_score",
                 "report_index",
                 "source_report_index",
                 "report_root",
@@ -456,6 +512,11 @@ def write_data_files(summary: dict[str, Any], output_dir: Path) -> None:
                     dataset["warn_count"],
                     dataset["fail_count"],
                     dataset["alarm_count"],
+                    (dataset.get("quality_score") or {}).get("avg_score"),
+                    (dataset.get("quality_score") or {}).get("scored_count"),
+                    (dataset.get("quality_score") or {}).get("missing_count"),
+                    (dataset.get("quality_score") or {}).get("warning_count"),
+                    (dataset.get("quality_score") or {}).get("alarm_score"),
                     dataset["report_index"],
                     dataset.get("source_report_index", ""),
                     dataset["report_root"],
@@ -476,6 +537,7 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
             for key, label in STEP_DEFS
         )
         averages = dataset.get("averages") or {}
+        quality_score = dataset.get("quality_score") or {}
         search_blob = " ".join(
             [
                 dataset["dataset"],
@@ -493,6 +555,8 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
               <td>{fmt_int(dataset['warn_count'])}</td>
               <td>{fmt_int(dataset['fail_count'])}</td>
               <td>{fmt_int(dataset['alarm_count'])}</td>
+              <td>{fmt_float(quality_score.get('avg_score'), 1)}</td>
+              <td>{fmt_int(quality_score.get('warning_count'))}</td>
               <td>{fmt_float(averages.get('bad_channels'), 1)}</td>
               <td>{fmt_float(averages.get('bad_segments'), 1)}</td>
               <td>{fmt_float(averages.get('coreg_mean_mm'), 2, ' mm')}</td>
@@ -545,6 +609,8 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
       <div class="panel kpi"><div class="label">Passed</div><div class="value">{fmt_int(summary['pass_count'])}</div></div>
       <div class="panel kpi"><div class="label">Warning / Failed</div><div class="value">{fmt_int(summary['warn_count'])} / {fmt_int(summary['fail_count'])}</div></div>
       <div class="panel kpi"><div class="label">Alarms</div><div class="value">{fmt_int(summary['alarm_count'])}</div></div>
+      <div class="panel kpi"><div class="label">Avg Normative QC</div><div class="value">{fmt_float((summary.get('quality_score') or {}).get('avg_score'), 1)}</div></div>
+      <div class="panel kpi"><div class="label">QC Warnings</div><div class="value">{fmt_int((summary.get('quality_score') or {}).get('warning_count'))}</div></div>
     </section>
 
     <section class="panel">
@@ -566,6 +632,8 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
             <th>Warning</th>
             <th>Failed</th>
             <th>Alarms</th>
+            <th>Avg QC</th>
+            <th>QC Warnings</th>
             <th>Avg Bad Ch</th>
             <th>Avg Bad Seg</th>
             <th>Avg Coreg</th>
@@ -573,7 +641,7 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
           </tr>
         </thead>
         <tbody>
-          {''.join(rows) or '<tr><td colspan="11">No dataset reports found.</td></tr>'}
+          {''.join(rows) or '<tr><td colspan="13">No dataset reports found.</td></tr>'}
         </tbody>
       </table>
     </section>

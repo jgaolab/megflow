@@ -198,12 +198,15 @@ done
 # If --view-report is set, run the Streamlit app instead of Nextflow
 if [ "$VIEW_REPORT" = true ]; then
     echo "Starting Streamlit to view the report..."
-#    if [ -z "$OUTPUT_DIR" ]; then
-#      echo "Output directory must be specified."
-#      exit 1
-#    fi
-#    # set reports path env.
-#    export DATASET_REPORT_PATH=$OUTPUT_DIR
+    if [ -z "$OUTPUT_DIR" ]; then
+      OUTPUT_DIR="/output"
+    fi
+    export DATASET_REPORT_PATH="$OUTPUT_DIR"
+    if [ -n "$FS_SUBJECTS_DIR" ]; then
+      export SUBJECTS_DIR="$FS_SUBJECTS_DIR"
+    elif [ -d "${OUTPUT_DIR}/smri" ]; then
+      export SUBJECTS_DIR="${OUTPUT_DIR}/smri"
+    fi
     streamlit run "$STREAMLIT_APP_PATH" --server.port=8501 --server.headless=true
     exit 0
 fi
