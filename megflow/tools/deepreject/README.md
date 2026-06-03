@@ -1,41 +1,42 @@
-# DeepReject Standalone Inference
+# DeepReject Standalone Torch Inference
 
-`deepreject_inference/` 是一个可独立拷贝的 DeepReject runtime 推理包。它只使用已经导出的 ONNX/OpenVINO artifact，不加载 Torch 训练权重，也不需要 DeepReject Torch 模型源码。
+这个目录是自包含 Torch 推理包，已包含 DeepReject 模型源码副本和默认权重。
+
+- FIF 读取与切窗保持 m0 的全量窗口推理思路；
+- PyG Data 构造使用 m0 同源的 `model.data_builder.build_recording_data_list(...)`；
+- Torch forward 使用原始 DeepReject 模型和 `state_dict` 权重；
+- 只包含 Torch 推理逻辑；
+- 不包含自动坏道预检逻辑。
+
+默认权重：
+
+- `weights/best.pt`
+- `weights/model_config.json`
+
+模型结构参数会自动从 `weights/model_config.json` 读取，不需要手动传 m0 的一长串结构参数。
+
+## 依赖
+
+运行环境需要安装：
+
+- `torch`
+- `torch_geometric`
+- `numpy`
+- `mne`
+- `scikit-learn`
 
 
-## Runtime 必要文件
+## 调用方式
 
-拷贝部署时，至少保留这些文件/目录：
-
-- `__init__.py`
-- `runtime.py`
-- `accelerated.py`
-- `postprocess.py`
-- `preprocessing.py`
-
-以及已验证的导出物：
-
-- `exported/<model_name>_fold<k>/model.onnx`
-- `exported/<model_name>_fold<k>/openvino/model.xml`
-- `exported/<model_name>_fold<k>/openvino/model.bin`
-- `exported/<model_name>_fold<k>/metadata.json`
-
-如果只用 `predict_inputs(...)`，runtime 环境需要 `numpy`、`onnxruntime` / `onnxruntime-gpu`、`openvino`。如果使用 `predict_fif(...)`，还需要 `mne` 和 `scikit-learn`。
-
-
-## Runtime 调用
-
-把 `deepreject_inference/` 的父目录加入 `PYTHONPATH`，然后：
+Python 调用：
 
 ```python
 from pathlib import Path
-from deepreject_inference import DeepRejectPredictor
+from deepreject import DeepRejectPredictor
 
-predictor = DeepRejectPredictor(device="cuda", backend="auto")
+predictor = DeepRejectPredictor(device="cuda")
 pred = predictor.predict_fif(
     Path("/path/to/sub-xx_preprocessed.fif"),
-    category="task",
-    dataset="1_26723708",
 )
 
 print(pred.backend)
@@ -44,23 +45,37 @@ print(pred.bad_intervals)
 print(pred.bad_channel_probs)
 ```
 
-如果其他代码已经构造好导出模型所需的 numpy 输入字典：
+CPU 推理：
 
 ```python
-pred = predictor.predict_inputs(inputs)
+predictor = DeepRejectPredictor(device="cpu")
 ```
 
-## 后端策略
+GPU 推理：
 
-`backend="auto"` 的优先级：
+```python
+predictor = DeepRejectPredictor(device="cuda")
+```
 
-- 检测到 GPU 且 ONNX 导出物已通过数值验证：使用 ONNX Runtime GPU。
-- 否则，检测到 Intel/x86 CPU 且 OpenVINO 导出物已通过数值验证：使用 OpenVINO。
-- 否则，使用已通过数值验证的 ONNX Runtime CPU。
-- 如果导出物缺失、未验证或当前输入 shape 不匹配，会抛出明确错误；runtime 不提供 Torch fallback。
+## 参数说明
 
-显式指定：
+- `device`: `cpu`、`cuda` 或 `gpu`。
+- `backend`: 仅支持 `torch` 或 `auto`，两者等价。
+- `ckpt_path`: 可替换为其他 `best.pt`。
+- `model_config_path`: 可替换为对应 `model_config.json`。
+- `batch_size`: 默认 `0`，表示整条 recording 一次输入模型，保留训练时 temporal context。若显存不足，可设置为正整数按窗口切块，但会改变长程上下文。
 
-- `backend="torch"`：runtime 不支持，会报错。
-- `backend="onnx"`：优先 ONNX Runtime；`device="cuda"` 时尝试 ONNX Runtime GPU。
-- `backend="openvino"`：尝试 OpenVINO CPU。
+## 输出
+
+`predict_fif(...)` 返回 `DeepRejectPrediction`：
+
+- `artifact_logits`: 每个窗口的坏段 logits。
+- `artifact_probs`: 每个窗口为坏段的概率。
+- `artifact_pred`: 每个窗口的坏段预测标签。
+- `bad_channel_logits`: 每个通道的坏道 logits。
+- `bad_channel_probs`: 每个通道为坏道的概率。
+- `bad_channel_pred`: 每个通道的坏道预测标签。
+- `bad_intervals`: 合并后的坏段时间区间。
+- `ch_names`: FIF 中的 MEG 通道名。
+
+

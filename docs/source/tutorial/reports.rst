@@ -85,6 +85,18 @@ subject-level evidence.
       coregistration distances, epoch rejection, status counts, and alarm
       totals are summarized at the dataset level.
 
+   .. grid-item-card:: Normative score
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/static_reports/megflow_normative_score.png
+         :alt: Normative Reference quality score panel showing score, thresholds, model metadata, and reference-relative metric positions.
+         :class: megflow-card-image
+         :target: ../_static/static_reports/megflow_normative_score.png
+
+      Normative Reference QC summarizes the recording score, processing gate,
+      warning threshold, selected reference model, and metric positions
+      relative to the reference distribution.
+
    .. grid-item-card:: Completion matrix
       :class-card: megflow-screenshot-card
 

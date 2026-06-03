@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Reusable DeepReject inference package."""
+"""Standalone Torch DeepReject inference package."""
 
 from .runtime import DeepRejectPrediction, DeepRejectPredictor
 

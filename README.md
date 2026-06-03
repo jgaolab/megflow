@@ -226,12 +226,14 @@ megqc_alarm_score = 60.0  // report warning only
 
 Artifact review plots can use `artifact_config.meg_vendor: auto`; MEGFlow will
 infer the plotting vendor from channel names or raw metadata for each dataset.
-Optional DeepReject artifact detection can be enabled inside
-`artifact_config.deepreject`. When enabled, `meg_detect_artifacts.py` merges
-DeepReject bad-channel predictions into `*_bad_channels.txt`, adds predicted
-bad intervals as `BAD_deepreject` annotations in `*_bad_segments.txt`, and
-writes `deepreject_summary.json` for the static report. It is disabled by
-default because ONNX Runtime or OpenVINO must be available in the runtime.
+DeepReject artifact detection is configured inside
+`artifact_config.deepreject` and is enabled by default in the bundled configs.
+When enabled, `meg_detect_artifacts.py` merges DeepReject bad-channel
+predictions into `*_bad_channels.txt`, adds predicted bad intervals as
+`BAD_deepreject` annotations in `*_bad_segments.txt`, and writes
+`deepreject_summary.json` for the static report. The Docker image includes the
+Torch runtime and bundled DeepReject weights; non-Docker local environments must
+provide PyTorch.
 
 **Examples (local Nextflow):**
 

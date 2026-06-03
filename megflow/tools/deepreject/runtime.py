@@ -1,20 +1,18 @@
 # -*- coding: utf-8 -*-
-"""Standalone DeepReject predictor for other Python files."""
+"""Torch-only DeepReject predictor for other Python files."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-import json
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple
 
 import numpy as np
+import torch
 
-from .accelerated import OnnxRuntimeBackend, OpenVINOBackend, is_intel_cpu
+from .config import DEFAULT_CKPT, DEFAULT_MODEL_CONFIG, load_model_config, window_duration_from_config
 from .postprocess import artifact_probs_to_bad_intervals, predictions_to_bad_intervals
-from .preprocessing import build_export_inputs, load_single_fif_record
-
-
-DEFAULT_EXPORT_DIR = Path(__file__).resolve().parent / "models" / "litev6"
+from .preprocessing import build_torch_data_list, load_single_fif_record
+from .torch_backend import load_torch_model, predict_data_list_torch
 
 
 @dataclass
@@ -31,22 +29,15 @@ class DeepRejectPrediction:
 
 
 class DeepRejectPredictor:
-    """
-    Reusable DeepReject inference wrapper.
-
-    Backend selection:
-    - backend="auto" + CUDA device: ONNX Runtime CUDA.
-    - backend="auto" + Intel/x86 CPU: OpenVINO CPU.
-    - backend="auto" otherwise: ONNX Runtime CPU.
-    - Missing, unvalidated, or shape-incompatible exported models raise a clear error.
-    """
+    """Reusable Torch DeepReject inference wrapper."""
 
     def __init__(
         self,
         device: str = "cpu",
-        backend: str = "auto",
-        export_dir: Path = DEFAULT_EXPORT_DIR,
-        batch_size: int = 32,
+        backend: str = "torch",
+        ckpt_path: Path = DEFAULT_CKPT,
+        model_config_path: Path = DEFAULT_MODEL_CONFIG,
+        batch_size: int = 0,
         encoder_chunk_size: Optional[int] = None,
         artifact_prob_threshold: Optional[float] = None,
         bad_channel_prob_threshold: Optional[float] = None,
@@ -56,13 +47,16 @@ class DeepRejectPredictor:
         artifact_min_duration_sec: float = 0.0,
         artifact_short_keep_threshold: Optional[float] = None,
     ):
-        self.export_dir = Path(export_dir)
-        self.metadata_path = self.export_dir / "metadata.json"
-        self.metadata = self._load_metadata()
-        self.window_duration_sec = float(self.metadata.get("window_duration_sec") or 1.0)
+        backend_l = str(backend).lower()
+        if backend_l not in {"torch", "pytorch", "auto"}:
+            raise ValueError("当前 runtime 已切换为 Torch-only；backend 仅支持 torch/auto。")
+        self.backend_request = "torch"
+        self.device = torch.device("cuda" if str(device).lower() == "gpu" else str(device))
+        self.ckpt_path = Path(ckpt_path)
+        self.model_config_path = Path(model_config_path)
+        self.model_config = load_model_config(self.model_config_path)
+        self.window_duration_sec = window_duration_from_config(self.model_config, fallback=2.0)
         self.batch_size = int(batch_size)
-        self.device = str(device)
-        self.backend_request = str(backend).lower()
         self.artifact_prob_threshold = artifact_prob_threshold
         self.bad_channel_prob_threshold = bad_channel_prob_threshold
         self.artifact_hysteresis_high_threshold = artifact_hysteresis_high_threshold
@@ -70,77 +64,24 @@ class DeepRejectPredictor:
         self.artifact_merge_gap_sec = float(artifact_merge_gap_sec)
         self.artifact_min_duration_sec = float(artifact_min_duration_sec)
         self.artifact_short_keep_threshold = artifact_short_keep_threshold
-
-        self.accelerated_backend = self._init_accelerated_backend()
-
-    def _load_metadata(self) -> Dict[str, Any]:
-        if not self.metadata_path.exists():
-            return {}
-        with self.metadata_path.open("r", encoding="utf-8") as f:
-            return json.load(f)
-
-    def _init_accelerated_backend(self):
-        metadata_path = self.export_dir / "metadata.json"
-        onnx_path = self.export_dir / "model.onnx"
-        ov_path = self.export_dir / "openvino" / "model.xml"
-        req = self.backend_request
-        device_l = self.device.lower()
-        use_cuda = device_l.startswith("cuda") or device_l == "gpu"
-        if req in {"torch", "pytorch"}:
-            raise ValueError("standalone runtime 不提供 Torch 后端；请使用导出的 ONNX/OpenVINO 后端。")
-
-        candidates: List[Tuple[str, bool]] = []
-        if req in {"onnx", "onnxruntime"}:
-            candidates = [("onnx", use_cuda)]
-        elif req in {"openvino", "ov"}:
-            candidates = [("openvino", False)]
-        elif req == "auto":
-            if use_cuda:
-                candidates = [("onnx", True), ("onnx", False)]
-            elif is_intel_cpu():
-                candidates = [("openvino", False), ("onnx", False)]
-            else:
-                candidates = [("onnx", False)]
-        else:
-            raise ValueError(f"未知 backend={self.backend_request!r}，应为 auto|onnx|openvino")
-
-        errors: List[str] = []
-        for kind, cuda_flag in candidates:
-            if kind == "onnx":
-                if not (onnx_path.exists() and metadata_path.exists()):
-                    errors.append(f"缺少 ONNX 导出物: {onnx_path} 或 {metadata_path}")
-                    continue
-                try:
-                    backend = OnnxRuntimeBackend(onnx_path, metadata_path, use_cuda=cuda_flag)
-                    if backend.is_validated():
-                        return backend
-                    errors.append("ONNX Runtime 导出模型尚未通过数值一致性验证")
-                except Exception as exc:
-                    errors.append(f"ONNX Runtime 初始化失败: {exc}")
-            elif kind == "openvino":
-                if not (ov_path.exists() and metadata_path.exists()):
-                    errors.append(f"缺少 OpenVINO 导出物: {ov_path} 或 {metadata_path}")
-                    continue
-                try:
-                    backend = OpenVINOBackend(ov_path, metadata_path, device_name="CPU")
-                    if backend.is_validated():
-                        return backend
-                    errors.append("OpenVINO 导出模型尚未通过数值一致性验证")
-                except Exception as exc:
-                    errors.append(f"OpenVINO 初始化失败: {exc}")
-        raise RuntimeError("没有可用的已验证导出后端: " + " | ".join(errors))
+        self.model = load_torch_model(
+            self.ckpt_path,
+            self.model_config_path,
+            device=self.device,
+            encoder_chunk_size=encoder_chunk_size,
+        )
 
     def predict_inputs(self, inputs: Dict[str, Any]) -> DeepRejectPrediction:
-        try:
-            art_logits, bad_logits, art_probs, bad_probs = self.accelerated_backend.predict_inputs(inputs)
-        except Exception as exc:
-            raise RuntimeError(f"{self.accelerated_backend.name} 推理失败: {exc}") from exc
-        return self._postprocess(art_logits, bad_logits, art_probs, bad_probs, self.accelerated_backend.name)
+        raise RuntimeError("Torch-only runtime 不接收导出输入字典；请使用 predict_fif(...) 或 predict_data_list(...)。")
 
     def predict_data_list(self, data_list: Sequence[Any]) -> DeepRejectPrediction:
-        raise RuntimeError(
-            "standalone runtime 不接收 PyG Data list；请使用 predict_fif(...) 或 predict_inputs(...)。"
+        art_logits, bad_logits, art_probs, bad_probs = predict_data_list_torch(
+            self.model,
+            list(data_list),
+            device=self.device,
+            batch_size=self.batch_size,
         )
+        return self._postprocess(art_logits, bad_logits, art_probs, bad_probs, "torch")
 
     def predict_fif(
         self,
@@ -164,8 +105,8 @@ class DeepRejectPredictor:
             self.window_duration_sec,
             pick_exclude_marked_bads=pick_exclude_marked_bads,
         )
-        inputs = build_export_inputs(record, edge_k=edge_k)
-        pred = self.predict_inputs(inputs)
+        data_list = build_torch_data_list(record, edge_k=edge_k)
+        pred = self.predict_data_list(data_list)
         pred.ch_names = list(record.get("ch_names") or [])
         return pred
 

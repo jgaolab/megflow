@@ -18,31 +18,28 @@ import logging
 import numpy as np
 import matplotlib as mpl
 import json
+import sys
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.colors import BoundaryNorm, ListedColormap
 from pathlib import Path
+
+MEGFLOW_DIR = Path(__file__).resolve().parent
+if str(MEGFLOW_DIR) not in sys.path:
+    sys.path.insert(0, str(MEGFLOW_DIR))
+
 from osl_ephys.preprocessing.osl_wrappers import detect_badchannels, detect_badsegments
 # from tools.osl.osl_wrappers import detect_badchannels, detect_badsegments
 from mne.preprocessing import annotate_break,annotate_amplitude,annotate_muscle_zscore
 from mne.preprocessing import find_bad_channels_lof
 from tools.pyprep.find_noisy_channels import NoisyChannels
-try:
-    from .utils import infer_artifact_vendor, set_random_seed, plot_snippets
-except ImportError:  # pragma: no cover - script execution path
-    from utils import infer_artifact_vendor, set_random_seed, plot_snippets
+from utils import infer_artifact_vendor, set_random_seed, plot_snippets
 
 try:
-    from .tools.deepreject import DeepRejectPredictor
-    from .tools.deepreject.runtime import DEFAULT_EXPORT_DIR as DEEPREJECT_DEFAULT_EXPORT_DIR
-except ImportError:  # pragma: no cover - script execution path
-    try:
-        from tools.deepreject import DeepRejectPredictor
-        from tools.deepreject.runtime import DEFAULT_EXPORT_DIR as DEEPREJECT_DEFAULT_EXPORT_DIR
-    except ImportError:  # pragma: no cover - optional dependency path
-        DeepRejectPredictor = None
-        DEEPREJECT_DEFAULT_EXPORT_DIR = None
+    from tools.deepreject import DeepRejectPredictor
+except ImportError:  # pragma: no cover - optional dependency path
+    DeepRejectPredictor = None
 
 set_random_seed(2025)
 
@@ -244,6 +241,8 @@ def ensure_artifact_mask_heatmap(input_file, bad_channels_file, bad_segments_fil
 def find_bad_channels(raw,config):
     """Detect bad channels using multiple methods."""
     bad_channels = []
+    if not config:
+        return bad_channels
 
     # PyPrep methods | slow.
     pyprep_config = config.get("pyprep", None)
@@ -316,12 +315,13 @@ def find_bad_channels(raw,config):
             logger.info(f'mne bad channels: {_raw.info["bads"]}')
         except Exception as e:
             logger.error(e)
-    del _raw
     return bad_channels
 
 
 def find_bad_segments(raw, config):
     """Detect bad segments using OSL and MNE."""
+    if not config:
+        return raw
     annots = raw.annotations
     if config.get("osl",None):
         segment_len = config["osl"].get("segment_len",1000)
@@ -382,13 +382,11 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    export_dir = DEEPREJECT_DEFAULT_EXPORT_DIR
     category = _infer_deepreject_category(input_path, "auto")
     dataset = deep_config.get("dataset") or Path(input_path).parent.name
     predictor = DeepRejectPredictor(
         device=deep_config.get("device", "cpu"),
         backend=deep_config.get("backend", "auto"),
-        export_dir=Path(export_dir),
         batch_size=int(deep_config.get("batch_size", 32)),
         encoder_chunk_size=deep_config.get("encoder_chunk_size"),
         artifact_prob_threshold=deep_config.get("artifact_prob_threshold", 0.9),
@@ -425,7 +423,8 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
     summary = {
         "enabled": True,
         "backend": pred.backend,
-        "export_dir": str(export_dir),
+        "ckpt_path": str(getattr(predictor, "ckpt_path", "")),
+        "model_config_path": str(getattr(predictor, "model_config_path", "")),
         "category": category,
         "dataset": dataset,
         "artifact_window_count": int(np.asarray(pred.artifact_probs).size),
@@ -481,14 +480,14 @@ def main(args):
             logger.warning("Could not infer MEG artifact vendor; using generic MNE scaling for plots.")
 
         # Detect bad channels
-        bad_channels = find_bad_channels(raw,config['find_bad_channels'])
+        bad_channels = find_bad_channels(raw, config.get('find_bad_channels', {}))
         raw.info['bads'].extend(bad_channels)
         current_bad_channels = set(raw.info['bads'])
         raw.info['bads'] = list(current_bad_channels)
         logger.info(f"raw.info['bads']:{raw.info['bads']}")
 
         # Detect bad segments
-        raw = find_bad_segments(raw,config['find_bad_segments'])
+        raw = find_bad_segments(raw, config.get('find_bad_segments', {}))
 
         deep_config = config.get("deepreject") or {}
         if deep_config.get("enabled", False):

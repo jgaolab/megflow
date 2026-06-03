@@ -69,12 +69,10 @@ RUN pip install --no-cache-dir -r requirements.txt && \
     rm -rf /var/lib/apt/lists/* /var/lib/apt/* /var/cache/* /var/log/* /tmp/* ~/*
 
 
-#COPY nextflow/meg_pipeline_for_docker.nf ${RUN_DIR}/nextflow/meg_pipeline.nf
-COPY nextflow/meg_anat_pipeline_for_docker.nf ${RUN_DIR}/nextflow/meg_pipeline.nf
+COPY nextflow/megflow.nf ${RUN_DIR}/nextflow/megflow.nf
 COPY nextflow/nextflow_for_docker.config ${RUN_DIR}/nextflow/nextflow.config
 COPY nextflow/run_for_docker.sh ${RUN_DIR}/nextflow/run.sh
 COPY megflow ${RUN_DIR}/megflow/
-#COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY softwares/mkheadsurf /opt/freesurfer/bin/mkheadsurf
 COPY softwares/tksurfer /opt/freesurfer/bin/tksurfer
 COPY softwares/tktools /opt/freesurfer/lib/tktools

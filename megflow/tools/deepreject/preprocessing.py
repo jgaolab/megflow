@@ -211,58 +211,18 @@ def load_single_fif_record(
     }
 
 
-def _channel_pos_to_xyz3(channel_pos: np.ndarray, n_channels: int) -> np.ndarray:
-    cp = np.asarray(channel_pos, dtype=np.float32).reshape(n_channels, -1)
-    if cp.shape[1] >= 3:
-        return cp[:, :3].copy()
-    out = np.zeros((n_channels, 3), dtype=np.float32)
-    out[:, : cp.shape[1]] = cp
-    return out
+def build_torch_data_list(record: Dict[str, Any], edge_k: int = 6) -> List[Any]:
+    """Build PyG Data list using the same data_builder path as m0_deepreject."""
+    from .model.data_builder import build_recording_data_list
 
-
-def build_export_inputs(record: Dict[str, Any], edge_k: int = 6) -> Dict[str, np.ndarray]:
-    """Build fixed-shape tensor inputs expected by exported ONNX/OpenVINO models."""
-    window_signals = [np.asarray(x, dtype=np.float32) for x in record["window_signals"]]
-    if not window_signals:
-        raise ValueError("record 中没有 window_signals")
-    n_windows = len(window_signals)
-    n_channels, n_times = window_signals[0].shape
-    for idx, sig in enumerate(window_signals):
-        if tuple(sig.shape) != (n_channels, n_times):
-            raise ValueError(f"window {idx} shape {tuple(sig.shape)} 与首窗 {(n_channels, n_times)} 不一致")
-
-    x_raw = np.concatenate(window_signals, axis=0).astype(np.float32)
-    base_edge = build_edge_index_knn(np.asarray(record["channel_pos"], dtype=np.float32), k=int(edge_k))
-    edges = []
-    for win_idx in range(n_windows):
-        offset = win_idx * n_channels
-        edges.append(base_edge + offset)
-    edge_index = np.concatenate(edges, axis=1).astype(np.int64) if edges else np.zeros((2, 0), dtype=np.int64)
-    batch_idx = np.repeat(np.arange(n_windows, dtype=np.int64), n_channels)
-    ptr = (np.arange(n_windows + 1, dtype=np.int64) * n_channels).astype(np.int64)
-
-    scale = np.asarray(record["x_raw_channel_scale"], dtype=np.float32).reshape(-1)
-    if scale.shape[0] != n_channels:
-        raise ValueError("x_raw_channel_scale 与通道数不一致")
-    x_raw_scale = np.tile(scale, n_windows).astype(np.float32)
-
-    node_valid_base = np.asarray(record.get("node_valid", np.ones(n_channels)), dtype=np.float32).reshape(-1)
-    if node_valid_base.shape[0] != n_channels:
-        raise ValueError("node_valid 与通道数不一致")
-    node_valid = np.tile(node_valid_base, n_windows).astype(np.float32)
-
-    sensor_type_base = np.where(scale >= 1e14, 1, 2).astype(np.int64)
-    sensor_type = np.tile(sensor_type_base, n_windows).astype(np.int64)
-    pos3 = _channel_pos_to_xyz3(np.asarray(record["channel_pos"], dtype=np.float32), n_channels)
-    meg_ch_pos = np.tile(pos3, (n_windows, 1)).astype(np.float32)
-
-    return {
-        "x_raw": np.nan_to_num(x_raw, nan=0.0, posinf=0.0, neginf=0.0).astype(np.float32),
-        "edge_index": edge_index,
-        "batch_idx": batch_idx,
-        "ptr": ptr,
-        "x_raw_scale": x_raw_scale,
-        "node_valid": node_valid,
-        "sensor_type": sensor_type,
-        "meg_ch_pos": meg_ch_pos,
-    }
+    return build_recording_data_list(
+        record["window_signals"],
+        record["window_labels"],
+        record["sfreq"],
+        record["channel_pos"],
+        record["x_raw_channel_scale"],
+        edge_method="knn",
+        edge_k=int(edge_k),
+        y_bad_channel=record["y_bad_channel"],
+        node_valid=record.get("node_valid"),
+    )

@@ -255,6 +255,14 @@ a:hover {
   grid-column: span 1;
 }
 
+.quality-score-controls {
+  grid-column: span 2;
+  display: grid;
+  grid-template-columns: minmax(0, 1.35fr) minmax(96px, 0.65fr);
+  gap: 12px;
+  align-items: end;
+}
+
 .control-group label {
   color: var(--muted);
   font-size: 0.82rem;
@@ -1759,6 +1767,10 @@ tr.row-fail:hover td.active-sort-cell {
     grid-column: span 1;
   }
 
+  .quality-score-controls {
+    grid-column: span 1;
+  }
+
   .coreg-stage-header {
     flex-direction: column;
   }
@@ -1791,6 +1803,12 @@ tr.row-fail:hover td.active-sort-cell {
   }
 
   .workflow-detail-group-normative-qc .workflow-detail-list {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 440px) {
+  .quality-score-controls {
     grid-template-columns: 1fr;
   }
 }
@@ -5014,18 +5032,20 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               <option value="epoch_reject">Sort by epoch reject</option>
             </select>
           </div>
-          <div class="control-group">
-            <label for="qualityScoreMode">Quality Score</label>
-            <select id="qualityScoreMode" onchange="resetSubjectPage()">
-              <option value="all">All scores</option>
-              <option value="gte">Score at or above</option>
-              <option value="lt">Score below</option>
-              <option value="missing">Missing score</option>
-            </select>
-          </div>
-          <div class="control-group">
-            <label for="qualityScoreThreshold">Score Cutoff</label>
-            <input id="qualityScoreThreshold" type="number" min="0" max="100" step="1" value="{fmt_float(dataset_summary['thresholds'].get('megqc_alarm_score'), 0)}" oninput="resetSubjectPage()">
+          <div class="quality-score-controls">
+            <div class="control-group">
+              <label for="qualityScoreMode">Quality Score</label>
+              <select id="qualityScoreMode" onchange="resetSubjectPage()">
+                <option value="all">All scores</option>
+                <option value="gte">Score at or above</option>
+                <option value="lt">Score below</option>
+                <option value="missing">Missing score</option>
+              </select>
+            </div>
+            <div class="control-group">
+              <label for="qualityScoreThreshold">Score Cutoff</label>
+              <input id="qualityScoreThreshold" type="number" min="0" max="100" step="1" value="{fmt_float(dataset_summary['thresholds'].get('megqc_alarm_score'), 0)}" oninput="resetSubjectPage()">
+            </div>
           </div>
           <div class="control-group">
             <label for="subjectPageSize">Page Size</label>
