@@ -7,6 +7,19 @@ MEGFlow provides two report interfaces:
 * An interactive Streamlit report viewer started with ``-r`` or
   ``--view_report``.
 
+The static report is the first place to inspect a completed run. The
+interactive report is used when reviewers need to inspect the underlying
+recording, edit sidecar files, and continue the workflow with Nextflow
+``-resume``.
+
+.. figure:: ../_static/megflow_runtime.png
+   :alt: MEGFlow running through Nextflow and completing selected processing steps.
+   :class: megflow-report-figure
+   :width: 92%
+
+   A MEGFlow run records selected steps, task status, cache reuse, runtime, and
+   completion statistics in the Nextflow console output.
+
 Static HTML Report
 ------------------
 
@@ -39,6 +52,117 @@ Subject pages also include a collapsed ``Task Details`` table derived from the
 Nextflow trace file when one is available. If a task failed or was ignored, the
 page adds ``Task Failure Details`` with the error summary and packaged command
 log excerpts.
+
+Static Report Visual Tour
+~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The dataset dashboard is designed for triage. Start with the selected workflow,
+then move through aggregate metrics, completion status, alarm priority, and
+subject-level evidence.
+
+.. figure:: ../_static/static_reports/megflow_workflow.png
+   :alt: Static report workflow diagram showing selected MEGFlow stages and completion state.
+   :class: megflow-report-figure
+   :width: 100%
+
+   The workflow diagram is rendered from ``megflow_run_manifest.json`` and the
+   effective configuration. It changes with ``steps`` so reviewers can verify
+   that the report matches the intended run mode.
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+   :class-container: megflow-screenshot-grid
+
+   .. grid-item-card:: Dataset overview
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/static_reports/megflow_dataset_overview.png
+         :alt: Dataset overview cards summarizing QC score, bad channels, bad segments, coregistration, and epoch rejection.
+         :class: megflow-card-image
+         :target: ../_static/static_reports/megflow_dataset_overview.png
+
+      Aggregate QC score, bad-channel and bad-segment counts,
+      coregistration distances, epoch rejection, status counts, and alarm
+      totals are summarized at the dataset level.
+
+   .. grid-item-card:: Completion matrix
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/static_reports/megflow_completion_matrix.png
+         :alt: Completion matrix showing which MEGFlow stages completed for each recording.
+         :class: megflow-card-image
+         :target: ../_static/static_reports/megflow_completion_matrix.png
+
+      The completion matrix shows which stages completed for each recording,
+      making partial runs and failed or skipped branches easy to identify.
+
+   .. grid-item-card:: Priority review
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/static_reports/megflow_priority.png
+         :alt: Priority review panel listing recordings with alarms that need attention.
+         :class: megflow-card-image
+         :target: ../_static/static_reports/megflow_priority.png
+
+      Alarm summaries highlight recordings that should be reviewed first
+      before spending time on passed subjects.
+
+   .. grid-item-card:: Subject details
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/static_reports/megflow_subjects_details.png
+         :alt: Subject-level static report page with alarm details, stage summaries, and task logs.
+         :class: megflow-card-image megflow-card-image-tall
+         :target: ../_static/static_reports/megflow_subjects_details.png
+
+      Subject pages collect alarms, stage-level evidence, packaged files, and
+      Nextflow task logs for the selected recording.
+
+Stage-Level Evidence
+~~~~~~~~~~~~~~~~~~~~
+
+Static subject pages include stage-specific figures so reviewers can inspect
+the evidence behind each warning or failed threshold.
+
+.. grid:: 1 1 3 3
+   :gutter: 2
+   :class-container: megflow-screenshot-grid
+
+   .. grid-item-card:: Artifacts
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/static_reports/megflow_artifacts.png
+         :alt: Static report artifact section with bad-channel and bad-segment evidence.
+         :class: megflow-card-image
+         :target: ../_static/static_reports/megflow_artifacts.png
+
+      Bad-channel and bad-segment evidence is packaged with the report for
+      offline inspection.
+
+   .. grid-item-card:: ICA
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/static_reports/megflow_ica.png
+         :alt: Static report ICA section with component labels and component figures.
+         :class: megflow-card-image megflow-card-image-tall
+         :target: ../_static/static_reports/megflow_ica.png
+
+      ICA labels, marked components, ECG/EOG candidates, topographies, and
+      overlay plots are grouped on the subject page.
+
+   .. grid-item-card:: Coregistration
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/static_reports/megflow_coreg.png
+         :alt: Static report coregistration section with alignment figures and distance summaries.
+         :class: megflow-card-image
+         :target: ../_static/static_reports/megflow_coreg.png
+
+      Coregistration figures and distance summaries help confirm that each MEG
+      recording was matched to the intended MRI subject.
+
+Report Contents
+~~~~~~~~~~~~~~~
 
 .. list-table::
    :header-rows: 1
@@ -175,3 +299,68 @@ a cohort dataset selector in the sidebar. After selecting a dataset, the usual
 interactive pages read that dataset's ``preprocessed/`` tree. If
 ``/output/smri/<dataset_name>/`` exists, it is used as that dataset's
 FreeSurfer ``SUBJECTS_DIR``.
+
+Interactive Review and Editing
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The interactive report reads the same processing outputs used by the static
+report, but allows reviewers to inspect and edit selected sidecar files. After
+saving edits, rerun MEGFlow with ``-resume`` so the downstream tasks that depend
+on those sidecars are recomputed.
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+   :class-container: megflow-screenshot-grid
+
+   .. grid-item-card:: Artifact review
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/interactive_reports/megflow_artifacts_review.png
+         :alt: Interactive artifact review page showing PSD, filtered waveforms, and bad-segment editing.
+         :class: megflow-card-image megflow-card-image-tall
+         :target: ../_static/interactive_reports/megflow_artifacts_review.png
+
+      Review PSD and waveform evidence, edit bad channels or bad segments, and
+      save corrections for resumed downstream processing.
+
+   .. grid-item-card:: Fast artifact review
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/interactive_reports/megflow_artifacts_fast_review.png
+         :alt: Interactive fast artifact review page using generated waveform images.
+         :class: megflow-card-image
+         :target: ../_static/interactive_reports/megflow_artifacts_fast_review.png
+
+      When ``artifact_images_enabled: true`` is configured, MEGFlow generates
+      waveform images that can be reviewed quickly in the browser.
+
+   .. grid-item-card:: ICA review
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/interactive_reports/megflow_ICA_review.png
+         :alt: Interactive ICA review page for checking and editing ICA component labels.
+         :class: megflow-card-image
+         :target: ../_static/interactive_reports/megflow_ICA_review.png
+
+      Review automatic ICA labels, inspect component evidence, edit artifact
+      labels when needed, and save the selected components.
+
+   .. grid-item-card:: Coregistration review
+      :class-card: megflow-screenshot-card
+
+      .. image:: ../_static/interactive_reports/megflow_coreg_review.png
+         :alt: Interactive coregistration review page for ICP and manual transform adjustment.
+         :class: megflow-card-image megflow-card-image-tall
+         :target: ../_static/interactive_reports/megflow_coreg_review.png
+
+      Inspect the alignment, run ICP, manually adjust the transform when
+      needed, and save the corrected coregistration matrix.
+
+.. figure:: ../_static/interactive_reports/megflow_source_review.png
+   :alt: Interactive source review page with time slider for source localization results.
+   :class: megflow-report-figure
+   :width: 80%
+
+   Source review provides an interactive view of source-localization results,
+   including time navigation for inspecting source estimates at different
+   latencies.

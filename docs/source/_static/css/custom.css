@@ -100,3 +100,70 @@
 .bd-content a:hover {
   color: var(--megflow-accent);
 }
+
+.megflow-report-figure {
+  margin: 1.4rem auto 2rem;
+}
+
+.megflow-report-figure img {
+  display: block;
+  border: 1px solid var(--megflow-border);
+  border-radius: 8px;
+  box-shadow: 0 14px 34px rgba(21, 65, 73, 0.12);
+  background: #fff;
+}
+
+.megflow-report-figure figcaption,
+.megflow-report-figure .caption {
+  color: var(--megflow-muted);
+  font-size: 0.92rem;
+  line-height: 1.5;
+  margin-top: 0.75rem;
+}
+
+.megflow-screenshot-grid {
+  margin: 1.2rem 0 2rem;
+}
+
+.megflow-screenshot-card {
+  border: 1px solid var(--megflow-border) !important;
+  border-radius: 8px !important;
+  background: #fff !important;
+  box-shadow: 0 10px 24px rgba(21, 65, 73, 0.08) !important;
+  overflow: hidden;
+}
+
+.megflow-screenshot-card .sd-card-title {
+  color: var(--megflow-accent-strong) !important;
+  font-size: 1rem;
+  line-height: 1.25;
+}
+
+.megflow-card-image {
+  width: 100%;
+  height: 235px;
+  object-fit: cover;
+  object-position: top left;
+  border: 1px solid var(--megflow-border);
+  border-radius: 6px;
+  background: #fff;
+  box-shadow: 0 8px 20px rgba(21, 65, 73, 0.08);
+}
+
+.megflow-card-image-tall {
+  height: 320px;
+}
+
+.megflow-screenshot-card .sd-card-body {
+  color: var(--megflow-muted);
+  font-size: 0.94rem;
+  line-height: 1.5;
+}
+
+@media (max-width: 720px) {
+  .megflow-card-image,
+  .megflow-card-image-tall {
+    height: auto;
+    max-height: none;
+  }
+}

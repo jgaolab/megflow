@@ -81,6 +81,39 @@ Core Capabilities
       Static HTML reports bundle subject pages, figures, sidecars, CSV files,
       JSON summaries, workflow metadata, and the effective config snapshot.
 
+Report Preview
+--------------
+
+MEGFlow reports are designed to support dataset-level triage first, then
+subject-level review and interactive edits when needed. See
+:doc:`tutorial/reports` for the full static and interactive report tour.
+
+.. grid:: 1 1 2 2
+   :gutter: 2
+   :class-container: megflow-screenshot-grid
+
+   .. grid-item-card:: Dataset dashboard
+      :link: tutorial/reports.html
+      :class-card: megflow-screenshot-card
+
+      .. image:: _static/static_reports/megflow_dataset_overview.png
+         :alt: Dataset-level MEGFlow static report dashboard.
+         :class: megflow-card-image
+
+      Aggregate QC scores, bad-channel and bad-segment counts,
+      coregistration metrics, epoch rejection, and alarm totals.
+
+   .. grid-item-card:: Workflow provenance
+      :link: tutorial/reports.html
+      :class-card: megflow-screenshot-card
+
+      .. image:: _static/static_reports/megflow_workflow.png
+         :alt: MEGFlow workflow diagram in the static report.
+         :class: megflow-card-image
+
+      The selected ``steps`` mode is rendered as a stage diagram from the run
+      manifest and effective configuration.
+
 Where to Go Next
 ----------------
 

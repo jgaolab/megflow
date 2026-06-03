@@ -625,21 +625,22 @@ channel naming patterns. If inference fails, artifact detection continues with
 generic MNE scaling. A concrete value such as ``elekta``, ``ctf``, ``kit``,
 ``4D``, or ``opm`` still forces that plotting mode.
 
-``artifact_config.deepreject`` enables optional DeepReject model inference
-inside ``meg_detect_artifacts.py``. It is disabled by default because the
-runtime needs ONNX Runtime or OpenVINO in addition to the bundled exported
-model files. When enabled, DeepReject bad-channel predictions are merged into
+``artifact_config.deepreject`` controls DeepReject model inference inside
+``meg_detect_artifacts.py``. It is enabled by default in the bundled configs.
+The Docker image includes the Torch runtime and bundled DeepReject weights;
+non-Docker local environments must provide PyTorch. When enabled, DeepReject
+bad-channel predictions are merged into
 ``*_bad_channels.txt`` and predicted artifact intervals are added as
 ``BAD_deepreject`` annotations in ``*_bad_segments.txt``. A
 ``deepreject_summary.json`` sidecar is also written and bundled into the static
-report. The bundled exported model directory and recording category are chosen
+report. The bundled model checkpoint and recording category are chosen
 automatically, so they do not need user-facing configuration.
 
 .. code-block:: yaml
 
    deepreject:
      enabled: true
-     backend: auto      # auto, onnx, openvino
+     backend: auto      # auto, torch
      device: cpu        # cpu, cuda, gpu
      artifact_prob_threshold: 0.9
      bad_channel_prob_threshold: null
