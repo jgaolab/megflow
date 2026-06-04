@@ -2209,11 +2209,11 @@ function renderBadSegmentTable() {
   }
 
   const rows = getJsonScriptData("badSegmentRows").slice().sort((a, b) => {
-    const durationDelta = toNumber(b.duration_sec, 0) - toNumber(a.duration_sec, 0);
-    if (durationDelta !== 0) {
-      return durationDelta;
+    const onsetDelta = toNumber(a.onset_sec, 0) - toNumber(b.onset_sec, 0);
+    if (onsetDelta !== 0) {
+      return onsetDelta;
     }
-    return toNumber(a.onset_sec, 0) - toNumber(b.onset_sec, 0);
+    return toNumber(a.duration_sec, 0) - toNumber(b.duration_sec, 0);
   });
   const pageSize = parseInt(document.getElementById("badSegmentPageSize")?.value || "20", 10);
   const state = getBadSegmentTableState();
@@ -3242,14 +3242,53 @@ def generate_static_artifact_overview(
         if data.size == 0:
             return None
 
-        stride = max(1, data.shape[1] // 2500)
-        data = data[:, ::stride]
-        times = times[::stride] + raw_first_time
-        scale = np.nanpercentile(np.abs(data), 95, axis=1)
-        scale[~np.isfinite(scale) | (scale == 0)] = 1.0
-        data = np.clip(data / scale[:, None], -3.0, 3.0)
+        times = times + raw_first_time
 
         ch_names = [raw_window.ch_names[idx] for idx in range(len(raw_window.ch_names))]
+        ch_types = [mne.channel_type(raw_window.info, idx) for idx in range(len(ch_names))]
+        raw_plot_scalings = {
+            "mag": 1e-12,
+            "grad": 4e-11,
+            "ref_meg": 1e-12,
+            "eeg": 20e-6,
+        }
+        scale = np.asarray([raw_plot_scalings.get(ch_type, 1.0) for ch_type in ch_types], dtype=float)
+        for ch_type in sorted(set(ch_types)):
+            type_idx = np.asarray([idx for idx, item in enumerate(ch_types) if item == ch_type], dtype=int)
+            if type_idx.size == 0:
+                continue
+            default_scale = raw_plot_scalings.get(ch_type)
+            if default_scale is None or not np.isfinite(default_scale) or default_scale <= 0:
+                finite_abs = np.abs(data[type_idx][np.isfinite(data[type_idx])])
+                type_scale = np.nanpercentile(finite_abs, 95) if finite_abs.size else 1.0
+                scale[type_idx] = type_scale if np.isfinite(type_scale) and type_scale > 0 else 1.0
+        scale[~np.isfinite(scale) | (scale <= 0)] = 1.0
+        # Match raw.plot's visual contract more closely: channels of the same type
+        # share a scale, so unusually large channels remain visibly large.
+        display_data = data / scale[:, None]
+        max_full_plot_samples = 60000
+        max_plot_bins = 5000
+        if display_data.shape[1] > max_full_plot_samples:
+            n_samples = display_data.shape[1]
+            print(
+                "Static artifact overview uses min/max envelope downsampling "
+                f"for {raw_file}: {n_samples} samples > {max_full_plot_samples} sample threshold."
+            )
+            edges = np.linspace(0, n_samples, max_plot_bins + 1, dtype=int)
+            centers = np.empty(max_plot_bins, dtype=float)
+            envelope = np.empty((display_data.shape[0], max_plot_bins * 3), dtype=float)
+            for bin_idx, (start_idx, stop_idx) in enumerate(zip(edges[:-1], edges[1:])):
+                stop_idx = max(stop_idx, start_idx + 1)
+                chunk = display_data[:, start_idx:stop_idx]
+                centers[bin_idx] = 0.5 * (times[start_idx] + times[min(stop_idx - 1, n_samples - 1)])
+                envelope[:, bin_idx * 3] = np.nanmin(chunk, axis=1)
+                envelope[:, bin_idx * 3 + 1] = np.nanmax(chunk, axis=1)
+                envelope[:, bin_idx * 3 + 2] = np.nan
+            plot_times = np.repeat(centers, 3)
+            plot_data = envelope
+        else:
+            plot_times = times
+            plot_data = display_data
         bad_set = set(bad_channels)
         offsets = np.arange(len(ch_names), dtype=float)[::-1]
         fig_height = max(5.2, min(28.0, 1.5 + 0.10 * len(ch_names)))
@@ -3268,8 +3307,9 @@ def generate_static_artifact_overview(
 
         for idx, ch_name in enumerate(ch_names):
             color = "#c4320a" if ch_name in bad_set else "#27364a"
-            lw = 0.8 if ch_name in bad_set else 0.45
-            ax.plot(times, data[idx] * 0.32 + offsets[idx], color=color, lw=lw, alpha=0.86)
+            lw = 0.9 if ch_name in bad_set else 0.5
+            alpha = 0.90 if ch_name in bad_set else 0.76
+            ax.plot(plot_times, plot_data[idx] * 0.42 + offsets[idx], color=color, lw=lw, alpha=alpha)
 
         ax.set_xlim(plot_start, plot_stop)
         ax.set_ylim(-0.8, len(ch_names) - 0.2)
@@ -3279,7 +3319,7 @@ def generate_static_artifact_overview(
         ax.set_yticks(tick_positions)
         ax.set_yticklabels(tick_labels, fontsize=7)
         ax.set_xlabel("Time (s)", fontsize=9)
-        ax.set_ylabel("Channels", fontsize=9)
+        ax.set_ylabel("Channels (MNE-style shared scaling)", fontsize=9)
         ax.grid(axis="x", color="#dbe4ee", lw=0.6, alpha=0.85)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
@@ -3465,7 +3505,7 @@ def collect_subject_data(
                 )
             ]
             artifact_data["bad_segment_rows"].sort(
-                key=lambda row: (-float(row["duration_sec"]), float(row["onset_sec"]))
+                key=lambda row: (float(row["onset_sec"]), float(row["duration_sec"]))
             )
             duration_sec = raw_info.get("duration_sec")
             if duration_sec and duration_sec > 0:
@@ -4363,7 +4403,7 @@ def render_bad_segment_block(rows: list[dict[str, Any]], page_size: int = 20) ->
         )
     return (
         f"{controls_html}"
-        '<div class="info-note">Bad segments are sorted by duration from longest to shortest for faster artifact review.</div>'
+        '<div class="info-note">Bad segments are sorted by onset from earliest to latest.</div>'
         '<div class="scroll-box">'
         '  <table class="detail-table">'
         '    <thead><tr><th>#</th><th>Onset</th><th>Duration</th><th>Description</th></tr></thead>'

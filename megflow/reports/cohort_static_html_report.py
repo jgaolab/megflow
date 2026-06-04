@@ -175,6 +175,37 @@ th {
   text-transform: uppercase;
   letter-spacing: 0.04em;
 }
+th.sortable {
+  padding: 0;
+}
+.sort-header {
+  width: 100%;
+  min-height: 42px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+  text-align: left;
+  cursor: pointer;
+  padding: 12px 10px;
+}
+.sort-header:hover,
+.sort-header.active {
+  color: var(--accent);
+}
+.sort-indicator {
+  color: #98a2b3;
+  font-size: 0.74rem;
+}
+.sort-header.active .sort-indicator {
+  color: var(--accent);
+}
 tr:hover td { background: #fafcff; }
 .mono {
   font-family: "SFMono-Regular", Consolas, monospace;
@@ -197,14 +228,87 @@ tr:hover td { background: #fafcff; }
 
 
 REPORT_JS = """
+window.__datasetTableState = { sortKey: "alarms", sortDirection: "desc" };
+
 function normalizeText(value) {
   return (value || "").toString().trim().toLowerCase();
+}
+
+function toNumber(value) {
+  if (value === undefined || value === null || value === "") {
+    return null;
+  }
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : null;
+}
+
+function getDefaultSortDirection(sortKey) {
+  return sortKey === "dataset" || sortKey === "status" ? "asc" : "desc";
+}
+
+function compareText(a, b) {
+  return normalizeText(a).localeCompare(normalizeText(b), undefined, { numeric: true, sensitivity: "base" });
+}
+
+function compareNumbers(a, b, direction) {
+  const na = toNumber(a);
+  const nb = toNumber(b);
+  if (na === null && nb === null) return 0;
+  if (na === null) return 1;
+  if (nb === null) return -1;
+  return direction === "asc" ? na - nb : nb - na;
+}
+
+function compareDatasetRows(a, b, sortKey, direction) {
+  let result = 0;
+  if (sortKey === "dataset") {
+    result = compareText(a.dataset.dataset, b.dataset.dataset);
+    return direction === "asc" ? result : -result;
+  }
+  if (sortKey === "status") {
+    result = compareNumbers(a.dataset.statusRank, b.dataset.statusRank, "asc");
+    return direction === "asc" ? result : -result;
+  }
+  result = compareNumbers(a.dataset[sortKey], b.dataset[sortKey], direction);
+  if (result !== 0) {
+    return result;
+  }
+  return compareText(a.dataset.dataset, b.dataset.dataset);
+}
+
+function updateDatasetSortHeaders() {
+  const state = window.__datasetTableState;
+  document.querySelectorAll("#datasetTable [data-sort-key]").forEach((button) => {
+    const active = button.dataset.sortKey === state.sortKey;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-sort", active ? state.sortDirection : "none");
+    const indicator = button.querySelector(".sort-indicator");
+    if (indicator) {
+      indicator.textContent = active ? (state.sortDirection === "asc" ? "↑" : "↓") : "↕";
+    }
+  });
+}
+
+function setDatasetSort(sortKey) {
+  const state = window.__datasetTableState;
+  if (state.sortKey === sortKey) {
+    state.sortDirection = state.sortDirection === "asc" ? "desc" : "asc";
+  } else {
+    state.sortKey = sortKey;
+    state.sortDirection = getDefaultSortDirection(sortKey);
+  }
+  filterDatasets();
 }
 
 function filterDatasets() {
   const query = normalizeText(document.getElementById("datasetSearch")?.value);
   const status = normalizeText(document.getElementById("datasetStatus")?.value || "all");
-  const rows = Array.from(document.querySelectorAll("#datasetTable tbody tr"));
+  const tbody = document.querySelector("#datasetTable tbody");
+  if (!tbody) return;
+  const state = window.__datasetTableState;
+  const rows = Array.from(tbody.querySelectorAll("tr[data-search]"));
+  rows.sort((a, b) => compareDatasetRows(a, b, state.sortKey, state.sortDirection));
+  rows.forEach((row) => tbody.appendChild(row));
   let visible = 0;
   rows.forEach((row) => {
     const matchesQuery = !query || normalizeText(row.dataset.search).includes(query);
@@ -215,6 +319,7 @@ function filterDatasets() {
   });
   const count = document.getElementById("datasetCount");
   if (count) count.textContent = `${visible} dataset${visible === 1 ? "" : "s"} shown`;
+  updateDatasetSortHeaders();
 }
 
 document.addEventListener("DOMContentLoaded", filterDatasets);
@@ -525,6 +630,7 @@ def write_data_files(summary: dict[str, Any], output_dir: Path) -> None:
 
 
 def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
+    status_rank = {"PASS": 0, "WARN": 1, "FAIL": 2}
     rows = []
     for dataset in sorted(summary["datasets"], key=lambda item: (-item["alarm_count"], item["dataset"])):
         step_chips = "".join(
@@ -545,9 +651,27 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
                 dataset.get("report_root", ""),
             ]
         )
+        avg_qc = (dataset.get("quality_score") or {}).get("avg_score")
+        qc_warnings = (dataset.get("quality_score") or {}).get("warning_count")
+        avg_bad_channels = averages.get("bad_channels")
+        avg_bad_segments = averages.get("bad_segments")
+        avg_coreg = averages.get("coreg_mean_mm")
         rows.append(
             f"""
-            <tr data-status="{html_text(dataset['status'].lower())}" data-search="{html_text(search_blob)}">
+            <tr data-status="{html_text(dataset['status'].lower())}"
+                data-status-rank="{status_rank.get(str(dataset['status']).upper(), 99)}"
+                data-search="{html_text(search_blob)}"
+                data-dataset="{html_text(dataset['dataset'])}"
+                data-subjects="{html_text(dataset['total_subjects'])}"
+                data-passed="{html_text(dataset['pass_count'])}"
+                data-warning="{html_text(dataset['warn_count'])}"
+                data-failed="{html_text(dataset['fail_count'])}"
+                data-alarms="{html_text(dataset['alarm_count'])}"
+                data-avg-qc="{html_text('' if avg_qc is None else avg_qc)}"
+                data-qc-warnings="{html_text('' if qc_warnings is None else qc_warnings)}"
+                data-avg-bad-ch="{html_text('' if avg_bad_channels is None else avg_bad_channels)}"
+                data-avg-bad-seg="{html_text('' if avg_bad_segments is None else avg_bad_segments)}"
+                data-avg-coreg="{html_text('' if avg_coreg is None else avg_coreg)}">
               <td><a href="{html_text(dataset['report_index'])}">{html_text(dataset['dataset'])}</a></td>
               <td>{status_pill(dataset['status'])}</td>
               <td>{fmt_int(dataset['total_subjects'])}</td>
@@ -555,11 +679,11 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
               <td>{fmt_int(dataset['warn_count'])}</td>
               <td>{fmt_int(dataset['fail_count'])}</td>
               <td>{fmt_int(dataset['alarm_count'])}</td>
-              <td>{fmt_float(quality_score.get('avg_score'), 1)}</td>
-              <td>{fmt_int(quality_score.get('warning_count'))}</td>
-              <td>{fmt_float(averages.get('bad_channels'), 1)}</td>
-              <td>{fmt_float(averages.get('bad_segments'), 1)}</td>
-              <td>{fmt_float(averages.get('coreg_mean_mm'), 2, ' mm')}</td>
+              <td>{fmt_float(avg_qc, 1)}</td>
+              <td>{fmt_int(qc_warnings)}</td>
+              <td>{fmt_float(avg_bad_channels, 1)}</td>
+              <td>{fmt_float(avg_bad_segments, 1)}</td>
+              <td>{fmt_float(avg_coreg, 2, ' mm')}</td>
               <td><div class="step-chips">{step_chips}</div></td>
             </tr>
             """
@@ -625,18 +749,18 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
       <table id="datasetTable">
         <thead>
           <tr>
-            <th>Dataset</th>
-            <th>Status</th>
-            <th>Subjects</th>
-            <th>Passed</th>
-            <th>Warning</th>
-            <th>Failed</th>
-            <th>Alarms</th>
-            <th>Avg QC</th>
-            <th>QC Warnings</th>
-            <th>Avg Bad Ch</th>
-            <th>Avg Bad Seg</th>
-            <th>Avg Coreg</th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="dataset" onclick="setDatasetSort('dataset')"><span>Dataset</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="status" onclick="setDatasetSort('status')"><span>Status</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="subjects" onclick="setDatasetSort('subjects')"><span>Subjects</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="passed" onclick="setDatasetSort('passed')"><span>Passed</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="warning" onclick="setDatasetSort('warning')"><span>Warning</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="failed" onclick="setDatasetSort('failed')"><span>Failed</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarms" onclick="setDatasetSort('alarms')"><span>Alarms</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgQc" onclick="setDatasetSort('avgQc')"><span>Avg QC</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="qcWarnings" onclick="setDatasetSort('qcWarnings')"><span>QC Warnings</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgBadCh" onclick="setDatasetSort('avgBadCh')"><span>Avg Bad Ch</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgBadSeg" onclick="setDatasetSort('avgBadSeg')"><span>Avg Bad Seg</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgCoreg" onclick="setDatasetSort('avgCoreg')"><span>Avg Coreg</span><span class="sort-indicator">↕</span></button></th>
             <th>Steps</th>
           </tr>
         </thead>
