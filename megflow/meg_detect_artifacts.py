@@ -413,8 +413,9 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
             if int(is_bad) == 1
         ]
 
+    annotation_offset_sec = float(getattr(raw, "first_time", 0.0) or 0.0)
     annots = mne.Annotations(
-        onset=[float(start) for start, _ in pred.bad_intervals],
+        onset=[float(start) + annotation_offset_sec for start, _ in pred.bad_intervals],
         duration=[max(0.0, float(stop) - float(start)) for start, stop in pred.bad_intervals],
         description=["BAD_deepreject"] * len(pred.bad_intervals),
         orig_time=raw.annotations.orig_time,
@@ -430,6 +431,7 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
         "artifact_window_count": int(np.asarray(pred.artifact_probs).size),
         "artifact_probability_threshold": deep_config.get("artifact_prob_threshold", 0.9),
         "bad_interval_count": len(pred.bad_intervals),
+        "annotation_onset_offset_sec": annotation_offset_sec,
         "bad_intervals": [{"onset_sec": float(s), "stop_sec": float(e), "duration_sec": float(e - s)} for s, e in pred.bad_intervals],
         "bad_channel_count": len(bad_channels),
         "bad_channels": bad_channels,
