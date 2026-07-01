@@ -70,6 +70,7 @@ imageio==2.36.1
 imagesize==1.4.1
 importlib-metadata==4.13.0
 importlib_resources==6.4.5
+IsoScore
 isoduration==20.11.0
 Jinja2==3.0.3
 joblib==1.4.2

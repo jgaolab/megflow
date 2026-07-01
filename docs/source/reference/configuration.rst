@@ -280,12 +280,22 @@ MEGFlow assumes ``fs_subjects_dir`` already contains subject reconstructions.
      - Selects BIDS anatomy import or non-BIDS T1 handling.
    * - ``anatomy_preprocess_method``
      - string
-     - ``freesurfer`` or ``deepprep``
+     - ``freesurfer``, ``deepprep``, or ``pseudomri``
      - Backend for anatomical reconstruction when anatomy is run.
    * - ``anatomy_select_tag``
      - string
      - Empty string or suffix such as ``_run-02_T1w``
      - Appended to the MEG-derived subject id when matching anatomy.
+   * - ``pseudomri_template_dir``
+     - path
+     - Directory containing a template subject
+     - Used when ``anatomy_preprocess_method = "pseudomri"``. The bundled
+       default is ``tools/pseudomri`` under ``code_dir``.
+   * - ``pseudomri_template_subject``
+     - string
+     - Template subject name
+     - Template folder under ``pseudomri_template_dir``. The bundled default is
+       ``template``.
    * - ``mri_import_config.*``
      - YAML filters
      - ``subject_id``, ``session_id``, ``task``, ``run_id``
@@ -328,6 +338,12 @@ MEGFlow assumes ``fs_subjects_dir`` already contains subject reconstructions.
      - list of floats
      - For example ``[0.3]``
      - Conductivity model passed to MNE BEM creation.
+
+Pseudo-MRI mode is intended for MRI-free source reconstruction. It uses the
+digitization points stored in the MEG FIF file to warp the bundled template MRI,
+then passes the generated pseudo T1 image through the normal FreeSurfer and BEM
+steps. It therefore still needs a FreeSurfer license when running the complete
+anatomy/source workflow.
 
 Continuous Preprocessing
 ------------------------

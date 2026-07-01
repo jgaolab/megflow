@@ -16,6 +16,7 @@ FS_SUBJECTS_DIR=""
 T1_DIR=""
 T1_INPUT_TYPE=""
 T1_DICOM_SERIES_GLOB=""
+ANATOMY_PREPROCESS_METHOD=""
 ANAT_ONLY=false
 MEG_ONLY=false
 VIEW_REPORT=false
@@ -147,6 +148,7 @@ while [[ "$#" -gt 0 ]]; do
         --t1_dir) T1_DIR="$2"; shift ;;
         --t1_input_type) T1_INPUT_TYPE="$2"; shift ;;
         --t1_dicom_series_glob|--t1-dicom-series-glob) T1_DICOM_SERIES_GLOB="$2"; shift ;;
+        --anatomy_preprocess_method|--anatomy-preprocess-method) ANATOMY_PREPROCESS_METHOD="$2"; shift ;;
 
         # options for specifying only one part
         --anat_only) ANAT_ONLY=true ;;
@@ -181,6 +183,7 @@ while [[ "$#" -gt 0 ]]; do
             echo "  --t1_dir              Specify the T1 image directory"
             echo "  --t1_input_type       Specify the T1 input type"
             echo "  --t1_dicom_series_glob Optional relative glob for selecting DICOM series under each T1 DICOM root"
+            echo "  --anatomy_preprocess_method freesurfer|deepprep|pseudomri"
             echo "  --anat_only           Deprecated shortcut for --steps anatomy"
             echo "  --meg_only            Deprecated shortcut for --steps meg_all"
             echo "  --resume              Resume the previous run(nextflow options)"
@@ -308,6 +311,11 @@ write_run_config() {
         else
             sed -i "/^[[:space:]]*t1_input_type[[:space:]]*=/a\\    t1_dicom_series_glob = \"$T1_DICOM_SERIES_GLOB\"" "$run_config_file"
         fi
+    fi
+
+    if [ -n "$ANATOMY_PREPROCESS_METHOD" ]; then
+        echo "Setting anatomy_preprocess_method in config to: $ANATOMY_PREPROCESS_METHOD"
+        sed -i "s|^[[:space:]]*anatomy_preprocess_method[[:space:]]*=.*|    anatomy_preprocess_method = \"$ANATOMY_PREPROCESS_METHOD\"|" "$run_config_file"
     fi
 
     echo "Setting static_task_log_mode in config to: $STATIC_TASK_LOG_MODE"

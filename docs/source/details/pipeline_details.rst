@@ -71,6 +71,18 @@ coregistration and source reconstruction steps:
      -> BEM model
      -> MEG-MRI coregistration dependencies
 
+When ``anatomy_preprocess_method = "pseudomri"``, MEGFlow first imports MEG
+files to access digitization/headshape points, generates a pseudo T1 image, and
+then reuses the normal FreeSurfer and BEM stages:
+
+.. code-block:: text
+
+   MEG import
+     -> pseudo-MRI generation
+     -> FreeSurfer reconstruction
+     -> BEM model
+     -> MEG-MRI coregistration dependencies
+
 Continuous Core Preprocessing
 -----------------------------
 

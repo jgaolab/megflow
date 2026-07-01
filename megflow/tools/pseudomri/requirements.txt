@@ -1,0 +1,6 @@
+IsoScore
+mne
+nibabel
+numpy
+rich
+scipy

@@ -128,7 +128,7 @@ The file [`nextflow/megflow.nf`](nextflow/megflow.nf) is controlled by **`params
 | Primary `steps` | What it does |
 | :--- | :--- |
 | `meg_all` | **Default.** Full MEG processing (import → basic preprocessing → artifacts → ICA → epochs → covariance → coregistration → forward → source) using the existing **`fs_subjects_dir`**; does **not** run the T1/FreeSurfer/DeepPrep structural pipeline. |
-| `all` | Run **structural imaging** (T1 import, recon, BEM) **and** the full MEG chain in one go. |
+| `all` | Run **structural imaging** (T1 import, recon, BEM; or Pseudo-MRI fallback when configured) **and** the full MEG chain in one go. |
 | `anatomy` | **Structural imaging only** (no MEG). |
 | `meg_artifacts` | MEG up to **artifact detection** (after basic preprocessing), then the static HTML QC report. |
 | `meg_ica` | Through **ICA** (fit, label, apply), then report. |

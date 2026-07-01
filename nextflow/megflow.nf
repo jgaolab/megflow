@@ -260,6 +260,30 @@ process dcm2niix {
     """
 }
 
+process generate_pseudomri {
+    tag "${dataset_name}:${subject_name}"
+
+    input:
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(raw_subject_path), val(subject_name)
+
+    output:
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val("${preproc_dir}/pseudomri/${subject_name}/${subject_name}.nii.gz"), val(subject_name), emit: pseudo_t1_inputs
+
+    script:
+    script_name = "${params.code_dir}/create_pseudomri.py"
+    template_dir = params.pseudomri_template_dir ? params.pseudomri_template_dir.toString() : "${params.code_dir}/tools/pseudomri"
+    template_subject = params.pseudomri_template_subject ? params.pseudomri_template_subject.toString() : "template"
+    """
+    set -euo pipefail
+    python ${script_name} \\
+        --info_fif "${raw_subject_path}" \\
+        --subject "${subject_name}" \\
+        --output_dir "${preproc_dir}/pseudomri/${subject_name}" \\
+        --template_dir "${template_dir}" \\
+        --template_subject "${template_subject}"
+    """
+}
+
 process run_freesurfer {
     tag "${dataset_name}:${subject_name}"
 
@@ -271,10 +295,29 @@ process run_freesurfer {
 
     script:
     """
+    set -euo pipefail
     mkdir -p "${fs_subjects_dir}"
-    recon-all -sd "${fs_subjects_dir}" -all -i "${anat_file}" -s "${subject_name}"
-    recon-all -sd "${fs_subjects_dir}" -all -s "${subject_name}" -3T -openmp 4
-    mkheadsurf -sd "${fs_subjects_dir}" -s "${subject_name}" -srcvol T1.mgz -thresh1 30
+    subject_dir="${fs_subjects_dir}/${subject_name}"
+
+    if [ -f "\${subject_dir}/scripts/recon-all.done" ]; then
+        echo "FreeSurfer subject already completed: \${subject_dir}"
+    elif [ -d "\${subject_dir}" ] && { [ -f "\${subject_dir}/mri/orig.mgz" ] || [ -f "\${subject_dir}/mri/orig/001.mgz" ]; }; then
+        echo "Continuing existing FreeSurfer subject without -i: \${subject_dir}"
+        recon-all -sd "${fs_subjects_dir}" -all -s "${subject_name}" -3T -openmp 4
+    elif [ -d "\${subject_dir}" ]; then
+        echo "Existing FreeSurfer subject directory is incomplete and cannot be resumed: \${subject_dir}" >&2
+        echo "Remove the subject directory or use a different subject name before rerunning." >&2
+        exit 1
+    else
+        recon-all -sd "${fs_subjects_dir}" -all -i "${anat_file}" -s "${subject_name}"
+        recon-all -sd "${fs_subjects_dir}" -all -s "${subject_name}" -3T -openmp 4
+    fi
+
+    if [ -f "\${subject_dir}/surf/lh.seghead" ]; then
+        echo "Head surface already exists: \${subject_dir}/surf/lh.seghead"
+    else
+        mkheadsurf -sd "${fs_subjects_dir}" -s "${subject_name}" -srcvol T1.mgz -thresh1 30
+    fi
     """
 }
 
@@ -588,7 +631,7 @@ process coregistration {
     tuple val(subject_key), val(dataset_name), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(target_mri_subject_id), val(clean_raw_path), val(clean_hash)
 
     output:
-    tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val("${preproc_dir}/${params.trans_output_dir}/${raw_subject_dir_basename}/coreg-trans.fif"), val(clean_hash), emit: trans_subjects
+    tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(target_mri_subject_id), val("${preproc_dir}/${params.trans_output_dir}/${raw_subject_dir_basename}/coreg-trans.fif"), val(clean_hash), emit: trans_subjects
 
     script:
     script_name = "${params.code_dir}/coregistration.py"
@@ -609,7 +652,7 @@ process forward_solution {
     tag "${key[0]}:${key[1]}"
 
     input:
-    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(trans_path), val(coreg_clean_hash), val(trans_hash), val(epoch_output_dir), val(epoch_preproc_dir), val(epoch_fs_subjects_dir), val(epoch_path), val(clean_raw_path), val(epoch_clean_hash)
+    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(target_mri_subject_id), val(trans_path), val(coreg_clean_hash), val(trans_hash), val(epoch_output_dir), val(epoch_preproc_dir), val(epoch_fs_subjects_dir), val(epoch_path), val(clean_raw_path), val(epoch_clean_hash)
 
     output:
     tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val("${preproc_dir}/${params.fwd_output_dir}/${raw_subject_dir_basename}/${raw_subject_dir_basename}-fwd.fif"), val(epoch_path), val(clean_raw_path), val(trans_hash), val(epoch_clean_hash), emit: fwd_subjects
@@ -618,7 +661,7 @@ process forward_solution {
     dataset_name = key[0]
     raw_subject_dir_basename = key[1]
     script_name = "${params.code_dir}/forward_solution.py"
-    mri_subject_id = raw_subject_dir_basename.split('_')[0]
+    mri_subject_id = target_mri_subject_id ?: raw_subject_dir_basename.split('_')[0]
     mri_subject_dir = "${fs_subjects_dir}/${mri_subject_id}"
     """
     mkdir -p "${preproc_dir}/${params.fwd_output_dir}/${raw_subject_dir_basename}"
@@ -901,10 +944,40 @@ workflow {
                         tuple(dataset_name, output_dir, preproc_dir, true, report_script, manifest_json, bad_channel_threshold, bad_segment_threshold, coreg_mean_threshold, coreg_max_threshold, epoch_reject_rate_threshold, megqc_alarm_score, static_artifact_overview_duration, static_task_log_mode)
                     }
             } else {
+                def native_raw_subject_ch = null
+                def needsMegImport = cfg.runMeg || (cfg.runAnatomy && params.anatomy_preprocess_method == 'pseudomri')
+                if (needsMegImport) {
+                    native_imported = import_meg_dataset(native_dataset_ch, params.dataset_format, params.file_suffix)
+
+                    native_raw_subject_ch = native_imported.imported_meg_data
+                        .flatMap { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, imported_file ->
+                            imported_file.readLines()
+                                .collect { it.trim() }
+                                .findAll { it }
+                                .collect { raw_subject_path ->
+                                    tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, raw_subject_path)
+                                }
+                        }
+                }
+
                 def native_anatomy_subject_ch = null
                 if (cfg.runAnatomy) {
                     def native_t1_inputs_ch
-                    if (params.is_bids) {
+                    if (params.anatomy_preprocess_method == 'pseudomri') {
+                        native_t1_inputs_ch = native_raw_subject_ch
+                            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, raw_subject_path ->
+                                def rawName = new File(raw_subject_path.toString()).getName()
+                                def subjectName = rawName.split('_')[0] + params.anatomy_select_tag
+                                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, raw_subject_path, subjectName)
+                            }
+                            .unique { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, raw_subject_path, subjectName ->
+                                "${dataset_name}:${subjectName}"
+                            }
+                        native_pseudo = generate_pseudomri(native_t1_inputs_ch)
+                        native_fs = run_freesurfer(native_pseudo.pseudo_t1_inputs)
+                        native_bem = generate_bem(native_fs.fs_subjects)
+                        native_anatomy_subject_ch = native_bem.bem_subjects
+                    } else if (params.is_bids) {
                         native_t1_imported = import_mri_dataset(native_dataset_ch)
                         native_t1_inputs_ch = native_t1_imported.imported_t1_data
                             .flatMap { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, imported_file ->
@@ -944,7 +1017,7 @@ workflow {
                             native_bem = generate_bem(native_head.fs_subjects)
                             native_anatomy_subject_ch = native_bem.bem_subjects
                         } else {
-                            error "Unsupported anatomy preprocessing method: ${params.anatomy_preprocess_method}. Supported methods are 'freesurfer' and 'deepprep'."
+                            error "Unsupported anatomy preprocessing method: ${params.anatomy_preprocess_method}. Supported methods are 'freesurfer', 'deepprep', and 'pseudomri'."
                         }
                     } else {
                         if (params.t1_input_type == 'dicom') {
@@ -989,18 +1062,6 @@ workflow {
                 if (!cfg.runMeg) {
                     report_wait_token_ch = reportTokenForStage(native_anatomy_subject_ch, 'anatomy')
                 } else {
-                native_imported = import_meg_dataset(native_dataset_ch, params.dataset_format, params.file_suffix)
-
-                native_raw_subject_ch = native_imported.imported_meg_data
-                    .flatMap { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, imported_file ->
-                        imported_file.readLines()
-                            .collect { it.trim() }
-                            .findAll { it }
-                            .collect { raw_subject_path ->
-                                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, raw_subject_path)
-                            }
-                    }
-
                 def native_meg_input_ch
                 if ((params.megqc_enabled ?: true).toString().toBoolean()) {
                     native_qc = score_meg_quality(native_raw_subject_ch)
@@ -1116,9 +1177,9 @@ workflow {
                     }
                     native_trans = coregistration(native_coreg_inputs)
                     native_trans_with_hash = native_trans.trans_subjects
-                        .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, trans_path, clean_hash ->
+                        .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, target_mri_subject_id, trans_path, clean_hash ->
                             def transHash = fileSha256(trans_path)
-                            tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, trans_path, clean_hash, transHash)
+                            tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, target_mri_subject_id, trans_path, clean_hash, transHash)
                         }
                     native_fwd_inputs = native_trans_with_hash.combine(native_epoch_subject_ch, by: 0)
                     native_fwds = forward_solution(native_fwd_inputs)

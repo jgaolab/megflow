@@ -60,6 +60,41 @@ the full MEG pipeline.
        """
    }
 
+MRI-Free Source Reconstruction with Pseudo-MRI
+----------------------------------------------
+
+Use ``anatomy_preprocess_method = "pseudomri"`` when no subject T1 image is
+available but the MEG FIF files contain digitization/headshape points. MEGFlow
+generates one pseudo T1 per dataset subject, then uses the normal FreeSurfer and
+BEM steps.
+
+.. code-block:: groovy
+
+   params {
+       steps = "all"
+       anatomy_preprocess_method = "pseudomri"
+       fs_subjects_dir = "/smri"
+       fs_license = "/fs_license.txt"
+   }
+
+With Docker, the same mode can be selected from the command line:
+
+.. code-block:: bash
+
+   docker run --rm -it \
+     -v /path/to/meg_dataset:/input \
+     -v /path/to/output:/output \
+     -v /path/to/smri:/smri \
+     -v /path/to/license.txt:/fs_license.txt \
+     cmrlab/megflow:1.0.0 \
+     -i /input \
+     -o /output \
+     --fs_subjects_dir /smri \
+     --fs_license_file /fs_license.txt \
+     --steps all \
+     --anatomy_preprocess_method pseudomri \
+     --resume
+
 Resting-State MEG
 -----------------
 

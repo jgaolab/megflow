@@ -102,6 +102,8 @@ RUN \
     chmod -R 755 /opt/DeepPrep/deepprep/nextflow/deepprep.common.config && \
     chown deepprep:deepprep /opt/DeepPrep/deepprep/nextflow/deepprep.common.config  && \
     chown deepprep:deepprep /opt/DeepPrep/deepprep/nextflow/deepprep.nf  && \
+    chmod 755 /opt/freesurfer/bin/mkheadsurf /opt/freesurfer/bin/tksurfer /opt/freesurfer/bin/mri_mc /opt/freesurfer/bin/mri_seghead /usr/local/bin/dcm2niix && \
+    chmod -R 755 /opt/freesurfer/fsfast /opt/freesurfer/lib/tktools && \
     mkdir -m 777 /tmp/NUMBA_CACHE_DIR /tmp/MPLCONFIGDIR && \
     # mne-bids bug fixed. \
     sed -i 's|search_str = op.join(search_str, f"{basename}\*")|search_str = op.join(search_str, f"{basename}[!0-9]*")|g' /opt/conda/envs/deepprep/lib/python3.10/site-packages/mne_bids/path.py && \

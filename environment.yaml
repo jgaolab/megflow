@@ -267,6 +267,7 @@ dependencies:
       - h5py==3.12.1
       - imagesize==1.4.1
       - importlib-metadata==4.13.0
+      - IsoScore
       - jinja2==3.0.3
       - jsonschema==4.23.0
       - jsonschema-specifications==2024.10.1
