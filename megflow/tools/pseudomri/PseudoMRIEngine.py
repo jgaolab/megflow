@@ -35,9 +35,10 @@ def PseudoMRIEngine(
     dir_anat_templ = Path(dir_anat_templ)
     dir_anat_pseudo = Path(dir_anat_pseudo)
 
-    fname_src_mri = dir_anat_templ / template_subj / "T1.mgz"
-    fname_src_fid = dir_anat_templ / template_subj / "fiducials.fif"
-    fname_src_surf = dir_anat_templ / template_subj / "outer_skin_surface"
+    template_dir = dir_anat_templ / "template"
+    fname_src_mri = template_dir / f"{template_subj}-T1.mgz"
+    fname_src_fid = template_dir / f"{template_subj}-fiducials.fif"
+    fname_src_surf = template_dir / f"{template_subj}-outer_skin.surf"
 
     fname_warped_mri = dir_anat_pseudo / f"{pseudo_subj}.nii.gz"
     fname_warped_mri.parent.mkdir(parents=True, exist_ok=True)

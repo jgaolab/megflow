@@ -294,8 +294,8 @@ MEGFlow assumes ``fs_subjects_dir`` already contains subject reconstructions.
    * - ``pseudomri_template_subject``
      - string
      - Template subject name
-     - Template folder under ``pseudomri_template_dir``. The bundled default is
-       ``template``.
+     - Template name under ``pseudomri_template_dir``. The bundled default is
+       ``mni_icbm152_nlin_sym_09a``.
    * - ``mri_import_config.*``
      - YAML filters
      - ``subject_id``, ``session_id``, ``task``, ``run_id``

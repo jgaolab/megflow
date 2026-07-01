@@ -272,7 +272,7 @@ process generate_pseudomri {
     script:
     script_name = "${params.code_dir}/create_pseudomri.py"
     template_dir = params.pseudomri_template_dir ? params.pseudomri_template_dir.toString() : "${params.code_dir}/tools/pseudomri"
-    template_subject = params.pseudomri_template_subject ? params.pseudomri_template_subject.toString() : "template"
+    template_subject = params.pseudomri_template_subject ? params.pseudomri_template_subject.toString() : "mni_icbm152_nlin_sym_09a"
     """
     set -euo pipefail
     python ${script_name} \\

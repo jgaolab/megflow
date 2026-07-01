@@ -10,6 +10,13 @@ import nibabel as nib
 
 from tools.pseudomri import PseudoMRIEngine
 
+DEFAULT_TEMPLATE_SUBJECT = "mni_icbm152_nlin_sym_09a"
+TEMPLATE_FILES = {
+    "T1": "{subject}-T1.mgz",
+    "fiducials": "{subject}-fiducials.fif",
+    "outer_skin": "{subject}-outer_skin.surf",
+}
+
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -20,19 +27,32 @@ def parse_args():
     parser.add_argument("--output_dir", required=True, help="Directory for the generated pseudo-MRI.")
     parser.add_argument(
         "--template_subject",
-        default="template",
-        help="Template subject directory name under --template_dir.",
+        default=DEFAULT_TEMPLATE_SUBJECT,
+        help="Template name prefix under --template_dir/template.",
     )
     parser.add_argument(
         "--template_dir",
         default=None,
-        help="Directory containing the pseudo-MRI template subject. Defaults to MEGFlow's bundled template.",
+        help="Directory containing the pseudo-MRI template directory. Defaults to MEGFlow's bundled template.",
     )
     parser.add_argument("--mirror_hsps", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--dense_surf", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--use_hpi", action=argparse.BooleanOptionalAction, default=True)
     parser.add_argument("--nmax_ctrl", type=int, default=200)
     return parser.parse_args()
+
+
+def validate_template_files(template_dir: Path, template_subject: str):
+    template_root = template_dir / "template"
+    missing = [
+        str(template_root / pattern.format(subject=template_subject))
+        for pattern in TEMPLATE_FILES.values()
+        if not (template_root / pattern.format(subject=template_subject)).exists()
+    ]
+    if missing:
+        raise FileNotFoundError(
+            f"Pseudo-MRI template is incomplete under {template_root}. Missing: {missing}"
+        )
 
 
 def main():
@@ -48,16 +68,9 @@ def main():
     if not info_fif.exists():
         raise FileNotFoundError(f"MEG FIF file does not exist: {info_fif}")
 
-    template_subject_dir = template_dir / args.template_subject
-    required_template_files = ["T1.mgz", "fiducials.fif", "outer_skin_surface"]
-    missing = [name for name in required_template_files if not (template_subject_dir / name).exists()]
-    if missing:
-        raise FileNotFoundError(
-            f"Pseudo-MRI template is incomplete under {template_subject_dir}: missing {missing}"
-        )
-
     output_dir.mkdir(parents=True, exist_ok=True)
     output_file = output_dir / f"{args.subject}.nii.gz"
+    validate_template_files(template_dir, args.template_subject)
 
     PseudoMRIEngine(
         fname_info=info_fif,
