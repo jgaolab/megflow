@@ -455,7 +455,7 @@ def get_file_color(file_path):
 
 
 # ========== PAGE TITLE ==========
-st.markdown('<h2 class="main-header">🧠 MEG Artifacts (FastView)</h2>', unsafe_allow_html=True)
+st.markdown('<h2 class="main-header">Artifact Detection Review</h2>', unsafe_allow_html=True)
 
 # Check directories
 if not os.path.exists(DATA_DIR):
@@ -547,7 +547,7 @@ with st.sidebar:
         check_plots_overviewdir = check_plots_dir / "overview"
         chn_info_jl = Path(check_plots_waveformdir) / "channels.jl"
         if not chn_info_jl.exists():
-            st.error(f"{chn_info_jl} is not exists...")
+            st.error(f"{chn_info_jl} does not exist.")
             st.stop()
 
         # ========== DISPLAY SETTINGS ==========
@@ -571,7 +571,7 @@ with st.sidebar:
         bad_segments_file = artifact_dir / f"{selected_file_stem}_bad_segments.txt"
         bad_channels_file = artifact_dir / f"{selected_file_stem}_bad_channels.txt"
         if not bad_segments_file.exists():
-            st.error("bad segment file is not exists...")
+            st.error("Bad-segment file does not exist.")
         else:
             annotations = load_bad_segments(bad_segments_file)
 
@@ -663,7 +663,7 @@ with st.sidebar:
 
         with col2:
             if st.button(
-                "SelectSeg",
+                "Select Segment",
                 type="primary" if st.session_state.interaction_mode == "select" else "secondary",
                 width="stretch",
                 key="quick_select",
@@ -701,7 +701,7 @@ if selected_file:
                     current_bad.remove(ch)
                 else:
                     current_bad.add(ch)
-            st.metric("🔴 Bad Ch", len(current_bad))
+            st.metric("Bad channels", len(current_bad))
         with col2:
             st.metric("⚠️ Ch Changes", len(st.session_state.channels_to_toggle))
         with col3:
@@ -805,7 +805,7 @@ if selected_file:
     # ========== INTERACTIVE WAVEFORM ==========
     color = get_file_color(selected_file)
     st.markdown(
-        f"### 📈MEG Waveform(Time: {(current_onset):.3f} - {(current_onset) + CONFIG['TIME_PER_PLOT']:.3f}s)"
+        f"### MEG timecourse (time: {(current_onset):.3f} - {(current_onset) + CONFIG['TIME_PER_PLOT']:.3f} s)"
     )
 
     current_channels = get_current_channels(chn_info_jl, st.session_state.current_channel_group)
@@ -967,7 +967,7 @@ if selected_file:
         col1, col2 = st.columns([1, 2])
 
         with col1:
-            st.markdown("#### 🔴 Bad Channels")
+            st.markdown("#### Bad-channel list")
             current_bad_channels = set(bad_channels)
             st.caption(f"Total bad channels: {len(current_bad_channels)}")
             for ch in st.session_state.channels_to_toggle:
@@ -977,7 +977,7 @@ if selected_file:
                     current_bad_channels.add(ch)
 
             bad_ch_df = st.data_editor(
-                pd.DataFrame(sorted(current_bad_channels), columns=["Bad Channels"]),
+                pd.DataFrame(sorted(current_bad_channels), columns=["Bad-channel name"]),
                 num_rows="dynamic",
                 width="stretch",
                 height=300,
@@ -985,7 +985,7 @@ if selected_file:
             bad_ch_df.dropna(inplace=True)
 
         with col2:
-            st.markdown("#### 📊 Bad Segments")
+            st.markdown("#### Bad-segment list")
             if annotations and len(annotations) > 0:
                 bad_seg_df = annotations.to_data_frame(time_format=None)
                 bad_seg_df["onset"] = bad_seg_df["onset"] - first_time
@@ -1052,8 +1052,8 @@ if selected_file:
             st.json(
                 {
                     "file": selected_file,
-                    "bad segments file": bad_channels_file.name,
-                    "bad channels files": bad_segments_file.name,
+                    "bad-channel file": bad_channels_file.name,
+                    "bad-segment file": bad_segments_file.name,
                     "subject": subject_id_dir,
                     "duration": f"{total_duration:.3f}s",
                     "n_bad_ch": len(bad_channels),

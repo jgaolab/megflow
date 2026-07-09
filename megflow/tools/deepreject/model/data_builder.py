@@ -90,7 +90,7 @@ def build_recording_data_list(
 
     out: List[Data] = []
     for t in range(n_windows):
-        raw_signal = window_signals[t].astype(np.float32)
+        raw_signal = window_signals[t].astype(np.float32, copy=False)
         raw_signal = np.nan_to_num(raw_signal, nan=0.0, posinf=0.0, neginf=0.0)
         if x_raw_downsample and x_raw_downsample > 1:
             raw_signal = raw_signal[:, ::x_raw_downsample]

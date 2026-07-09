@@ -1,15 +1,38 @@
 # -*- coding: utf-8 -*-
-"""Configuration helpers for the standalone Torch DeepReject package."""
+"""Configuration helpers for the standalone MEGFlow package."""
 from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 
 PACKAGE_DIR = Path(__file__).resolve().parent
-DEFAULT_CKPT = PACKAGE_DIR / "weights" / "best.pt"
-DEFAULT_MODEL_CONFIG = PACKAGE_DIR / "weights" / "model_config.json"
+WEIGHTS_DIR = PACKAGE_DIR / "weights"
+
+# Legacy single-checkpoint constants kept for compatibility with old imports.
+# The final standalone runtime uses the fold directories below instead.
+DEFAULT_CKPT = WEIGHTS_DIR / "best.pt"
+DEFAULT_MODEL_CONFIG = WEIGHTS_DIR / "model_config.json"
+
+DEFAULT_BADSEGNET_WEIGHTS_DIR = WEIGHTS_DIR / "badsegnet"
+DEFAULT_BADCHNNET_WEIGHTS_DIR = WEIGHTS_DIR / "badchnnet"
+DEFAULT_FOLDS = (0, 1, 2, 3, 4)
+
+BADSEGNET_POSTPROCESS = {
+    "hysteresis_high": 0.89,
+    "hysteresis_low": 0.18,
+    "merge_gap_sec": 10.0,
+    "min_duration_sec": 0.0,
+    "short_keep_threshold": 0.97,
+}
+
+BADCHNNET_POSTPROCESS = {
+    "lambda_lcb": 1.0,
+    "floor": 0.56,
+    "z": 3.0,
+    "min_type_channels": 8,
+}
 
 
 MODEL_CONFIG_TO_DEEPREJECT_KWARGS = {
@@ -70,6 +93,11 @@ def load_model_config(config_path: Path) -> Dict[str, Any]:
         return json.load(f)
 
 
+def fold_dirs(weights_dir: Path, folds: Optional[List[int]] = None) -> List[Path]:
+    fold_ids = list(DEFAULT_FOLDS if folds is None else folds)
+    return [Path(weights_dir) / f"fold_{int(fold)}" for fold in fold_ids]
+
+
 def deepreject_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
     kwargs: Dict[str, Any] = {}
     for key, kw in MODEL_CONFIG_TO_DEEPREJECT_KWARGS.items():
@@ -84,8 +112,25 @@ def deepreject_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
     return kwargs
 
 
+def badchnnet_kwargs_from_config(config: Dict[str, Any]) -> Dict[str, Any]:
+    """Extract V11BadChannelNet kwargs from a saved fold model_config.json."""
+    cfg = dict(config.get("model_config") or config)
+    cfg.pop("global_feature_dim", None)
+    return cfg
+
+
 def window_duration_from_config(config: Dict[str, Any], fallback: float = 2.0) -> float:
-    value: Optional[Any] = config.get("window_duration_sec")
+    args = config.get("args") if isinstance(config.get("args"), dict) else {}
+    value: Optional[Any] = config.get("window_duration_sec", args.get("duration_sec"))
     if value is None:
         return float(fallback)
     return float(value)
+
+
+def chunk_config_from_badchnnet_config(config: Dict[str, Any]) -> Dict[str, int]:
+    args = config.get("args") if isinstance(config.get("args"), dict) else {}
+    return {
+        "chunk_windows": int(args.get("chunk_windows") or 128),
+        "chunk_stride": int(args.get("chunk_stride") or args.get("chunk_windows") or 128),
+        "min_chunk_windows": int(args.get("min_chunk_windows") or 8),
+    }

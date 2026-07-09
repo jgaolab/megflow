@@ -2,7 +2,7 @@
 """Post-processing helpers for standalone DeepReject inference."""
 from __future__ import annotations
 
-from typing import List, Optional, Tuple
+from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -94,3 +94,54 @@ def artifact_probs_to_bad_intervals(
         if seg_dur > 0:
             intervals.append((onset, end))
     return intervals
+
+
+def channel_type_from_name(name: str) -> str:
+    s = str(name).replace(" ", "")
+    if s.startswith("MEG") and len(s) >= 4 and s[-1] in ("1", "2", "3"):
+        return "mag" if s[-1] == "1" else "grad"
+    return "x"
+
+
+def mad_threshold(values: np.ndarray, floor: float, z: float) -> float:
+    values = np.asarray(values, dtype=float).reshape(-1)
+    if values.size == 0:
+        return float(floor)
+    med = float(np.median(values))
+    mad = float(np.median(np.abs(values - med)))
+    return max(float(floor), med + float(z) * 1.4826 * mad)
+
+
+def predict_bad_channels_lcb_per_type_mad(
+    ch_names: Sequence[str],
+    fold_probs: np.ndarray,
+    *,
+    lambda_lcb: float = 1.0,
+    floor: float = 0.56,
+    z: float = 3.0,
+    min_type_channels: int = 8,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+    """Apply final BadChnNet LCB + per-type MAD post-processing.
+
+    Returns:
+        pred, mean_prob, fold_std, lcb_score
+    """
+    fp = np.asarray(fold_probs, dtype=np.float32)
+    if fp.ndim != 2:
+        raise ValueError(f"fold_probs must be [n_folds, n_channels], got shape={fp.shape}")
+    mean_prob = fp.mean(axis=0).astype(np.float32, copy=False)
+    fold_std = fp.std(axis=0).astype(np.float32, copy=False)
+    lcb_score = (mean_prob - float(lambda_lcb) * fold_std).astype(np.float32, copy=False)
+    types = [channel_type_from_name(name) for name in ch_names]
+    all_thr = mad_threshold(lcb_score, floor=float(floor), z=float(z))
+    pred = np.zeros(lcb_score.shape[0], dtype=np.int64)
+    for typ in sorted(set(types)):
+        idx = np.asarray([i for i, t in enumerate(types) if t == typ], dtype=int)
+        if idx.size == 0:
+            continue
+        if idx.size >= int(min_type_channels):
+            thr = mad_threshold(lcb_score[idx], floor=float(floor), z=float(z))
+        else:
+            thr = all_thr
+        pred[idx] = (lcb_score[idx] >= thr).astype(np.int64)
+    return pred, mean_prob, fold_std, lcb_score

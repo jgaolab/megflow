@@ -20,8 +20,8 @@ recording, edit sidecar files, and continue the workflow with Nextflow
    A MEGFlow run records selected steps, task status, cache reuse, runtime, and
    completion statistics in the Nextflow console output.
 
-Static HTML Report
-------------------
+Static Processing and QC Report
+-------------------------------
 
 Every MEGFlow run that reaches a MEG milestone writes a static report under:
 
@@ -297,7 +297,7 @@ Then open:
 Use ``http://localhost:8501`` when running locally. The Streamlit report is a
 viewer and does not run Nextflow preprocessing.
 
-For cohort outputs, mount the cohort output root and pass it as ``-o``:
+For cohort-mode outputs, mount the output root and pass it as ``-o``:
 
 .. code-block:: bash
 
@@ -307,7 +307,7 @@ For cohort outputs, mount the cohort output root and pass it as ``-o``:
      -r -o /output
 
 The Streamlit entrypoint detects ``/output/datasets/<dataset_name>/`` and adds
-a cohort dataset selector in the sidebar. After selecting a dataset, the usual
+a corpus dataset selector in the sidebar. After selecting a dataset, the usual
 interactive pages read that dataset's ``preprocessed/`` tree. If
 ``/output/smri/<dataset_name>/`` exists, it is used as that dataset's
 FreeSurfer ``SUBJECTS_DIR``.
@@ -343,8 +343,8 @@ on those sidecars are recomputed.
          :class: megflow-card-image
          :target: ../_static/interactive_reports/megflow_artifacts_fast_review.png
 
-      When ``artifact_images_enabled: true`` is configured, MEGFlow generates
-      waveform images that can be reviewed quickly in the browser.
+      MEGFlow can generate waveform images for quick browser review when
+      ``artifact_images_enabled: true`` is configured.
 
    .. grid-item-card:: ICA review
       :class-card: megflow-screenshot-card

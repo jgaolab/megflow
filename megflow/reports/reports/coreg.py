@@ -104,7 +104,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Main title
-st.markdown('<h2 class="main-header">🧠 MEG Preprocessing Results Viewer</h2>', unsafe_allow_html=True)
+st.markdown('<h2 class="main-header">MEG-MRI Coregistration Review</h2>', unsafe_allow_html=True)
 
 # Determine report directory
 if in_docker():

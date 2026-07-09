@@ -183,7 +183,7 @@ source_recon_report_dir = report_root_dir / "preprocessed" / "source_recon"
 # --- Sidebar Configuration ---
 st.sidebar.markdown("### 📁 Data Configuration")
 source_report_dir = st.sidebar.text_input(
-    "Source Recon Report Directory:",
+    "Source Reconstruction Report Directory:",
     value=str(source_recon_report_dir)
 )
 
@@ -265,7 +265,7 @@ if prefixes:
 
         time = st.sidebar.slider(
             "Display Time Point (s)", float(time_min), float(time_max),
-            value=float(default_time), step=0.01, format="%.3f"
+            value=float(default_time), step=0.001, format="%.3f"
         )
 
         st.sidebar.markdown('<div class="sidebar-divider"></div>', unsafe_allow_html=True)
@@ -349,7 +349,7 @@ if prefixes:
             # Add metadata
             col1, col2, col3= st.columns([1,1,2])
             with col1:
-                st.metric("Current Time", f"{peak_vertex_time:.3f} s")
+                st.metric("Peak Vertex Time", f"{peak_vertex_time:.3f} s")
             with col2:
                 st.metric("Time Range", f"{time_max - time_min:.3f} s")
             with col3:
@@ -360,4 +360,3 @@ if prefixes:
         st.warning(f"⚠️ STC file not found: `{stc_path}`")
 else:
     st.info("ℹ️ No STC files found for interactive display in this MEG directory.")
-

@@ -421,11 +421,11 @@ else:
             col1, col2 = st.columns([1, 2])
 
             with col1:
-                st.markdown("#### 🔴 Bad Channels")
+                st.markdown("#### Bad-channel list")
                 st.caption(f"Total bad channels: {len(bad_channels)}")
                 raw.info["bads"] = bad_channels
                 bad_ch_df = st.data_editor(
-                    pd.DataFrame(raw.info['bads'], columns=['Bad Channels']),
+                    pd.DataFrame(raw.info['bads'], columns=['Bad-channel name']),
                     num_rows="dynamic",
                     width='stretch',
                     height=300
@@ -433,7 +433,7 @@ else:
                 bad_ch_df.dropna(inplace=True)
 
             with col2:
-                st.markdown("#### 📊 Bad Segments")
+                st.markdown("#### Bad-segment list")
                 bad_segments_annot = raw.annotations
                 st.caption(f"Total bad segments: {len(bad_segments_annot)}")
 
@@ -523,7 +523,7 @@ else:
                 valid_ch_names = set(origin_raw.ch_names)
 
                 for idx, row in bad_ch_df.iterrows():
-                    ch_name = row['Bad Channels']
+                    ch_name = row['Bad-channel name']
                     if ch_name not in valid_ch_names:
                         invalid_channels.append(ch_name)
 
@@ -550,7 +550,7 @@ else:
 
                     # Update raw data
                     origin_raw.set_annotations(bad_seg_anat)
-                    bad_channels_list = bad_ch_df['Bad Channels'].tolist()
+                    bad_channels_list = bad_ch_df['Bad-channel name'].tolist()
                     origin_raw.info['bads'] = bad_channels_list
                     origin_raw.save(file_path, overwrite=True)
 
@@ -585,8 +585,8 @@ else:
         # ========== ADDITIONAL INFO ==========
         with st.expander("ℹ️ File Information", expanded=False):
             st.markdown(f"**Selected File:** `{selected_file}`")
-            st.markdown(f"**Bad Channels File:** `{bad_channels_file}`")
-            st.markdown(f"**Bad Segments File:** `{bad_segments_file}`")
+            st.markdown(f"**Bad-channel file:** `{bad_channels_file}`")
+            st.markdown(f"**Bad-segment file:** `{bad_segments_file}`")
             st.divider()
             st.markdown("**Measurement Info:**")
             st.json({

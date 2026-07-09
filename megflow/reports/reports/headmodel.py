@@ -58,7 +58,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # Page Title
-st.markdown('<div class="main-header">🧠 Head Model Visualization</div>', unsafe_allow_html=True)
+st.markdown('<div class="main-header">Head Model Review</div>', unsafe_allow_html=True)
 
 
 # Get report directory
@@ -215,4 +215,4 @@ else:
 
 # Footer
 st.markdown("---")
-st.caption("💾 Head Model Visualization Tool - View MEG forward solution head models in multiple orientations")
+st.caption("Head Model Review - View MEG forward-solution head models in multiple orientations")

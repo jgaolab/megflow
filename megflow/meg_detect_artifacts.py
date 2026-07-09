@@ -363,6 +363,48 @@ def _infer_deepreject_category(raw_path, requested):
     return "task"
 
 
+def _optional_float(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "" or text.lower() in {"none", "null"}:
+        return None
+    return float(value)
+
+
+def _optional_int(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    if text == "" or text.lower() in {"none", "null"}:
+        return None
+    return int(value)
+
+
+def _config_bool(value, default=False):
+    if value is None:
+        return default
+    if isinstance(value, bool):
+        return value
+    text = str(value).strip().lower()
+    if text in {"1", "true", "yes", "y", "on"}:
+        return True
+    if text in {"0", "false", "no", "n", "off", "none", "null", ""}:
+        return False
+    return bool(value)
+
+
+def _parse_deepreject_folds(value):
+    if value is None:
+        return None
+    if isinstance(value, (list, tuple)):
+        return [int(item) for item in value]
+    text = str(value).strip()
+    if not text or text.lower() in {"none", "null"}:
+        return None
+    return [int(item.strip()) for item in text.split(",") if item.strip()]
+
+
 def _merge_annotations(base_annotations, extra_annotations):
     if len(extra_annotations) == 0:
         return base_annotations
@@ -382,36 +424,71 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    category = _infer_deepreject_category(input_path, "auto")
+    category = _infer_deepreject_category(input_path, deep_config.get("category", "auto"))
     dataset = deep_config.get("dataset") or Path(input_path).parent.name
-    predictor = DeepRejectPredictor(
-        device=deep_config.get("device", "cpu"),
-        backend=deep_config.get("backend", "auto"),
-        batch_size=int(deep_config.get("batch_size", 32)),
-        encoder_chunk_size=deep_config.get("encoder_chunk_size"),
-        artifact_prob_threshold=deep_config.get("artifact_prob_threshold", 0.9),
-        bad_channel_prob_threshold=deep_config.get("bad_channel_prob_threshold"),
-        artifact_hysteresis_high_threshold=deep_config.get("artifact_hysteresis_high_threshold"),
-        artifact_hysteresis_low_threshold=deep_config.get("artifact_hysteresis_low_threshold"),
-        artifact_merge_gap_sec=float(deep_config.get("artifact_merge_gap_sec", 2.0)),
-        artifact_min_duration_sec=float(deep_config.get("artifact_min_duration_sec", 0.5)),
-        artifact_short_keep_threshold=deep_config.get("artifact_short_keep_threshold"),
-    )
+
+    predictor_kwargs = {
+        "device": deep_config.get("device", "cpu"),
+    }
+    folds = _parse_deepreject_folds(deep_config.get("folds"))
+    if folds:
+        predictor_kwargs["folds"] = folds
+    for key in (
+        "fold_workers",
+        "cpu_threads",
+        "cpu_interop_threads",
+        "badsegnet_batch_size",
+        "badsegnet_encoder_chunk_size",
+        "badsegnet_edge_k",
+        "badchnnet_chunk_windows",
+        "badchnnet_chunk_stride",
+        "badchnnet_min_chunk_windows",
+    ):
+        value = _optional_int(deep_config.get(key))
+        if value is not None:
+            predictor_kwargs[key] = value
+
+    for key in (
+        "badsegnet_hysteresis_high",
+        "badsegnet_hysteresis_low",
+        "badsegnet_merge_gap_sec",
+        "badsegnet_min_duration_sec",
+        "badsegnet_short_keep_threshold",
+        "badchnnet_lambda_lcb",
+        "badchnnet_floor",
+        "badchnnet_z",
+    ):
+        value = _optional_float(deep_config.get(key))
+        if value is not None:
+            predictor_kwargs[key] = value
+    min_type_channels = _optional_int(deep_config.get("badchnnet_min_type_channels"))
+    if min_type_channels is not None:
+        predictor_kwargs["badchnnet_min_type_channels"] = min_type_channels
+
+    if deep_config.get("badchnnet_chunk_prob_aggregation") is not None:
+        predictor_kwargs["badchnnet_chunk_prob_aggregation"] = str(deep_config.get("badchnnet_chunk_prob_aggregation"))
+
+    if deep_config.get("cache_models") is not None:
+        predictor_kwargs["cache_models"] = _config_bool(deep_config.get("cache_models"), True)
+
+    predictor = DeepRejectPredictor(**predictor_kwargs)
     pred = predictor.predict_fif(
         Path(input_path),
         category=category,
         dataset=dataset,
-        pick_exclude_marked_bads=bool(deep_config.get("pick_exclude_marked_bads", False)),
-        edge_k=int(deep_config.get("edge_k", 6)),
+        pick_exclude_marked_bads=_config_bool(deep_config.get("pick_exclude_marked_bads"), False),
+        filter_l_freq=_optional_float(deep_config.get("filter_l_freq")),
+        filter_h_freq=_optional_float(deep_config.get("filter_h_freq")),
+        resample_sfreq=_optional_float(deep_config.get("resample_sfreq")),
+        run_bad_segments=_config_bool(deep_config.get("run_bad_segments"), True),
+        run_bad_channels=_config_bool(deep_config.get("run_bad_channels"), True),
     )
 
-    bad_channels = []
-    if pred.bad_channel_pred is not None and pred.ch_names:
-        bad_channels = [
-            ch_name
-            for ch_name, is_bad in zip(pred.ch_names, np.asarray(pred.bad_channel_pred).reshape(-1))
-            if int(is_bad) == 1
-        ]
+    bad_channels = [
+        ch_name
+        for ch_name, is_bad in zip(pred.ch_names, np.asarray(pred.bad_channel_pred).reshape(-1))
+        if int(is_bad) == 1
+    ]
 
     annotation_offset_sec = float(getattr(raw, "first_time", 0.0) or 0.0)
     annots = mne.Annotations(
@@ -424,12 +501,26 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
     summary = {
         "enabled": True,
         "backend": pred.backend,
-        "ckpt_path": str(getattr(predictor, "ckpt_path", "")),
-        "model_config_path": str(getattr(predictor, "model_config_path", "")),
+        "badsegnet_weights_dir": str(getattr(predictor, "badsegnet_weights_dir", "")),
+        "badchnnet_weights_dir": str(getattr(predictor, "badchnnet_weights_dir", "")),
+        "artifact_folds": np.asarray(pred.artifact_folds).astype(int).tolist(),
+        "bad_channel_folds": np.asarray(pred.bad_channel_folds).astype(int).tolist(),
+        "fold_workers": getattr(predictor, "fold_workers", None),
+        "cache_models": getattr(predictor, "cache_models", None),
+        "cpu_threads": getattr(predictor, "cpu_threads", None),
+        "cpu_interop_threads": getattr(predictor, "cpu_interop_threads", None),
         "category": category,
         "dataset": dataset,
         "artifact_window_count": int(np.asarray(pred.artifact_probs).size),
-        "artifact_probability_threshold": deep_config.get("artifact_prob_threshold", 0.9),
+        "badsegnet_hysteresis_high": getattr(predictor, "badsegnet_hysteresis_high", None),
+        "badsegnet_hysteresis_low": getattr(predictor, "badsegnet_hysteresis_low", None),
+        "badsegnet_merge_gap_sec": getattr(predictor, "badsegnet_merge_gap_sec", None),
+        "badsegnet_min_duration_sec": getattr(predictor, "badsegnet_min_duration_sec", None),
+        "badsegnet_short_keep_threshold": getattr(predictor, "badsegnet_short_keep_threshold", None),
+        "badchnnet_lambda_lcb": getattr(predictor, "badchnnet_lambda_lcb", None),
+        "badchnnet_floor": getattr(predictor, "badchnnet_floor", None),
+        "badchnnet_z": getattr(predictor, "badchnnet_z", None),
+        "badchnnet_min_type_channels": getattr(predictor, "badchnnet_min_type_channels", None),
         "bad_interval_count": len(pred.bad_intervals),
         "annotation_onset_offset_sec": annotation_offset_sec,
         "bad_intervals": [{"onset_sec": float(s), "stop_sec": float(e), "duration_sec": float(e - s)} for s, e in pred.bad_intervals],
@@ -463,16 +554,20 @@ def main(args):
     output_bad_channels_file = f"{args.output}/{base_name}_bad_channels.txt"
     check_imgs_output_dir = Path(output_bad_channels_file).parent / "check_imgs"
     heatmap_img_out = check_imgs_output_dir / "artifact_mask_heatmap.jpg"
+    artifact_images_enabled = _config_bool(config.get('artifact_images_enabled'), False)
+    artifact_image_n_jobs = _optional_int(config.get('artifact_image_n_jobs'))
+    artifact_image_n_jobs = 8 if artifact_image_n_jobs is None else max(1, artifact_image_n_jobs)
 
     if os.path.exists(output_bad_segments_file) and os.path.exists(output_bad_channels_file):
         logger.info(f"The file {output_bad_segments_file}/{output_bad_channels_file} already exists, and the data will not be overwritten.")
-        ensure_artifact_mask_heatmap(
-            input_file=args.input,
-            bad_channels_file=output_bad_channels_file,
-            bad_segments_file=output_bad_segments_file,
-            heatmap_output=heatmap_img_out,
-            force=True,
-        )
+        if artifact_images_enabled:
+            ensure_artifact_mask_heatmap(
+                input_file=args.input,
+                bad_channels_file=output_bad_channels_file,
+                bad_segments_file=output_bad_segments_file,
+                heatmap_output=heatmap_img_out,
+                force=True,
+            )
     else:
         raw = mne.io.read_raw(args.input, preload=True)
         artifact_vendor = infer_artifact_vendor(raw, config.get('meg_vendor', 'auto'))
@@ -534,16 +629,16 @@ def main(args):
         except Exception as e:
             logger.error(f"Error overwriting:{args.input}...,\n {e}")
 
-        ensure_artifact_mask_heatmap(
-            input_file=args.input,
-            bad_channels_file=output_bad_channels_file,
-            bad_segments_file=output_bad_segments_file,
-            heatmap_output=heatmap_img_out,
-            force=True,
-        )
+        if artifact_images_enabled:
+            ensure_artifact_mask_heatmap(
+                input_file=args.input,
+                bad_channels_file=output_bad_channels_file,
+                bad_segments_file=output_bad_segments_file,
+                heatmap_output=heatmap_img_out,
+                force=True,
+            )
 
-        # Generate detailed artifacts check images.
-        if config.get('artifact_images_enabled',True):
+            # Generate detailed artifacts check images.
             device_type = artifact_vendor
             seg_fname_img_out = Path(f"{check_imgs_output_dir}/waveform/chn.#/seg_$.jpg")
             seg_fname_chn_out = Path(f"{check_imgs_output_dir}/waveform/channels.jl")
@@ -563,7 +658,7 @@ def main(args):
                     segment_type="segment",
                     n_chans=30,
                     duration=60,
-                    n_jobs=-1,
+                    n_jobs=artifact_image_n_jobs,
                 )
 
                 # plot summary
@@ -576,7 +671,7 @@ def main(args):
                     device_type=device_type,
                     segment_type="summary",
                     duration=200,
-                    n_jobs=-1,
+                    n_jobs=artifact_image_n_jobs,
                 )
             except Exception as e:
                 logger.error(e)

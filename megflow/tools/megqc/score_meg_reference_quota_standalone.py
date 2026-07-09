@@ -1052,7 +1052,7 @@ def main() -> None:
     draw_reference_position_plot(
         detail,
         out_prefix.with_suffix(".reference_position.png"),
-        title=f"MEG Quality Score: {fnum(summary['score_0_100'], 1)} / 100",
+        title=f"Normative Reference MEG QC score: {fnum(summary['score_0_100'], 1)} / 100",
         subtitle=f"Model {args.model}  ·  Reference scope: {args.reference_scope}  ·  Category: {args.category}",
     )
     print(json.dumps(json_ready({"score_0_100": summary["score_0_100"], "n_families_available": summary["n_families_available"], "summary": str(summary_path)}), ensure_ascii=False, allow_nan=False))

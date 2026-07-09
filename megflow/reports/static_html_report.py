@@ -47,15 +47,15 @@ DEFAULT_THRESHOLDS = {
 }
 
 STEP_DEFS = [
-    ("quality_score", "Quality score"),
-    ("basic_preproc", "Basic preproc"),
+    ("quality_score", "QC score"),
+    ("basic_preproc", "Basic preprocessing"),
     ("artifacts", "Artifacts"),
     ("ica", "ICA"),
     ("epochs", "Epochs"),
-    ("covariance", "Cov"),
-    ("coregistration", "Coreg"),
-    ("headmodel", "Head"),
-    ("source", "Source"),
+    ("covariance", "Covariance"),
+    ("coregistration", "MEG-MRI coregistration"),
+    ("headmodel", "Head model"),
+    ("source", "Source localization"),
 ]
 PROCESS_TO_STEP = {
     "import_mri_dataset": "anatomy import",
@@ -78,7 +78,7 @@ PROCESS_TO_STEP = {
     "compute_covariances": "covariance",
     "source_imaging": "source",
     "generate_static_html_report": "report",
-    "generate_cohort_static_html_report": "report",
+    "generate_corpus_static_html_report": "report",
 }
 STEP_KEYS = {key for key, _ in STEP_DEFS}
 SUCCESS_TRACE_STATUSES = {"COMPLETED", "CACHED", "SUBMITTED", "RUNNING"}
@@ -1862,14 +1862,14 @@ function getJsonScriptData(elementId) {
 }
 
 const STEP_MATRIX_DEFS = [
-  { key: "quality_score", label: "Quality score" },
-  { key: "basic_preproc", label: "Basic preproc" },
+  { key: "quality_score", label: "QC score" },
+  { key: "basic_preproc", label: "Basic preprocessing" },
   { key: "artifacts", label: "Artifacts" },
   { key: "ica", label: "ICA" },
   { key: "epochs", label: "Epochs" },
   { key: "covariance", label: "Cov" },
-  { key: "coregistration", label: "Coreg" },
-  { key: "headmodel", label: "Head" },
+  { key: "coregistration", label: "MEG-MRI coregistration" },
+  { key: "headmodel", label: "Head model" },
   { key: "source", label: "Source" },
 ];
 
@@ -2198,7 +2198,7 @@ function updateAlarmBoard() {
 
   const countInfo = document.getElementById("alarmCountInfo");
   if (countInfo) {
-    countInfo.textContent = `Showing ${Math.min(limit, matchedRows.length)} of ${matchedRows.length} alarms`;
+    countInfo.textContent = `Showing ${Math.min(limit, matchedRows.length)} of ${matchedRows.length} QC alerts`;
   }
 }
 
@@ -2782,6 +2782,7 @@ def infer_work_roots(report_root: Path, preprocessed_dir: Path, manifest: dict[s
         output_dir = Path(str(params_snapshot["output_dir"]))
         roots.append(output_dir / "work")
         roots.append(output_dir.parent.parent / "work")
+        roots.append(output_dir.parent.parent / "work" / "corpus_driver")
         roots.append(output_dir.parent.parent / "work" / "cohort_driver")
         roots.append(output_dir.parent.parent / "work" / output_dir.name)
     workflow_meta = manifest.get("workflow_meta") if isinstance(manifest, dict) else None
@@ -3711,7 +3712,7 @@ def collect_subject_data(
                 coreg_data["dist_max"] = row.get("dist_max(mm)")
                 coreg_data["dist_min"] = row.get("dist_min(mm)")
             rel = copy_asset(dists_file, output_root, subject_slug, "coreg")
-            summary["files"].append({"label": "Coreg distances", "path": rel})
+            summary["files"].append({"label": "Coregistration distances", "path": rel})
         except Exception as exc:
             coreg_data["error"] = str(exc)
 
@@ -3797,14 +3798,14 @@ def collect_subject_data(
     qc_score = quality_score_data.get("score_0_100")
     qc_alarm_threshold = thresholds.get("megqc_alarm_score", DEFAULT_THRESHOLDS["megqc_alarm_score"])
     if not quality_score_data.get("exists"):
-        alarms.append({"category": "Quality Score", "severity": "warn", "message": "Normative Reference quality score is missing."})
+        alarms.append({"category": "QC Score", "severity": "warn", "message": "Normative Reference QC score is missing."})
     elif qc_score is None:
         error = quality_score_data.get("error") or "Score could not be computed."
-        alarms.append({"category": "Quality Score", "severity": "danger", "message": f"Normative Reference quality score failed: {error}"})
+        alarms.append({"category": "QC Score", "severity": "danger", "message": f"Normative Reference QC score failed: {error}"})
     elif float(qc_score) < float(qc_alarm_threshold):
         alarms.append(
             {
-                "category": "Quality Score",
+                "category": "QC Score",
                 "severity": "warn",
                 "message": (
                     f"Normative Reference score {fmt_float(qc_score, 1)} is below "
@@ -3817,7 +3818,7 @@ def collect_subject_data(
         if min_score not in (None, ""):
             alarms.append(
                 {
-                    "category": "Quality Gate",
+                    "category": "QC Gate",
                     "severity": "danger",
                     "message": (
                         f"Downstream processing was skipped because score {fmt_float(qc_score, 1)} "
@@ -4316,7 +4317,7 @@ def render_coreg_gallery(assets: list[dict[str, Any]], prefix: str = "") -> str:
 
 def render_alarm_items(alarms: list[dict[str, str]]) -> str:
     if not alarms:
-        return '<div class="small">No alarms. This subject passed the current static thresholds.</div>'
+        return '<div class="small">No QC alerts. This subject passed the current static thresholds.</div>'
     items = []
     for alarm in alarms:
         css_class = "danger" if alarm["severity"] == "danger" else ""
@@ -4496,12 +4497,12 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
 
     step_chips = []
     subject_step_labels = {
-        "quality_score": "Quality Score",
-        "basic_preproc": "Basic preproc",
+        "quality_score": "QC Score",
+        "basic_preproc": "Basic preprocessing",
         "artifacts": "Artifacts",
         "ica": "ICA",
-        "coregistration": "Coreg",
-        "headmodel": "Head Model",
+        "coregistration": "MEG-MRI coregistration",
+        "headmodel": "Head model",
         "epochs": "Epochs",
         "covariance": "Covariance",
         "source": "Source",
@@ -4565,12 +4566,12 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
   <div class="container">
     <a class="back-link" href="../index.html">&larr; Back to dataset summary</a>
     <div class="hero">
-      <div class="eyebrow">Subject QC Detail</div>
+      <div class="eyebrow">Subject-Level QC Report</div>
       <h1>{html_text(subject)}</h1>
-      <p>Portable static subject report. All linked figures and sidecar files are bundled inside this report package.</p>
+      <p>Self-contained subject-level report with bundled QC figures and derivative sidecars.</p>
       <div class="hero-links">
         {status_html}
-        <span class="pill neutral">Alarms: {summary['alarm_count']}</span>
+        <span class="pill neutral">QC alerts: {summary['alarm_count']}</span>
         <span class="pill neutral">Raw duration: {fmt_float(raw_info.get('duration_sec'), 1, ' s')}</span>
         <span class="pill neutral">Channels: {fmt_int(raw_info.get('n_channels'))}</span>
         <span class="pill neutral">Sampling rate: {fmt_float(raw_info.get('sfreq'), 1, ' Hz')}</span>
@@ -4582,17 +4583,17 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
 
     <div class="grid cards">
       <div class="card">
-        <div class="label">Normative QC Score</div>
+        <div class="label">Normative Reference QC score</div>
         <div class="value">{fmt_float(quality_score_value, 1)}</div>
         <div class="subvalue">0-100, higher is better; warning below {fmt_float(summary['thresholds'].get('megqc_alarm_score'), 1)}</div>
       </div>
       <div class="card">
-        <div class="label">Bad Channels</div>
+        <div class="label">Bad-channel count</div>
         <div class="value">{fmt_int(summary['artifacts']['bad_channels_count'])}</div>
         <div class="subvalue">Threshold {fmt_int(summary['thresholds']['bad_channel_threshold'])} in static QC</div>
       </div>
       <div class="card">
-        <div class="label">Bad Segments</div>
+        <div class="label">Bad-segment count</div>
         <div class="value">{fmt_int(summary['artifacts']['bad_segments'])}</div>
         <div class="subvalue">Annotated bad duration {fmt_float(summary['artifacts'].get('bad_duration_sec'), 1, ' s')}</div>
       </div>
@@ -4602,19 +4603,19 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
         <div class="subvalue">ECG: {'yes' if summary['ica']['has_ecg'] else 'no'} | EOG: {'yes' if summary['ica']['has_eog'] else 'no'}</div>
       </div>
       <div class="card">
-        <div class="label">Coreg Mean / Max</div>
+        <div class="label">Mean / maximum coregistration distance (mm)</div>
         <div class="value">{fmt_float(summary['coregistration']['dist_mean'], 2, ' mm')}</div>
         <div class="subvalue">Max {fmt_float(summary['coregistration']['dist_max'], 2, ' mm')}</div>
       </div>
       <div class="card">
-        <div class="label">Epoch Reject Rate</div>
+        <div class="label">Epoch rejection rate</div>
         <div class="value">{fmt_float((summary['epochs'].get('reject_rate') * 100) if summary['epochs'].get('reject_rate') is not None else None, 1, '%')}</div>
         <div class="subvalue">Rejected {len(summary['epochs'].get('rejected_epochs', []))} / Estimated total {fmt_int(summary['epochs'].get('total_epochs_est'))}</div>
       </div>
     </div>
 
     <div class="section">
-      <h2>Alarms</h2>
+      <h2>QC alerts</h2>
       <div class="panel">
         {render_alarm_items(summary['alarms'])}
       </div>
@@ -4634,8 +4635,8 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
       <div class="panel">
         <div class="metric-list">
           <div class="metric-box wide"><div class="k">Raw File</div><div class="v wrap mono-path">{html_text(raw_info.get('raw_file', 'N/A'))}</div></div>
-          <div class="metric-box"><div class="k">Bad Channel Ratio</div><div class="v">{fmt_float((summary['artifacts']['bad_channels_count'] / raw_info['n_channels'] * 100) if raw_info.get('n_channels') else None, 1, '%')}</div></div>
-          <div class="metric-box"><div class="k">Bad Segment Ratio</div><div class="v">{fmt_float((summary['artifacts'].get('bad_ratio') * 100) if summary['artifacts'].get('bad_ratio') is not None else None, 1, '%')}</div></div>
+          <div class="metric-box"><div class="k">Bad-channel proportion</div><div class="v">{fmt_float((summary['artifacts']['bad_channels_count'] / raw_info['n_channels'] * 100) if raw_info.get('n_channels') else None, 1, '%')}</div></div>
+          <div class="metric-box"><div class="k">Bad-segment proportion</div><div class="v">{fmt_float((summary['artifacts'].get('bad_ratio') * 100) if summary['artifacts'].get('bad_ratio') is not None else None, 1, '%')}</div></div>
           <div class="metric-box"><div class="k">ICA Components</div><div class="v">{fmt_int(summary['ica']['n_components'])}</div></div>
           <div class="metric-box"><div class="k">Epochs Remaining</div><div class="v">{fmt_int(summary['epochs'].get('remaining_epochs'))}</div></div>
           <div class="metric-box"><div class="k">Summary JSON</div><div class="v"><a href="../{html_text(summary['summary_json'])}" target="_blank">Open</a></div></div>
@@ -4644,7 +4645,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
     </div>
 
     <div class="section">
-      <h2>Normative Reference Quality Score</h2>
+      <h2>Normative Reference QC Score</h2>
       <div class="two-col quality-score-layout">
         <div class="panel quality-summary-panel">
           <div class="metric-list">
@@ -4654,8 +4655,8 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
             <div class="metric-box"><div class="k">Model</div><div class="v wrap">{html_text(quality_score.get('model', 'N/A'))}</div></div>
             <div class="metric-box"><div class="k">Device Reference</div><div class="v">{html_text(quality_score.get('device_type', 'N/A'))}</div></div>
             <div class="metric-box"><div class="k">Category</div><div class="v">{html_text(quality_score.get('category', 'N/A'))}</div></div>
-            <div class="metric-box wide"><div class="k">Bad Channel Policy</div><div class="v wrap">{html_text(quality_score.get('bad_channel_policy', 'N/A'))}</div></div>
-            <div class="metric-box wide"><div class="k">Bad Annotation Policy</div><div class="v wrap">{html_text(quality_score.get('bad_annotation_policy', 'N/A'))}</div></div>
+            <div class="metric-box wide"><div class="k">Bad-channel policy</div><div class="v wrap">{html_text(quality_score.get('bad_channel_policy', 'N/A'))}</div></div>
+            <div class="metric-box wide"><div class="k">Bad-annotation policy</div><div class="v wrap">{html_text(quality_score.get('bad_annotation_policy', 'N/A'))}</div></div>
           </div>
           <div class="info-note">Final score uses a 0-100 scale where higher is better. Before scoring, raw data is aligned to the reference space with the QC preprocessing below. The 1-100 Hz band-pass is fixed for Normative Reference scoring and should not be changed. Bad channels and BAD annotations are kept by default to match the normative reference.</div>
           {render_quality_preprocessing_steps(quality_score.get('reference_preprocessing', []))}
@@ -4699,17 +4700,17 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
         </div>
         <div class="panel">
           <div class="metric-list">
-            <div class="metric-box"><div class="k">Bad Channels</div><div class="v">{fmt_int(summary['artifacts']['bad_channels_count'])}</div></div>
-            <div class="metric-box"><div class="k">Bad Segments</div><div class="v">{fmt_int(summary['artifacts']['bad_segments'])}</div></div>
+            <div class="metric-box"><div class="k">Bad-channel count</div><div class="v">{fmt_int(summary['artifacts']['bad_channels_count'])}</div></div>
+            <div class="metric-box"><div class="k">Bad-segment count</div><div class="v">{fmt_int(summary['artifacts']['bad_segments'])}</div></div>
             <div class="metric-box"><div class="k">Bad Duration</div><div class="v">{fmt_float(summary['artifacts'].get('bad_duration_sec'), 1, ' s')}</div></div>
-            <div class="metric-box"><div class="k">Bad Ratio</div><div class="v">{fmt_float((summary['artifacts'].get('bad_ratio') * 100) if summary['artifacts'].get('bad_ratio') is not None else None, 1, '%')}</div></div>
+            <div class="metric-box"><div class="k">Bad-segment proportion</div><div class="v">{fmt_float((summary['artifacts'].get('bad_ratio') * 100) if summary['artifacts'].get('bad_ratio') is not None else None, 1, '%')}</div></div>
           </div>
           <div class="section">
-            <h2>Bad Channel List</h2>
+            <h2>Bad-channel list</h2>
             {render_bad_channel_block(summary['artifacts']['bad_channels'])}
           </div>
           <div class="section">
-            <h2>Bad Segments Detail</h2>
+            <h2>Bad-segment details</h2>
             {render_bad_segment_block(summary['artifacts'].get('bad_segment_rows', []))}
           </div>
         </div>
@@ -4720,7 +4721,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
       <h2>ICA Review</h2>
       <div class="two-col">
         <div class="panel">
-          <div class="info-note" style="margin-top:0; margin-bottom:12px">Detected abnormal ICA components are shown first and highlighted with a warm badge and border. Unmarked components are retained as reference views.</div>
+          <div class="info-note" style="margin-top:0; margin-bottom:12px">Detected abnormal ICA components are shown first and highlighted as components marked for exclusion. Unmarked components are retained as reference views.</div>
           {render_gallery(
               ica_topography_assets,
               prefix="../"
@@ -4738,7 +4739,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
             <div class="chips">{''.join(f'<span class="chip">IC {html_text(comp)}</span>' for comp in summary['ica']['marked_components']) or '<span class="small">No marked components saved.</span>'}</div>
           </div>
           <div class="section">
-            <h2>Source Blocks</h2>
+            <h2>ICA timecourse panels</h2>
             {render_gallery(summary['ica']['sources'], prefix="../")}
           </div>
         </div>
@@ -4752,7 +4753,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
           <div class="metric-box"><div class="k">Rejected Epochs</div><div class="v">{fmt_int(len(summary['epochs'].get('rejected_epochs', [])))}</div></div>
           <div class="metric-box"><div class="k">Remaining Epochs</div><div class="v">{fmt_int(summary['epochs'].get('remaining_epochs'))}</div></div>
           <div class="metric-box"><div class="k">Estimated Total</div><div class="v">{fmt_int(summary['epochs'].get('total_epochs_est'))}</div></div>
-          <div class="metric-box"><div class="k">Reject Rate</div><div class="v">{fmt_float((summary['epochs'].get('reject_rate') * 100) if summary['epochs'].get('reject_rate') is not None else None, 1, '%')}</div></div>
+          <div class="metric-box"><div class="k">Epoch rejection rate</div><div class="v">{fmt_float((summary['epochs'].get('reject_rate') * 100) if summary['epochs'].get('reject_rate') is not None else None, 1, '%')}</div></div>
         </div>
         <div class="section">
           {render_gallery(summary['epochs']['assets'], prefix="../")}
@@ -4783,7 +4784,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
     </div>
 
     <div class="section">
-      <h2>Head Model</h2>
+      <h2>Head model</h2>
       <div class="panel">
         {render_gallery(summary['headmodel']['assets'], prefix="../")}
       </div>
@@ -4956,10 +4957,10 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               <strong><a href="subjects/{html_text(summary['subject_slug'])}.html">{html_text(summary['subject'])}</a></strong>
               <div class="chips">
                 {render_status_pill(summary['status'])}
-                <span class="pill neutral">Alarms: {fmt_int(summary['alarm_count'])}</span>
+                <span class="pill neutral">QC alerts: {fmt_int(summary['alarm_count'])}</span>
               </div>
-              <div class="small" style="margin-top:8px">Bad channels {fmt_int(summary['artifacts']['bad_channels_count'])}, bad segments {fmt_int(summary['artifacts']['bad_segments'])}, coreg mean {fmt_float(summary['coregistration']['dist_mean'], 2, ' mm')}</div>
-              <div class="small">Normative QC score {fmt_float(summary['quality_score'].get('score_0_100'), 1)} / 100</div>
+              <div class="small" style="margin-top:8px">Bad-channel count {fmt_int(summary['artifacts']['bad_channels_count'])}, bad-segment count {fmt_int(summary['artifacts']['bad_segments'])}, mean coregistration distance {fmt_float(summary['coregistration']['dist_mean'], 2, ' mm')}</div>
+              <div class="small">QC score {fmt_float(summary['quality_score'].get('score_0_100'), 1)} / 100</div>
             </div>
             """
         )
@@ -4970,11 +4971,11 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
     )
 
     threshold_cards = [
-        ("Quality score below threshold", threshold_counts["megqc_score"]),
-        ("Bad channels above threshold", threshold_counts["bad_channels"]),
-        ("Bad segments above threshold", threshold_counts["bad_segments"]),
-        ("Coreg mean above threshold", threshold_counts["coreg_mean"]),
-        ("Epoch reject above threshold", threshold_counts["epoch_reject"]),
+        ("QC score below threshold", threshold_counts["megqc_score"]),
+        ("Bad-channel count above threshold", threshold_counts["bad_channels"]),
+        ("Bad-segment count above threshold", threshold_counts["bad_segments"]),
+        ("Mean coregistration distance above threshold", threshold_counts["coreg_mean"]),
+        ("Epoch rejection rate above threshold", threshold_counts["epoch_reject"]),
         ("Any missing steps", threshold_counts["missing_steps"]),
     ]
 
@@ -5014,7 +5015,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MEGFlow Static HTML Report</title>
+  <title>MEGFlow Processing and QC Report</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="stylesheet" href="assets/report.css">
   <script src="assets/report.js"></script>
@@ -5022,14 +5023,14 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
 <body>
   <div class="container">
     <div class="hero">
-      <h1>MEGFlow Static HTML Report</h1>
-      <p>Dataset-level portable dashboard for large-scale MEG preprocessing. It keeps summary pages, copied evidence figures, and sidecar files together for offline review and download.</p>
+      <h1>MEGFlow Processing and QC Report</h1>
+      <p>Dataset-level report for large-scale MEG processing and QC. It keeps summary pages, copied evidence figures, and sidecar files together for offline review and download.</p>
       <p>Report root: {html_text(dataset_summary['report_root'])}</p>
       <div class="filter-panel">
         <div class="filter-grid">
           <div class="control-group search-control">
             <label for="subjectSearch">Search</label>
-            <input id="subjectSearch" type="text" placeholder="Search subject, status, or alarm" oninput="resetSubjectPage()">
+            <input id="subjectSearch" type="text" placeholder="Search subject, status, or QC alert" oninput="resetSubjectPage()">
           </div>
           <div class="control-group">
             <label for="subjectStatusFilter">Status</label>
@@ -5045,14 +5046,14 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <select id="subjectMissingStepFilter" onchange="resetSubjectPage()">
               <option value="all">All step completeness</option>
               <option value="quality_score">Missing quality score</option>
-              <option value="basic_preproc">Missing basic preproc</option>
+              <option value="basic_preproc">Missing basic preprocessing</option>
               <option value="artifacts">Missing artifacts</option>
               <option value="ica">Missing ICA</option>
               <option value="epochs">Missing epochs</option>
               <option value="covariance">Missing covariance</option>
-              <option value="coregistration">Missing coreg</option>
+              <option value="coregistration">Missing MEG-MRI coregistration</option>
               <option value="headmodel">Missing head model</option>
-              <option value="source">Missing source</option>
+              <option value="source">Missing source localization</option>
             </select>
           </div>
           <div class="control-group">
@@ -5063,18 +5064,18 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               <option value="subject">Sort by subject</option>
               <option value="missing_steps">Sort by missing steps</option>
               <option value="quality_score">Sort by quality score</option>
-              <option value="alarm_count">Sort by alarms</option>
-              <option value="bad_channels">Sort by bad channels</option>
-              <option value="bad_segments">Sort by bad segments</option>
+              <option value="alarm_count">Sort by QC alerts</option>
+              <option value="bad_channels">Sort by bad-channel count</option>
+              <option value="bad_segments">Sort by bad-segment count</option>
               <option value="marked_ica">Sort by marked ICA</option>
-              <option value="coreg_mean">Sort by coreg mean</option>
-              <option value="coreg_max">Sort by coreg max</option>
-              <option value="epoch_reject">Sort by epoch reject</option>
+              <option value="coreg_mean">Sort by mean coregistration distance</option>
+              <option value="coreg_max">Sort by maximum coregistration distance</option>
+              <option value="epoch_reject">Sort by epoch rejection rate</option>
             </select>
           </div>
           <div class="quality-score-controls">
             <div class="control-group">
-              <label for="qualityScoreMode">Quality Score</label>
+              <label for="qualityScoreMode">QC Score</label>
               <select id="qualityScoreMode" onchange="resetSubjectPage()">
                 <option value="all">All scores</option>
                 <option value="gte">Score at or above</option>
@@ -5083,7 +5084,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               </select>
             </div>
             <div class="control-group">
-              <label for="qualityScoreThreshold">Score Cutoff</label>
+              <label for="qualityScoreThreshold">QC Score Cutoff</label>
               <input id="qualityScoreThreshold" type="number" min="0" max="100" step="1" value="{fmt_float(dataset_summary['thresholds'].get('megqc_alarm_score'), 0)}" oninput="resetSubjectPage()">
             </div>
           </div>
@@ -5101,7 +5102,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
       <div class="hero-links">
         <a href="data/dataset_summary.json" target="_blank">Dataset summary JSON</a>
         <a href="data/subjects.csv" target="_blank">Subjects CSV</a>
-        <a href="alarms.html">Alarm board</a>
+        <a href="alarms.html">QC alert board</a>
       </div>
     </div>
 {dataset_summary.get("workflow_html") or ""}
@@ -5124,7 +5125,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
         <div class="value">{fmt_int(dataset_summary['fail_count'])}</div>
       </div>
       <div class="card">
-        <div class="label">Total Alarms</div>
+        <div class="label">Total QC alerts</div>
         <div class="value">{fmt_int(dataset_summary['alarm_count'])}</div>
       </div>
     </div>
@@ -5140,13 +5141,13 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             </div>
           </div>
           <div class="metric-list">
-            <div class="metric-box"><div class="k">Avg Quality Score</div><div class="v">{fmt_float(dataset_summary['averages']['megqc_score'], 1)}</div></div>
-            <div class="metric-box"><div class="k">Avg Bad Channels</div><div class="v">{fmt_float(dataset_summary['averages']['bad_channels'], 1)}</div></div>
-            <div class="metric-box"><div class="k">Avg Bad Segments</div><div class="v">{fmt_float(dataset_summary['averages']['bad_segments'], 1)}</div></div>
-            <div class="metric-box"><div class="k">Avg Coreg Mean</div><div class="v">{fmt_float(dataset_summary['averages']['coreg_mean_mm'], 2, ' mm')}</div></div>
-            <div class="metric-box"><div class="k">Avg Coreg Max</div><div class="v">{fmt_float(dataset_summary['averages']['coreg_max_mm'], 2, ' mm')}</div></div>
-            <div class="metric-box"><div class="k">Avg Epoch Reject</div><div class="v">{fmt_float((dataset_summary['averages']['epoch_reject_rate'] * 100) if dataset_summary['averages']['epoch_reject_rate'] is not None else None, 1, '%')}</div></div>
-            <div class="metric-box"><div class="k">Total Alarms</div><div class="v">{fmt_int(dataset_summary['alarm_count'])}</div></div>
+            <div class="metric-box"><div class="k">Mean QC score</div><div class="v">{fmt_float(dataset_summary['averages']['megqc_score'], 1)}</div></div>
+            <div class="metric-box"><div class="k">Mean bad-channel count</div><div class="v">{fmt_float(dataset_summary['averages']['bad_channels'], 1)}</div></div>
+            <div class="metric-box"><div class="k">Mean bad-segment count</div><div class="v">{fmt_float(dataset_summary['averages']['bad_segments'], 1)}</div></div>
+            <div class="metric-box"><div class="k">Mean coregistration distance</div><div class="v">{fmt_float(dataset_summary['averages']['coreg_mean_mm'], 2, ' mm')}</div></div>
+            <div class="metric-box"><div class="k">Maximum coregistration distance</div><div class="v">{fmt_float(dataset_summary['averages']['coreg_max_mm'], 2, ' mm')}</div></div>
+            <div class="metric-box"><div class="k">Mean epoch rejection rate</div><div class="v">{fmt_float((dataset_summary['averages']['epoch_reject_rate'] * 100) if dataset_summary['averages']['epoch_reject_rate'] is not None else None, 1, '%')}</div></div>
+            <div class="metric-box"><div class="k">Total QC alerts</div><div class="v">{fmt_int(dataset_summary['alarm_count'])}</div></div>
           </div>
         </div>
         <div class="panel">
@@ -5190,8 +5191,8 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
         <div class="panel-kicker">Priority Queue</div>
         <div class="panel-title-row">
           <div class="panel-title-group">
-            <h3>Highest Priority Subjects</h3>
-            <div class="panel-subtitle">Subjects with the heaviest alarm burden and highest review priority.</div>
+            <h3>Subjects Prioritized for Review</h3>
+            <div class="panel-subtitle">Subjects with the highest number or severity of QC alerts.</div>
           </div>
         </div>
         <div class="top-subject-list">
@@ -5206,7 +5207,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
           <div class="panel-kicker">Thresholds</div>
           <div class="panel-title-row">
             <div class="panel-title-group">
-              <h3>Threshold Watchlist</h3>
+              <h3>Threshold Exceedance Summary</h3>
               <div class="panel-subtitle">Counts of subjects breaching the current static QC thresholds.</div>
             </div>
           </div>
@@ -5218,15 +5219,15 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
           <div class="panel-kicker">Rulebook</div>
           <div class="panel-title-row">
             <div class="panel-title-group">
-              <h3>QC Rules</h3>
+              <h3>Static QC Rule Summary</h3>
               <div class="panel-subtitle">How the static report derives Passed, Warning, Failed, and completion state.</div>
             </div>
           </div>
           <div class="rule-list">
-            <div class="rule-item"><strong>Passed</strong><div class="small">No alarms under the current static thresholds.</div></div>
-            <div class="rule-item"><strong>Warning</strong><div class="small">1-2 alarms and no danger-level alarm.</div></div>
-            <div class="rule-item"><strong>Failed</strong><div class="small">3 or more alarms, or at least one danger-level alarm such as a coregistration threshold breach.</div></div>
-            <div class="rule-item"><strong>Normative QC Score</strong><div class="small">0-100, higher is better. Files below the processing minimum are skipped downstream; files below the warning threshold remain visible and are flagged.</div></div>
+            <div class="rule-item"><strong>Passed</strong><div class="small">No QC alerts under the current static thresholds.</div></div>
+            <div class="rule-item"><strong>Warning</strong><div class="small">1-2 QC alerts and no danger-level alert.</div></div>
+            <div class="rule-item"><strong>Failed</strong><div class="small">3 or more QC alerts, or at least one danger-level alert such as a coregistration threshold breach.</div></div>
+            <div class="rule-item"><strong>Normative Reference QC Score</strong><div class="small">0-100, higher is better. Files below the processing minimum are skipped downstream; files below the warning threshold remain visible and are flagged.</div></div>
             <div class="rule-item"><strong>Step Completion</strong><div class="small">Completion is presence-based. A step counts as complete when its expected report outputs exist, not when it necessarily passes QC.</div></div>
             <div class="rule-item"><strong>Adjust Thresholds</strong><div class="small">Regenerate the static report with CLI flags such as <code>--bad_channel_threshold</code>, <code>--bad_segment_threshold</code>, <code>--coreg_mean_threshold</code>, <code>--coreg_max_threshold</code>, and <code>--epoch_reject_rate_threshold</code>.</div></div>
           </div>
@@ -5235,14 +5236,14 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
     </div>
 
     <div class="section">
-      <h2>High-Priority Alarms</h2>
+      <h2>High-Priority QC Alerts</h2>
       <div class="panel">
         <div class="toolbar" style="margin-top:0">
-          <input id="alarmSearch" type="text" placeholder="Search alarms" oninput="filterAlarmRows('alarmSearch', 'alarmBoard')">
+          <input id="alarmSearch" type="text" placeholder="Search QC alerts" oninput="filterAlarmRows('alarmSearch', 'alarmBoard')">
         </div>
-        <div class="table-count" id="alarmCountInfo" style="margin-bottom:10px">Showing 0 of 0 alarms</div>
+        <div class="table-count" id="alarmCountInfo" style="margin-bottom:10px">Showing 0 of 0 QC alerts</div>
         <div id="alarmBoard" class="alarm-list">
-          {''.join(alarm_rows) or '<div class="small">No alarms found across the dataset.</div>'}
+          {''.join(alarm_rows) or '<div class="small">No QC alerts found across the dataset.</div>'}
         </div>
       </div>
     </div>
@@ -5263,14 +5264,14 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <tr>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="subject" onclick="setSubjectSort('subject')"><span>Subject</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="status" onclick="setSubjectSort('status')"><span>Status</span><span class="sort-indicator">↕</span></button></th>
-              <th class="sortable"><button type="button" class="sort-header" data-sort-key="quality_score" onclick="setSubjectSort('quality_score')"><span>Quality Score</span><span class="sort-indicator">↕</span></button></th>
-              <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarm_count" onclick="setSubjectSort('alarm_count')"><span>Alarms</span><span class="sort-indicator">↕</span></button></th>
-              <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_channels" onclick="setSubjectSort('bad_channels')"><span>Bad Channels</span><span class="sort-indicator">↕</span></button></th>
-              <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_segments" onclick="setSubjectSort('bad_segments')"><span>Bad Segments</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="quality_score" onclick="setSubjectSort('quality_score')"><span>QC Score</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarm_count" onclick="setSubjectSort('alarm_count')"><span>QC alerts</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_channels" onclick="setSubjectSort('bad_channels')"><span>Bad-channel count</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_segments" onclick="setSubjectSort('bad_segments')"><span>Bad-segment count</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="marked_ica" onclick="setSubjectSort('marked_ica')"><span>Marked ICA</span><span class="sort-indicator">↕</span></button></th>
-              <th class="sortable"><button type="button" class="sort-header" data-sort-key="coreg_mean" onclick="setSubjectSort('coreg_mean')"><span>Coreg Mean</span><span class="sort-indicator">↕</span></button></th>
-              <th class="sortable"><button type="button" class="sort-header" data-sort-key="coreg_max" onclick="setSubjectSort('coreg_max')"><span>Coreg Max</span><span class="sort-indicator">↕</span></button></th>
-              <th class="sortable"><button type="button" class="sort-header" data-sort-key="epoch_reject" onclick="setSubjectSort('epoch_reject')"><span>Epoch Reject Rate</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="coreg_mean" onclick="setSubjectSort('coreg_mean')"><span>Mean coregistration distance</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="coreg_max" onclick="setSubjectSort('coreg_max')"><span>Maximum coregistration distance</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="epoch_reject" onclick="setSubjectSort('epoch_reject')"><span>Epoch rejection rate</span><span class="sort-indicator">↕</span></button></th>
               <th>Step Snapshot</th>
             </tr>
           </thead>
@@ -5313,7 +5314,7 @@ def build_alarms_html(subject_summaries: list[dict[str, Any]], output_root: Path
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MEGFlow Alarm Board</title>
+  <title>MEGFlow QC Alert Board</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <link rel="stylesheet" href="assets/report.css">
   <script src="assets/report.js"></script>
@@ -5322,15 +5323,15 @@ def build_alarms_html(subject_summaries: list[dict[str, Any]], output_root: Path
   <div class="container">
     <a class="back-link" href="index.html">&larr; Back to dataset summary</a>
     <div class="hero">
-      <h1>Alarm Board</h1>
-      <p>Cross-subject static alarm board for fast triage and prioritization.</p>
+      <h1>QC Alert Board</h1>
+      <p>Cross-subject static QC alert board for fast triage and prioritization.</p>
       <div class="toolbar">
         <input id="alarmSearch" type="text" placeholder="Search subject, category, or message" oninput="filterAlarmRows('alarmSearch', 'alarmList')">
       </div>
     </div>
     <div class="panel">
       <div id="alarmList" class="alarm-list">
-        {''.join(rows) or '<div class="small">No alarms. All subjects passed the static checks.</div>'}
+        {''.join(rows) or '<div class="small">No QC alerts. All subjects passed the static checks.</div>'}
       </div>
     </div>
     <div class="footer">

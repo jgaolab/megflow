@@ -66,7 +66,7 @@ _RUN_DETAIL_LABELS: dict[str, str] = {
     "anatomy_preprocess_method": "Anatomy method",
     "dataset_format": "Format",
     "covar_type": "Covariance",
-    "src_type": "Source imaging",
+    "src_type": "Source localization",
     "is_bids": "BIDS",
     "megqc_enabled": "Normative QC scoring",
     "megqc_min_score": "QC processing minimum",
@@ -104,9 +104,9 @@ _RUN_MODE_LABELS: dict[str, str] = {
 }
 
 _STATUS_LABELS: dict[str, str] = {
-    "done": "All Done",
-    "partial": "Some Done",
-    "missing": "All Failed",
+    "done": "Complete",
+    "partial": "Partially complete",
+    "missing": "Missing expected outputs",
 }
 
 
@@ -319,7 +319,7 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
         nodes.append(
             {
                 "key": "basic_preproc",
-                "label": "Basic preproc",
+                "label": "Basic preprocessing",
                 "lane": "meg",
                 "plan": "run",
             }
@@ -340,7 +340,7 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
             nodes.append({"key": "covariance", "label": "Covariance", "lane": "meg", "plan": "run"})
             nodes.append({"key": "coregistration", "label": "Coregistration", "lane": "meg", "plan": "run"})
             nodes.append({"key": "headmodel", "label": "Head model", "lane": "meg", "plan": "run"})
-            nodes.append({"key": "source", "label": "Source imaging", "lane": "meg", "plan": "run"})
+            nodes.append({"key": "source", "label": "Source localization", "lane": "meg", "plan": "run"})
 
     pl_raw = manifest.get("pipeline_steps_raw")
     if manifest.get("report_only") and pl_raw:
@@ -447,7 +447,7 @@ def _status_class(status: str) -> str:
 
 
 def _status_label(status: str) -> str:
-    return _STATUS_LABELS.get(status, "All Failed")
+    return _STATUS_LABELS.get(status, "Missing expected outputs")
 
 
 def _run_mode_label(value: Any) -> str:
@@ -847,9 +847,9 @@ def render_workflow_dataset_html(ctx: dict[str, Any], subject_summaries: list[di
     <div class="info-note workflow-footnote">{html.escape(ctx.get("footnote", ""))}</div>
     <div class="workflow-svg-wrap">{svg}</div>
     <div class="workflow-legend">
-      <span class="wf-legend wf-done">All Done</span>
-      <span class="wf-legend wf-partial">Some Done</span>
-      <span class="wf-legend wf-missing">All Failed</span>
+      <span class="wf-legend wf-done">Complete</span>
+      <span class="wf-legend wf-partial">Partially complete</span>
+      <span class="wf-legend wf-missing">Missing expected outputs</span>
     </div>
     <div class="workflow-link-row">
       {manifest_hint}

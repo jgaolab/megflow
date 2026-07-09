@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Self-contained FIF loading and graph construction for DeepReject inference."""
+"""Self-contained FIF loading and input construction for MEGFlow inference."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -83,6 +83,31 @@ def meg_amplitude_scale_per_channel(raw: Any, meg_scale_mag: float, meg_scale_gr
     return np.asarray(scales, dtype=np.float64)
 
 
+def _apply_optional_raw_filter_resample(
+    raw: Any,
+    *,
+    filter_l_freq: Optional[float] = None,
+    filter_h_freq: Optional[float] = None,
+    resample_sfreq: Optional[float] = None,
+) -> Any:
+    l_freq = None if filter_l_freq is None or float(filter_l_freq) <= 0 else float(filter_l_freq)
+    h_freq = None if filter_h_freq is None or float(filter_h_freq) <= 0 else float(filter_h_freq)
+    target = None if resample_sfreq is None or float(resample_sfreq) <= 0 else float(resample_sfreq)
+    if l_freq is not None or h_freq is not None:
+        raw.filter(l_freq=l_freq, h_freq=h_freq, picks="meg", verbose=False)
+    if target is not None:
+        if h_freq is not None and h_freq >= 0.5 * target:
+            raise ValueError(f"filter_h_freq={h_freq} must be below Nyquist for resample_sfreq={target}")
+        raw.resample(target, npad="auto", verbose=False)
+    return raw
+
+
+def sensor_type_from_scale(scale: np.ndarray) -> np.ndarray:
+    """Return 1=mag, 2=grad, matching BadChnNet training caches."""
+    s = np.asarray(scale, dtype=np.float32).reshape(-1)
+    return np.where(s >= 1e14, 1, 2).astype(np.int64)
+
+
 def build_edge_index_knn(pos: np.ndarray, k: int = 6) -> np.ndarray:
     try:
         from sklearn.neighbors import NearestNeighbors
@@ -112,7 +137,7 @@ def _load_recording_epochs_from_raw(
     meg_scale_mag: float,
     meg_scale_grad: float,
     pick_exclude_marked_bads: bool,
-) -> Tuple[List[np.ndarray], np.ndarray, float, np.ndarray, np.ndarray, np.ndarray, List[str], np.ndarray]:
+) -> Tuple[List[np.ndarray], np.ndarray, float, np.ndarray, np.ndarray, np.ndarray, List[str], np.ndarray, np.ndarray]:
     import mne
 
     if duration_sec <= 0:
@@ -121,7 +146,8 @@ def _load_recording_epochs_from_raw(
     if len(picks) == 0:
         raise RuntimeError("fif 中未找到 MEG 通道")
 
-    ch_names = [raw.ch_names[int(i)] for i in picks]
+    raw = raw.copy().pick(picks)
+    ch_names = list(raw.ch_names)
     y_bad_channel = np.asarray([1 if nm in bad_name_set else 0 for nm in ch_names], dtype=np.int64)
     if pick_exclude_marked_bads:
         mask_names = set(bad_name_set)
@@ -132,17 +158,17 @@ def _load_recording_epochs_from_raw(
     x_raw_channel_scale = meg_amplitude_scale_per_channel(raw, meg_scale_mag, meg_scale_grad)
 
     sfreq = float(raw.info["sfreq"])
-    n_samples_per_window = int(round(float(duration_sec) * sfreq))
-    if n_samples_per_window <= 0:
-        raise ValueError("duration_sec 太小，窗口采样点数为 0")
-    data = raw.get_data(picks=picks, reject_by_annotation="omit")
-    n_windows = int(data.shape[1] // n_samples_per_window)
-    window_signals: List[np.ndarray] = []
-    for i in range(n_windows):
-        s = i * n_samples_per_window
-        e = s + n_samples_per_window
-        window_signals.append(data[:, s:e].astype(np.float32, copy=True))
-    window_labels = np.zeros(n_windows, dtype=np.int64)
+    epochs = mne.make_fixed_length_epochs(
+        raw,
+        duration=float(duration_sec),
+        overlap=0.0,
+        reject_by_annotation=False,
+        preload=True,
+        verbose=False,
+    )
+    window_array = epochs.get_data().astype(np.float32, copy=False)
+    window_signals = [window_array[i] for i in range(int(window_array.shape[0]))]
+    window_labels = np.zeros(len(window_signals), dtype=np.int64)
     return (
         window_signals,
         window_labels,
@@ -152,6 +178,7 @@ def _load_recording_epochs_from_raw(
         y_bad_channel,
         ch_names,
         node_valid,
+        window_array,
     )
 
 
@@ -164,6 +191,9 @@ def load_single_fif_record(
     meg_scale_grad: float,
     window_duration_sec: float,
     pick_exclude_marked_bads: bool = False,
+    filter_l_freq: Optional[float] = None,
+    filter_h_freq: Optional[float] = None,
+    resample_sfreq: Optional[float] = None,
 ) -> Dict[str, Any]:
     import mne
 
@@ -172,6 +202,12 @@ def load_single_fif_record(
     if pick_exclude_marked_bads:
         bad_chn = resolve_bad_channels_path(fif_path, annot_root, category, dataset)
     raw = mne.io.read_raw_fif(fif_path, preload=True, verbose=False)
+    _apply_optional_raw_filter_resample(
+        raw,
+        filter_l_freq=filter_l_freq,
+        filter_h_freq=filter_h_freq,
+        resample_sfreq=resample_sfreq,
+    )
     bad_name_set: Set[str] = set()
     if bad_chn is not None and bad_chn.exists():
         bad_name_set = {n for n in load_bad_channel_names_from_txt(bad_chn) if n in raw.ch_names}
@@ -184,6 +220,7 @@ def load_single_fif_record(
         y_bad_channel,
         ch_names,
         node_valid,
+        window_array,
     ) = _load_recording_epochs_from_raw(
         raw,
         bad_name_set=bad_name_set,
@@ -205,6 +242,7 @@ def load_single_fif_record(
         "y_bad_channel": y_bad_channel,
         "ch_names": ch_names,
         "node_valid": node_valid,
+        "window_array": window_array,
         "dataset": str(dataset) if dataset else "single",
         "category": str(category) if category else "single",
         "pre_pick_auto_bad_channel_names": [],
@@ -226,3 +264,32 @@ def build_torch_data_list(record: Dict[str, Any], edge_k: int = 6) -> List[Any]:
         y_bad_channel=record["y_bad_channel"],
         node_valid=record.get("node_valid"),
     )
+
+
+def build_badchnnet_record(record: Dict[str, Any]) -> Dict[str, Any]:
+    """Build V11/BadChnNet tensor input from a loaded recording."""
+    window_array = record.get("window_array")
+    if window_array is not None:
+        x_raw = np.asarray(window_array, dtype=np.float32)
+    else:
+        window_signals = record.get("window_signals") or []
+        if not window_signals:
+            raise RuntimeError("recording has no windows")
+        x_raw = np.stack(window_signals, axis=0).astype(np.float32, copy=False)
+    if x_raw.size == 0:
+        raise RuntimeError("recording has no windows")
+    scale = np.asarray(record["x_raw_channel_scale"], dtype=np.float32).reshape(1, -1, 1)
+    x_scaled = np.nan_to_num(x_raw * scale, nan=0.0, posinf=0.0, neginf=0.0)
+    channel_pos = np.asarray(record["channel_pos"], dtype=np.float32)
+    if channel_pos.ndim == 1:
+        channel_pos = channel_pos.reshape(-1, 3)
+    if channel_pos.shape[1] < 3:
+        pad = np.zeros((channel_pos.shape[0], 3 - channel_pos.shape[1]), dtype=np.float32)
+        channel_pos = np.concatenate([channel_pos, pad], axis=1)
+    return {
+        "x": x_scaled,
+        "channel_pos": channel_pos[:, :3].astype(np.float32, copy=False),
+        "sensor_type": sensor_type_from_scale(record["x_raw_channel_scale"]),
+        "ch_names": list(record.get("ch_names") or []),
+        "sfreq": float(record.get("sfreq", 0.0)),
+    }

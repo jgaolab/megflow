@@ -241,7 +241,7 @@ def score_file(args: argparse.Namespace) -> Path:
         draw_reference_position_plot(
             detail,
             figure_path,
-            title=f"MEG Quality Score: {score:.1f} / 100" if score is not None else "MEG Quality Score: unavailable",
+            title=f"Normative Reference MEG QC score: {score:.1f} / 100" if score is not None else "Normative Reference MEG QC score: unavailable",
             subtitle=f"Model {args.model}  ·  Reference scope: {args.reference_scope}  ·  Category: {category}",
         )
 

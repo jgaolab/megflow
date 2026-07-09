@@ -313,7 +313,7 @@ config snapshot.
 For a directory that contains many independent MEG datasets, use **`--cohort`**.
 MEGFlow treats each immediate child directory as one dataset and runs the same
 native dataset-tuple DAG used by single-dataset runs. Cohort mode isolates each
-dataset's outputs, then builds a cohort-level static report that links back to
+dataset's outputs, then builds a corpus-level static report that links back to
 each dataset report. Nextflow shows the real process tasks for all datasets in
 one run.
 In cohort mode, FreeSurfer/DeepPrep outputs are also isolated by dataset under
@@ -337,7 +337,7 @@ Outputs are organized as:
 
 - `/output/datasets/<dataset_name>/static_html_report/index.html` for the existing dataset-level report.
 - `/smri/<dataset_name>/` for that dataset's FreeSurfer/DeepPrep subject outputs when `--fs_subjects_dir /smri` is used.
-- `/output/cohort_static_html_report/index.html` for the cross-dataset cohort dashboard.
+- `/output/corpus_static_html_report/index.html` for the cross-dataset corpus dashboard.
 
 For `--steps all` and anatomy-enabled modes, each dataset's T1 input defaults to
 the same child dataset directory as the MEG input. If you pass `--t1_dir` and it
@@ -425,7 +425,7 @@ docker run --rm -it \
 | `-o`, `--output` | Specify the output directory (including report results) |
 | `-s`, `--steps` | **Nextflow (`megflow.nf`):** sets `params.steps` (e.g. `all`, `meg_all`, `anatomy`, `report`). With **Docker**, pass this **after the image name**; see [Using pipeline steps with Docker](#using-pipeline-steps-with-docker). Same semantics as [Pipeline steps](#pipeline-steps). |
 | `-r`, `--view-report` | Run Streamlit to view the report (does not run Nextflow) |
-| `--cohort` | Treat the input directory as a collection of datasets, run each child through the native dataset tuple DAG, and generate a cohort-level static report |
+| `--cohort` | Treat the input directory as a collection of datasets, run each child through the native dataset tuple DAG, and generate a corpus-level static report |
 | `--static_task_log_mode` | Static report task log bundling mode: `all-command-log` (default), `failed`, or `none` |
 | `--static_artifact_overview_duration` | Seconds represented by the single Artifact Review overview plot in the static report; default `200.0` |
 | `--fs_license_file` | Specify the FreeSurfer license file path |
@@ -461,7 +461,7 @@ For MEGFlow, the default **`steps`** is **`meg_all`** (MEG only, using existing 
 
 MEGFlow generates interactive quality control reports via Streamlit.
 
-For cohort outputs, pass the cohort output root with `-o`. The Streamlit viewer
+For cohort-mode outputs, pass the output root with `-o`. The Streamlit viewer
 detects `datasets/<dataset_name>/` and adds a dataset selector in the sidebar;
 each page then reads the selected dataset's `preprocessed/` tree.
 

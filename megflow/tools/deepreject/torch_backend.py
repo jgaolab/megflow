@@ -31,6 +31,10 @@ def load_torch_model(
         state = torch.load(Path(ckpt_path), map_location=device, weights_only=True)
     except TypeError:
         state = torch.load(Path(ckpt_path), map_location=device)
+    if isinstance(state, dict) and "model_state" in state:
+        state = state["model_state"]
+    if isinstance(state, dict) and any(str(k).startswith("module.") for k in state.keys()):
+        state = {str(k).removeprefix("module."): v for k, v in state.items()}
     model.load_state_dict(state)
     model.eval()
     return model

@@ -211,8 +211,8 @@ FreeSurfer subject directory, and ``fwd_config``.
 It loads the forward model and noise covariance and then applies the configured
 source methods in ``src_config``.
 
-Static HTML Report
-------------------
+Static Processing and QC Report
+-------------------------------
 
 At the end of each selected MEG milestone, ``generate_static_html_report`` scans
 the existing outputs and writes a portable report under

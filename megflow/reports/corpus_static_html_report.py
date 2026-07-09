@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Build a static cohort-level HTML report from multiple MEGFlow dataset reports.
+Build a static corpus-level HTML report from multiple MEGFlow dataset reports.
 
-The cohort report bundles each dataset-level ``static_html_report`` package so
+The corpus report bundles each dataset-level ``static_html_report`` package so
 the output directory can be downloaded and viewed offline without copying the
 full preprocessing outputs.
 """
@@ -25,14 +25,14 @@ from typing import Any
 
 STEP_DEFS = [
     ("quality_score", "Quality score"),
-    ("basic_preproc", "Basic preproc"),
+    ("basic_preproc", "Basic preprocessing"),
     ("artifacts", "Artifacts"),
     ("ica", "ICA"),
     ("epochs", "Epochs"),
-    ("covariance", "Cov"),
-    ("coregistration", "Coreg"),
-    ("headmodel", "Head"),
-    ("source", "Source"),
+    ("covariance", "Covariance"),
+    ("coregistration", "MEG-MRI coregistration"),
+    ("headmodel", "Head model"),
+    ("source", "Source localization"),
 ]
 
 STATIC_DIR = Path(__file__).resolve().parent / "_static"
@@ -398,12 +398,12 @@ def load_json(path: Path) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
-def discover_dataset_reports(cohort_root: Path, output_dir: Path | None = None) -> list[DatasetReport]:
+def discover_dataset_reports(corpus_root: Path, output_dir: Path | None = None) -> list[DatasetReport]:
     reports: list[DatasetReport] = []
-    cohort_root = cohort_root.resolve()
+    corpus_root = corpus_root.resolve()
     output_dir_resolved = output_dir.resolve() if output_dir else None
 
-    for summary_path in sorted(cohort_root.rglob("static_html_report/data/dataset_summary.json")):
+    for summary_path in sorted(corpus_root.rglob("static_html_report/data/dataset_summary.json")):
         if output_dir_resolved and output_dir_resolved in summary_path.resolve().parents:
             continue
         static_report_dir = summary_path.parents[1]
@@ -427,10 +427,10 @@ def discover_dataset_reports(cohort_root: Path, output_dir: Path | None = None) 
 
 
 def bundle_dataset_reports(reports: list[DatasetReport], output_dir: Path) -> dict[Path, str]:
-    """Copy dataset-level static reports into the cohort package.
+    """Copy dataset-level static reports into the corpus package.
 
     Returns a map from source dataset summary path to the bundled index.html path
-    relative to the cohort output directory.
+    relative to the corpus output directory.
     """
     bundled_links: dict[Path, str] = {}
     datasets_dir = ensure_dir(output_dir / "datasets")
@@ -445,7 +445,7 @@ def bundle_dataset_reports(reports: list[DatasetReport], output_dir: Path) -> di
             shutil.rmtree(dest_static_dir)
         ensure_dir(dest_static_dir.parent)
         shutil.copytree(report.static_report_dir, dest_static_dir)
-        inject_cohort_back_links(dest_static_dir, output_dir / "index.html", report.name)
+        inject_corpus_back_links(dest_static_dir, output_dir / "index.html", report.name)
         bundled_links[report.summary_path] = os.path.relpath(dest_static_dir / "index.html", output_dir)
 
     return bundled_links
@@ -457,8 +457,8 @@ def write_assets(output_dir: Path) -> None:
         shutil.copy2(FAVICON_PATH, assets_dir / "favicon.png")
 
 
-def inject_cohort_back_links(static_report_dir: Path, cohort_index: Path, dataset_name: str) -> None:
-    marker = "<!-- megflow-cohort-back-link -->"
+def inject_corpus_back_links(static_report_dir: Path, corpus_index: Path, dataset_name: str) -> None:
+    marker = "<!-- megflow-corpus-back-link -->"
     for html_path in sorted(static_report_dir.rglob("*.html")):
         try:
             content = html_path.read_text(encoding="utf-8")
@@ -467,11 +467,11 @@ def inject_cohort_back_links(static_report_dir: Path, cohort_index: Path, datase
         if marker in content or "<body" not in content:
             continue
 
-        rel_cohort_index = os.path.relpath(cohort_index, html_path.parent)
+        rel_corpus_index = os.path.relpath(corpus_index, html_path.parent)
         link_html = f"""
 {marker}
 <div style="position:sticky;top:12px;z-index:9999;width:min(1500px,calc(100% - 48px));margin:12px auto 0;display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid #dbe4ee;border-radius:14px;background:rgba(255,255,255,.94);box-shadow:0 10px 28px rgba(15,23,42,.08);font-family:Segoe UI,PingFang SC,Microsoft YaHei,sans-serif;font-size:14px;backdrop-filter:blur(8px);">
-  <a href="{html.escape(rel_cohort_index)}" style="color:#1f4acc;text-decoration:none;font-weight:800;">&larr; Cohort overview</a>
+  <a href="{html.escape(rel_corpus_index)}" style="color:#1f4acc;text-decoration:none;font-weight:800;">&larr; Corpus overview</a>
   <span style="color:#667085;">{html.escape(dataset_name)}</span>
 </div>
 """
@@ -479,9 +479,9 @@ def inject_cohort_back_links(static_report_dir: Path, cohort_index: Path, datase
         html_path.write_text(updated, encoding="utf-8")
 
 
-def build_cohort_summary(
+def build_corpus_summary(
     reports: list[DatasetReport],
-    cohort_root: Path,
+    corpus_root: Path,
     output_dir: Path,
     bundled_links: dict[Path, str],
 ) -> dict[str, Any]:
@@ -562,7 +562,7 @@ def build_cohort_summary(
 
     return {
         "generated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-        "cohort_root": str(cohort_root),
+        "corpus_root": str(corpus_root),
         "dataset_count": len(reports),
         "total_subjects": total_subjects,
         "pass_count": pass_count,
@@ -583,7 +583,7 @@ def build_cohort_summary(
 
 def write_data_files(summary: dict[str, Any], output_dir: Path) -> None:
     data_dir = ensure_dir(output_dir / "data")
-    with open(data_dir / "cohort_summary.json", "w", encoding="utf-8") as f:
+    with open(data_dir / "corpus_summary.json", "w", encoding="utf-8") as f:
         json.dump(summary, f, ensure_ascii=False, indent=2)
 
     with open(data_dir / "datasets.csv", "w", newline="", encoding="utf-8") as f:
@@ -703,17 +703,17 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>MEGFlow Cohort Static Report</title>
+  <title>MEGFlow Corpus Static Report</title>
   <link rel="icon" type="image/png" href="assets/favicon.png">
   <style>{REPORT_CSS}</style>
 </head>
 <body>
   <div class="container">
     <section class="hero">
-      <div class="eyebrow">MEGFlow Cohort Report</div>
-      <h1>Cohort-level MEG preprocessing overview</h1>
-      <p>Aggregated static dashboard across multiple bundled MEGFlow dataset reports.</p>
-      <p class="mono">Cohort root: {html_text(summary['cohort_root'])}</p>
+      <div class="eyebrow">MEGFlow Corpus Report</div>
+      <h1>Corpus-Level MEG Processing and QC Summary</h1>
+      <p>Aggregated static report across multiple bundled MEGFlow dataset-level reports.</p>
+      <p class="mono">Corpus root: {html_text(summary['corpus_root'])}</p>
       <div class="toolbar">
         <input id="datasetSearch" type="text" placeholder="Search dataset or path" oninput="filterDatasets()">
         <select id="datasetStatus" onchange="filterDatasets()">
@@ -722,7 +722,7 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
           <option value="warn">Warning</option>
           <option value="fail">Failed</option>
         </select>
-        <a href="data/cohort_summary.json" target="_blank">Cohort JSON</a>
+        <a href="data/corpus_summary.json" target="_blank">Corpus JSON</a>
         <a href="data/datasets.csv" target="_blank">Datasets CSV</a>
       </div>
     </section>
@@ -732,8 +732,8 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
       <div class="panel kpi"><div class="label">Subjects</div><div class="value">{fmt_int(summary['total_subjects'])}</div></div>
       <div class="panel kpi"><div class="label">Passed</div><div class="value">{fmt_int(summary['pass_count'])}</div></div>
       <div class="panel kpi"><div class="label">Warning / Failed</div><div class="value">{fmt_int(summary['warn_count'])} / {fmt_int(summary['fail_count'])}</div></div>
-      <div class="panel kpi"><div class="label">Alarms</div><div class="value">{fmt_int(summary['alarm_count'])}</div></div>
-      <div class="panel kpi"><div class="label">Avg Normative QC</div><div class="value">{fmt_float((summary.get('quality_score') or {}).get('avg_score'), 1)}</div></div>
+      <div class="panel kpi"><div class="label">QC alerts</div><div class="value">{fmt_int(summary['alarm_count'])}</div></div>
+      <div class="panel kpi"><div class="label">Mean QC score</div><div class="value">{fmt_float((summary.get('quality_score') or {}).get('avg_score'), 1)}</div></div>
       <div class="panel kpi"><div class="label">QC Warnings</div><div class="value">{fmt_int((summary.get('quality_score') or {}).get('warning_count'))}</div></div>
     </section>
 
@@ -755,12 +755,12 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="passed" onclick="setDatasetSort('passed')"><span>Passed</span><span class="sort-indicator">↕</span></button></th>
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="warning" onclick="setDatasetSort('warning')"><span>Warning</span><span class="sort-indicator">↕</span></button></th>
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="failed" onclick="setDatasetSort('failed')"><span>Failed</span><span class="sort-indicator">↕</span></button></th>
-            <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarms" onclick="setDatasetSort('alarms')"><span>Alarms</span><span class="sort-indicator">↕</span></button></th>
-            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgQc" onclick="setDatasetSort('avgQc')"><span>Avg QC</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarms" onclick="setDatasetSort('alarms')"><span>QC alerts</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgQc" onclick="setDatasetSort('avgQc')"><span>Mean QC score</span><span class="sort-indicator">↕</span></button></th>
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="qcWarnings" onclick="setDatasetSort('qcWarnings')"><span>QC Warnings</span><span class="sort-indicator">↕</span></button></th>
-            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgBadCh" onclick="setDatasetSort('avgBadCh')"><span>Avg Bad Ch</span><span class="sort-indicator">↕</span></button></th>
-            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgBadSeg" onclick="setDatasetSort('avgBadSeg')"><span>Avg Bad Seg</span><span class="sort-indicator">↕</span></button></th>
-            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgCoreg" onclick="setDatasetSort('avgCoreg')"><span>Avg Coreg</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgBadCh" onclick="setDatasetSort('avgBadCh')"><span>Mean bad-channel count</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgBadSeg" onclick="setDatasetSort('avgBadSeg')"><span>Mean bad-segment count</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgCoreg" onclick="setDatasetSort('avgCoreg')"><span>Mean coregistration distance</span><span class="sort-indicator">↕</span></button></th>
             <th>Steps</th>
           </tr>
         </thead>
@@ -769,7 +769,7 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
         </tbody>
       </table>
     </section>
-    <div class="footer">Generated by MEGFlow cohort static report on {html_text(summary['generated_at'])}.</div>
+    <div class="footer">Generated by MEGFlow corpus static report on {html_text(summary['generated_at'])}.</div>
   </div>
   <script>{REPORT_JS}</script>
 </body>
@@ -780,36 +780,38 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description="Generate a cohort-level static HTML report.")
+    parser = argparse.ArgumentParser(description="Generate a corpus-level static HTML report.")
     parser.add_argument(
-        "--cohort_root",
-        required=True,
+        "--corpus_root",
+        default=None,
         help="Directory containing one or more MEGFlow output roots with static_html_report bundles.",
     )
     parser.add_argument(
         "--output_dir",
         default=None,
-        help="Directory to write the portable cohort report package. Defaults to <cohort_root>/cohort_static_html_report.",
+        help="Directory to write the portable corpus report package. Defaults to <corpus_root>/corpus_static_html_report.",
     )
     return parser.parse_args()
 
 
 def main() -> None:
     args = parse_args()
-    cohort_root = Path(args.cohort_root).resolve()
-    output_dir = Path(args.output_dir).resolve() if args.output_dir else cohort_root / "cohort_static_html_report"
-    if output_dir == cohort_root:
-        raise ValueError("--output_dir must be separate from --cohort_root so source dataset reports are not overwritten.")
-    reports = discover_dataset_reports(cohort_root, output_dir)
+    if not args.corpus_root:
+        raise SystemExit("--corpus_root is required")
+    corpus_root = Path(args.corpus_root).resolve()
+    output_dir = Path(args.output_dir).resolve() if args.output_dir else corpus_root / "corpus_static_html_report"
+    if output_dir == corpus_root:
+        raise ValueError("--output_dir must be separate from --corpus_root so source dataset reports are not overwritten.")
+    reports = discover_dataset_reports(corpus_root, output_dir)
     if output_dir.exists():
         shutil.rmtree(output_dir)
     ensure_dir(output_dir)
     write_assets(output_dir)
     bundled_links = bundle_dataset_reports(reports, output_dir)
-    summary = build_cohort_summary(reports, cohort_root, output_dir, bundled_links)
+    summary = build_corpus_summary(reports, corpus_root, output_dir, bundled_links)
     write_data_files(summary, output_dir)
     build_index_html(summary, output_dir)
-    print(f"Cohort static report generated at {output_dir}")
+    print(f"Corpus static report generated at {output_dir}")
 
 
 if __name__ == "__main__":

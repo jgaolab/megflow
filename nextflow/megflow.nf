@@ -165,27 +165,27 @@ String preprocConfigForDataset(def paramsObj, def datasetName) {
     return notchOverride == null ? config : setPreprocNotchFreqs(config, notchOverride)
 }
 
-process generate_cohort_static_html_report {
-    tag "cohort-static-html-report"
+process generate_corpus_static_html_report {
+    tag "corpus-static-html-report"
     cache false
 
     input:
     path dataset_markers
 
     output:
-    path "cohort_static_html_report_done.txt", emit: completion_marker
+    path "corpus_static_html_report_done.txt", emit: completion_marker
 
     script:
-    report_script = "${params.code_dir}/reports/cohort_static_html_report.py"
-    cohort_root = "${params.output_dir}/datasets"
-    report_output_dir = "${params.output_dir}/cohort_static_html_report"
+    report_script = "${params.code_dir}/reports/corpus_static_html_report.py"
+    corpus_root = "${params.output_dir}/datasets"
+    report_output_dir = "${params.output_dir}/corpus_static_html_report"
     """
     set -euo pipefail
     python "${report_script}" \\
-        --cohort_root "${cohort_root}" \\
+        --corpus_root "${corpus_root}" \\
         --output_dir "${report_output_dir}"
 
-    echo "Cohort static HTML report generated at ${report_output_dir}" > cohort_static_html_report_done.txt
+    echo "Corpus static HTML report generated at ${report_output_dir}" > corpus_static_html_report_done.txt
     """
 }
 
@@ -1198,6 +1198,6 @@ workflow {
 
             native_reports = generate_static_html_report(native_report_input_ch)
             if (cohortMode) {
-                generate_cohort_static_html_report(native_reports.dataset_reports.map { dataset_name, output_dir, preproc_dir, marker -> marker }.collect())
+                generate_corpus_static_html_report(native_reports.dataset_reports.map { dataset_name, output_dir, preproc_dir, marker -> marker }.collect())
             }
 }

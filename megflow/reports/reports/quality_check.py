@@ -376,9 +376,9 @@ with st.sidebar:
             help="Flag if no EOG-related components detected or none marked"
         )
 
-    # Bad Channels Check
-    with st.expander("🔴 Bad Channels", expanded=True):
-        check_bad_channels = st.checkbox("Enable Bad Channels Check", value=True)
+    # Bad-channel check
+    with st.expander("Bad-channel count", expanded=True):
+        check_bad_channels = st.checkbox("Enable bad-channel count check", value=True)
         bad_channel_threshold = st.number_input(
             "Maximum allowed bad channels",
             min_value=0,
@@ -388,9 +388,9 @@ with st.sidebar:
             disabled=not check_bad_channels
         )
 
-    # Bad Segments Check
-    with st.expander("📊 Bad Segments", expanded=True):
-        check_bad_segments = st.checkbox("Enable Bad Segments Check", value=True)
+    # Bad-segment check
+    with st.expander("Bad-segment count", expanded=True):
+        check_bad_segments = st.checkbox("Enable bad-segment count check", value=True)
         bad_segment_threshold = st.number_input(
             "Maximum allowed bad segments",
             min_value=0,
@@ -442,7 +442,7 @@ with st.sidebar:
 
     show_mode = st.selectbox(
         "Filter by status:",
-        ["All Subjects", "With Alarms Only", "Passed Only"]
+        ["All Subjects", "With QC Alerts Only", "Passed Only"]
     )
 
     page_size = st.selectbox("Items per page:", [10, 20, 50, 100], index=1)
@@ -453,8 +453,8 @@ with st.sidebar:
     active_checks = []
     if check_ica_ecg: active_checks.append("✓ ICA ECG")
     if check_ica_eog: active_checks.append("✓ ICA EOG")
-    if check_bad_channels: active_checks.append(f"✓ Bad Channels (≤{bad_channel_threshold})")
-    if check_bad_segments: active_checks.append(f"✓ Bad Segments (≤{bad_segment_threshold})")
+    if check_bad_channels: active_checks.append(f"✓ Bad-channel count (≤{bad_channel_threshold})")
+    if check_bad_segments: active_checks.append(f"✓ Bad-segment count (≤{bad_segment_threshold})")
     if check_coregistration: active_checks.append(f"✓ Coregistration (mean≤{coreg_mean_threshold}mm)")
 
     for check in active_checks:
@@ -530,12 +530,12 @@ pass_rate = (total_passed / total_subjects * 100) if total_subjects > 0 else 0
 col1, col2, col3, col4 = st.columns(4)
 col1.metric("Total Subjects", total_subjects)
 col2.metric("✅ Passed", total_passed, delta=None)
-col3.metric("⚠️ With Alarms", total_with_alarms, delta=None)
+col3.metric("With QC alerts", total_with_alarms, delta=None)
 col4.metric("Pass Rate", f"{pass_rate:.1f}%")
 
 # Apply display filter
 filtered_results = results_summary.copy()
-if show_mode == "With Alarms Only":
+if show_mode == "With QC Alerts Only":
     filtered_results = [r for r in filtered_results if r['has_alarms']]
 elif show_mode == "Passed Only":
     filtered_results = [r for r in filtered_results if not r['has_alarms']]
@@ -579,7 +579,7 @@ else:
 
         # Expandable card
         with st.expander(
-                f"{status_icon} **{idx}. {subject}** - {alarm_count} alarm(s)",
+                f"{status_icon} **{idx}. {subject}** - {alarm_count} QC alert(s)",
                 expanded=(alarm_count > 0 and idx <= start_idx + 3)
         ):
             if alarm_count == 0:
@@ -616,8 +616,8 @@ else:
 
             with col2:
                 st.markdown("**Artifacts:**")
-                st.caption(f"Bad Channels: {data['artifacts']['bad_channels']}/{data['artifacts']['total_channels']}")
-                st.caption(f"Bad Segments: {data['artifacts']['bad_segments']}")
+                st.caption(f"Bad-channel count: {data['artifacts']['bad_channels']}/{data['artifacts']['total_channels']}")
+                st.caption(f"Bad-segment count: {data['artifacts']['bad_segments']}")
 
             with col3:
                 st.markdown("**Coregistration:**")
@@ -647,17 +647,17 @@ with col2:
             export_data.append({
                 'Subject': r['subject'],
                 'Status': 'Passed' if r['alarm_count'] == 0 else 'Failed',
-                'Alarm Count': r['alarm_count'],
+                'QC Alert Count': r['alarm_count'],
                 'ICA ECG': '✓' if data['ica']['has_ecg'] else '✗',
                 'ICA EOG': '✓' if data['ica']['has_eog'] else '✗',
                 'ICA Marked': data['ica']['marked_components'],
-                'Bad Channels': data['artifacts']['bad_channels'],
-                'Bad Segments': data['artifacts']['bad_segments'],
-                'Coreg Mean (mm)': f"{data['coregistration']['dist_mean']:.2f}" if data['coregistration'][
+                'Bad-channel count': data['artifacts']['bad_channels'],
+                'Bad-segment count': data['artifacts']['bad_segments'],
+                'Mean coregistration distance (mm)': f"{data['coregistration']['dist_mean']:.2f}" if data['coregistration'][
                     'has_data'] else 'N/A',
-                'Coreg Max (mm)': f"{data['coregistration']['dist_max']:.2f}" if data['coregistration'][
+                'Maximum coregistration distance (mm)': f"{data['coregistration']['dist_max']:.2f}" if data['coregistration'][
                     'has_data'] else 'N/A',
-                'Alarm Details': '; '.join([f"[{cat}] {desc}" for cat, desc in r['alarms']])
+                'QC Alert Details': '; '.join([f"[{cat}] {desc}" for cat, desc in r['alarms']])
             })
 
         df_export = pd.DataFrame(export_data)

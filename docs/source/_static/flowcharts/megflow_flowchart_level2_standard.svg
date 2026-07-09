@@ -1,0 +1,146 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="2600" height="1750" viewBox="0 0 2600 1750">
+<defs>
+  <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+    <path d="M2,2 L10,6 L2,10 z" fill="#405867"/>
+  </marker>
+  <filter id="shadow" x="-8%" y="-8%" width="116%" height="116%">
+    <feDropShadow dx="0" dy="1.5" stdDeviation="1.2" flood-color="#334155" flood-opacity="0.11"/>
+  </filter>
+</defs>
+<style>
+  .title { font-family: Arial, Helvetica, sans-serif; font-weight: 800; fill: #17324a; }
+  .subtitle { font-family: Arial, Helvetica, sans-serif; font-weight: 400; fill: #516170; }
+  .lane { font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 800; letter-spacing: .5px; fill: #17324a; text-transform: uppercase; }
+  .box-title { font-family: Arial, Helvetica, sans-serif; font-weight: 800; fill: #1f2f3a; }
+  .box-text { font-family: Arial, Helvetica, sans-serif; font-weight: 400; fill: #263946; }
+  .legend { font-family: Arial, Helvetica, sans-serif; font-size: 18px; fill: #263946; }
+  .caption { font-family: Arial, Helvetica, sans-serif; font-size: 30px; font-style: italic; fill: #555; }
+</style>
+<rect x="0" y="0" width="2600" height="1750" fill="#f7fafb"/>
+<text x="90" y="68" font-size="42" class="title" text-anchor="start">MEGFlow stages and selectable modules</text>
+<text x="90" y="105" font-size="20" class="subtitle" text-anchor="start">Level 2: standard view with processing lanes and major selectable modules.</text>
+<rect x="1980" y="42" width="46" height="22" rx="5" fill="#d9ecff" stroke="#405867" stroke-width="1.2"/>
+<text x="2040" y="59" font-size="18" class="legend" text-anchor="start">Mandatory / typical core</text>
+<rect x="1980" y="78" width="46" height="22" rx="5" fill="#e4f4ec" stroke="#405867" stroke-width="1.2"/>
+<text x="2040" y="95" font-size="18" class="legend" text-anchor="start">Optional or conditional</text>
+<rect x="1980" y="114" width="46" height="22" rx="5" fill="#fff1c7" stroke="#405867" stroke-width="1.2"/>
+<text x="2040" y="131" font-size="18" class="legend" text-anchor="start">Outputs / reporting</text>
+<rect x="90" y="145" width="760" height="36" rx="18" fill="#cfe5fa" stroke="#405867" stroke-width="1.5" opacity="0.85"/>
+<text x="470.0" y="169" font-size="18" class="lane" text-anchor="middle">MANDATORY / TYPICAL MEG CORE</text>
+<rect x="930" y="145" width="730" height="36" rx="18" fill="#d8efe5" stroke="#405867" stroke-width="1.5" opacity="0.85"/>
+<text x="1295.0" y="169" font-size="18" class="lane" text-anchor="middle">ANATOMY AND HEAD MODEL</text>
+<rect x="1760" y="145" width="720" height="36" rx="18" fill="#d8efe5" stroke="#405867" stroke-width="1.5" opacity="0.85"/>
+<text x="2120.0" y="169" font-size="18" class="lane" text-anchor="middle">SOURCE RECONSTRUCTION</text>
+<rect x="860" y="1325" width="920" height="36" rx="18" fill="#ffe9ad" stroke="#405867" stroke-width="1.5" opacity="0.85"/>
+<text x="1320.0" y="1349" font-size="18" class="lane" text-anchor="middle">OUTPUTS / REPORTING</text>
+<rect x="110" y="220" width="760" height="78" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="250" font-size="17" class="box-title" text-anchor="middle">Inputs and dataset expansion</text>
+<text x="132" y="277" font-size="14" class="box-text" text-anchor="start">Single dataset or cohort root; BIDS or raw MEG;</text>
+<text x="132" y="296" font-size="14" class="box-text" text-anchor="start">subject/session/task/run filters; raw suffix include/exclude</text>
+<rect x="110" y="330" width="760" height="78" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="360" font-size="17" class="box-title" text-anchor="middle">MEG import and indexing</text>
+<text x="132" y="387" font-size="14" class="box-text" text-anchor="start">import_meg_dataset writes imported_meg_data.txt for each recording</text>
+<rect x="110" y="445" width="760" height="92" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="475" font-size="17" class="box-title" text-anchor="middle">Normative Reference MEG QC</text>
+<text x="132" y="502" font-size="14" class="box-text" text-anchor="start">Optional scoring and QC gate; model, vendor/category/scope,</text>
+<text x="132" y="521" font-size="14" class="box-text" text-anchor="start">reference-aligned preprocessing, summary/component/reference plots</text>
+<rect x="110" y="585" width="760" height="94" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="615" font-size="17" class="box-title" text-anchor="middle">Basic continuous preprocessing</text>
+<text x="132" y="642" font-size="14" class="box-text" text-anchor="start">OSL-Ephys chain: optional Maxwell/tSSS, band-pass filter, notch</text>
+<text x="132" y="661" font-size="14" class="box-text" text-anchor="start">filter, resample; dataset-specific overrides</text>
+<rect x="110" y="730" width="760" height="106" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="760" font-size="17" class="box-title" text-anchor="middle">Artifact detection</text>
+<text x="132" y="787" font-size="14" class="box-text" text-anchor="start">DeepReject plus PyPREP, PSD, OSL, and MNE detectors; writes</text>
+<text x="132" y="806" font-size="14" class="box-text" text-anchor="start">bad-channel and bad-segment sidecars; optional artifact images</text>
+<rect x="110" y="890" width="760" height="94" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="920" font-size="17" class="box-title" text-anchor="middle">ICA fitting</text>
+<text x="132" y="947" font-size="14" class="box-text" text-anchor="start">Fits ICA on preprocessed raw; bad annotations excluded from fitting;</text>
+<text x="132" y="966" font-size="14" class="box-text" text-anchor="start">optional explained variance figures</text>
+<rect x="110" y="1025" width="760" height="102" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="1055" font-size="17" class="box-title" text-anchor="middle">ICA component labeling</text>
+<text x="132" y="1082" font-size="14" class="box-text" text-anchor="start">MNE ECG/EOG/muscle scores, MEGNet labels, and rule/template</text>
+<text x="132" y="1101" font-size="14" class="box-text" text-anchor="start">classifiers; writes marked_components.txt and score JSON</text>
+<rect x="110" y="1180" width="760" height="94" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="1210" font-size="17" class="box-title" text-anchor="middle">Apply ICA</text>
+<text x="132" y="1237" font-size="14" class="box-text" text-anchor="start">Applies marked components and preserves bad-channel/bad-segment</text>
+<text x="132" y="1256" font-size="14" class="box-text" text-anchor="start">metadata in cleaned continuous raw</text>
+<polyline points="490.0,298 490.0,330" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="490.0,408 490.0,445" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="490.0,537 490.0,585" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="490.0,679 490.0,730" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="490.0,836 490.0,890" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="490.0,984 490.0,1025" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="490.0,1127 490.0,1180" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="110" y="1315" width="760" height="96" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="490.0" y="1345" font-size="17" class="box-title" text-anchor="middle">Epoch generation</text>
+<text x="132" y="1372" font-size="14" class="box-text" text-anchor="start">Conditional for meg_epochs/meg_all: task events by find_events or</text>
+<text x="132" y="1391" font-size="14" class="box-text" text-anchor="start">BIDS events.tsv, resting fixed windows, reject_by_annotation,</text>
+<text x="132" y="1410" font-size="14" class="box-text" text-anchor="start">optional autoreject/interpolate/drop bads</text>
+<polyline points="490.0,1274 490.0,1315" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="950" y="260" width="690" height="94" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1295.0" y="290" font-size="17" class="box-title" text-anchor="middle">Anatomy inputs</text>
+<text x="972" y="317" font-size="14" class="box-text" text-anchor="start">Existing SUBJECTS_DIR, BIDS T1w import, non-BIDS NIfTI, DICOM</text>
+<text x="972" y="336" font-size="14" class="box-text" text-anchor="start">conversion, or pseudo-MRI from MEG digitization points</text>
+<rect x="950" y="410" width="690" height="100" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1295.0" y="440" font-size="17" class="box-title" text-anchor="middle">Pseudo-MRI option</text>
+<text x="972" y="467" font-size="14" class="box-text" text-anchor="start">mni_icbm152_nlin_sym_09a template, FIF</text>
+<text x="972" y="486" font-size="14" class="box-text" text-anchor="start">digitization/headshape, pseudo T1 NIfTI and metadata</text>
+<rect x="950" y="560" width="690" height="104" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1295.0" y="590" font-size="17" class="box-title" text-anchor="middle">Structural reconstruction</text>
+<text x="972" y="617" font-size="14" class="box-text" text-anchor="start">FreeSurfer recon-all, DeepPrep anatomy-only flow, resume-safe</text>
+<text x="972" y="636" font-size="14" class="box-text" text-anchor="start">FreeSurfer continuation, or reused existing anatomy</text>
+<rect x="950" y="720" width="690" height="100" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1295.0" y="750" font-size="17" class="box-title" text-anchor="middle">Head surface and BEM</text>
+<text x="972" y="777" font-size="14" class="box-text" text-anchor="start">mkheadsurf/seghead, watershed BEM, ico/conductivity settings,</text>
+<text x="972" y="796" font-size="14" class="box-text" text-anchor="start">surface and volume source spaces</text>
+<polyline points="1295.0,354 1295.0,410" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1295.0,510 1295.0,560" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1295.0,664 1295.0,720" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1780" y="560" width="690" height="96" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2125.0" y="590" font-size="17" class="box-title" text-anchor="middle">Noise covariance</text>
+<text x="1802" y="617" font-size="14" class="box-text" text-anchor="start">covar_type=epochs baseline windows or covar_type=raw paired</text>
+<text x="1802" y="636" font-size="14" class="box-text" text-anchor="start">task/raw_covariance_task_id; optional plots</text>
+<rect x="1780" y="705" width="690" height="102" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2125.0" y="735" font-size="17" class="box-title" text-anchor="middle">Coregistration</text>
+<text x="1802" y="762" font-size="14" class="box-text" text-anchor="start">Clean raw plus FreeSurfer subject; fiducials/headshape/HPI,</text>
+<text x="1802" y="781" font-size="14" class="box-text" text-anchor="start">ICP and fine ICP weights, coreg-trans.fif and distance QC</text>
+<rect x="1780" y="860" width="690" height="94" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2125.0" y="890" font-size="17" class="box-title" text-anchor="middle">Forward solution</text>
+<text x="1802" y="917" font-size="14" class="box-text" text-anchor="start">Epoch file, transform, BEM, source space, fwd_epoch_label,</text>
+<text x="1802" y="936" font-size="14" class="box-text" text-anchor="start">MEG-only forward model and head-model figures</text>
+<rect x="1780" y="1005" width="690" height="110" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2125.0" y="1035" font-size="17" class="box-title" text-anchor="middle">Source localization</text>
+<text x="1802" y="1062" font-size="14" class="box-text" text-anchor="start">src_type=epochs or raw; source_methods include</text>
+<text x="1802" y="1081" font-size="14" class="box-text" text-anchor="start">MNE/dSPM/sLORETA/eLORETA and LCMV; STC files and brain figures</text>
+<polyline points="2125.0,656 2125.0,705" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="2125.0,807 2125.0,860" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="2125.0,954 2125.0,1005" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="870,630 950,770" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1640,770 1780,752" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="870,1227 1780,608" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="870,1363 1780,907" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="820" y="1390" width="540" height="120" rx="14" fill="#fff1c7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1090.0" y="1420" font-size="17" class="box-title" text-anchor="middle">Data derivatives</text>
+<text x="842" y="1447" font-size="14" class="box-text" text-anchor="start">preprocessed raw, QC summaries,</text>
+<text x="842" y="1466" font-size="14" class="box-text" text-anchor="start">bad-channel/segment annotations, ICA</text>
+<text x="842" y="1485" font-size="14" class="box-text" text-anchor="start">model/labels, clean raw, epochs, covariance,</text>
+<text x="842" y="1504" font-size="14" class="box-text" text-anchor="start">trans, forward, source outputs</text>
+<rect x="1430" y="1390" width="540" height="120" rx="14" fill="#fff1c7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1700.0" y="1420" font-size="17" class="box-title" text-anchor="middle">Static HTML report</text>
+<text x="1452" y="1447" font-size="14" class="box-text" text-anchor="start">Dataset dashboard, subject/recording pages,</text>
+<text x="1452" y="1466" font-size="14" class="box-text" text-anchor="start">workflow diagram, alarms, QA figures, packaged</text>
+<text x="1452" y="1485" font-size="14" class="box-text" text-anchor="start">sidecars, task logs</text>
+<rect x="2040" y="1390" width="430" height="120" rx="14" fill="#fff1c7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2255.0" y="1420" font-size="17" class="box-title" text-anchor="middle">Interactive and corpus reports</text>
+<text x="2062" y="1447" font-size="14" class="box-text" text-anchor="start">Streamlit review/edit viewer,</text>
+<text x="2062" y="1466" font-size="14" class="box-text" text-anchor="start">report-only regeneration,</text>
+<text x="2062" y="1485" font-size="14" class="box-text" text-anchor="start">cross-dataset corpus dashboard</text>
+<polyline points="490,1411 820,1450" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="2125,1115 1970,1450" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<line x1="1970" y1="1450" x2="2040" y2="1450" stroke="#405867" stroke-width="3" marker-end="url(#arrow)"/>
+<line x1="2040" y1="1450" x2="1970" y2="1450" stroke="#405867" stroke-width="3" marker-end="url(#arrow)"/>
+<rect x="110" y="1575" width="2360" height="78" rx="14" fill="#edf3f7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1290.0" y="1609.5" font-size="18" class="box-title" text-anchor="middle">Workflow infrastructure: Nextflow process DAG, task-level cache/resume, sidecar hash invalidation, trace/report/timeline logs, Docker/Singularity/SIF, local and</text>
+<text x="1290.0" y="1632.5" font-size="18" class="box-title" text-anchor="middle">server/HPC execution, lenient/strict profiles</text>
+<text x="1300.0" y="1688" font-size="30" class="caption" text-anchor="middle">Figure. Standard MEGFlow flowchart summarizing core stages, conditional anatomy/source branches, and report outputs.</text>
+</svg>

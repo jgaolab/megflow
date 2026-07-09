@@ -9,7 +9,7 @@ import re
 
 # Set page configuration
 st.set_page_config(
-    page_title="NextFlow Reports",
+    page_title="Nextflow Reports",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -23,9 +23,9 @@ else:
 
 # Sidebar input for report directory
 nx_file_path = Path(st.sidebar.text_input(
-    "NextFlow Resource Report Directory:",
+    "Nextflow Resource Report Directory:",
     value=str(DEFAULT_NX_REPORT_DIR),
-    help="Enter the path to the directory containing NextFlow report files"
+    help="Enter the path to the directory containing Nextflow report files"
 ))
 
 # Validate directory exists
@@ -104,7 +104,7 @@ reports = [
 ]
 
 # Display reports
-st.title("🔬 NextFlow Execution Reports")
+st.title("Nextflow Execution Reports")
 st.markdown(f"**Report Directory:** `{nx_file_path}`")
 st.markdown("---")
 

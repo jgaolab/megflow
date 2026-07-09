@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Standalone Torch DeepReject inference package."""
+"""Standalone Torch MEGFlow inference package."""
 
 from .runtime import DeepRejectPrediction, DeepRejectPredictor
 

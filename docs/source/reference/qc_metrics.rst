@@ -127,7 +127,7 @@ covariance, coregistration, forward modeling, and source reconstruction. Setting
 scoring fails while MEGQC is enabled, the recording does not pass the score
 gate.
 
-The dataset dashboard includes an interactive Quality Score filter. It can show
+The dataset dashboard includes an interactive QC score filter. It can show
 recordings at or above a temporary cutoff, below a temporary cutoff, or with
 missing scores without rerunning the pipeline.
 
@@ -241,26 +241,26 @@ q05 may be better or unusually low depending on the metric. Always combine the
 ``status``, ``direction``, component score, and interpretation columns when
 reviewing a suspicious recording.
 
-Static Report Alarms
---------------------
+Static Report QC Alerts
+-----------------------
 
 The static report classifies each subject as ``PASS``, ``WARN``, or ``FAIL``
-using simple alarm rules:
+using simple QC alert rules:
 
 .. list-table::
    :header-rows: 1
    :widths: 30 24 46
 
-   * - Alarm
+   * - QC alert
      - Default threshold
      - Severity and meaning
-   * - Bad channels above threshold
+   * - Bad-channel count above threshold
      - ``bad_channel_threshold = 30``
      - Warning. Review sensor quality and detector settings.
-   * - Bad segments above threshold
+   * - Bad-segment count above threshold
      - ``bad_segment_threshold = 50``
      - Warning. Review raw trace plots and bad-segment annotations.
-   * - Quality score below warning threshold
+   * - QC score below warning threshold
      - ``megqc_alarm_score = 70.0`` in Docker configs, configurable
      - Warning. The recording has a low Normative Reference score but may still
        have been processed if it is above ``megqc_min_score``.
@@ -279,7 +279,7 @@ using simple alarm rules:
      - ``coreg_mean_threshold = 5.0`` mm
      - Danger. Usually requires reviewing fiducials, head-shape points, or MRI
        subject matching.
-   * - Max coregistration distance above threshold
+   * - Maximum coregistration distance above threshold
      - ``coreg_max_threshold = 10.0`` mm
      - Danger. Often indicates outlier head-shape points or poor alignment.
    * - Epoch rejection rate above threshold

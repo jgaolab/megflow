@@ -448,8 +448,8 @@ and this score-based gate.
 are flagged in the subject report and dataset dashboard, but they still proceed
 through the pipeline unless they are also below ``megqc_min_score``.
 
-The dataset-level static report includes the Normative QC score column, warning
-counts, and an interactive Quality Score filter so reviewers can temporarily
+The dataset-level static report includes the Normative Reference MEG QC score
+column, warning counts, and an interactive QC score filter so reviewers can temporarily
 show recordings above or below a chosen score without regenerating the report.
 
 Key MEGQC parameters:
@@ -633,7 +633,13 @@ and epoch steps.
 interpolated immediately in the preprocessed raw file. If ``false``, bad
 channels are retained in ``raw.info['bads']`` for later exclusion or handling.
 ``artifact_images_enabled`` controls waveform and overview image generation for
-manual review, and ``meg_vendor`` selects vendor-specific plotting assumptions.
+manual review. It is disabled by default to keep artifact detection lightweight;
+enable it only when fast browser-based artifact image review is needed.
+``artifact_image_n_jobs`` limits the parallel image-rendering workers when
+artifact image generation is enabled; the bundled default is ``8`` rather than
+``-1`` to avoid spawning one plotting process per available CPU core on large
+servers.
+``meg_vendor`` selects vendor-specific plotting assumptions.
 Set ``artifact_config.meg_vendor`` to ``auto`` for cohort runs. MEGFlow then
 infers the plotting vendor from MEG channel names first and raw metadata second,
 using ``elekta``/``neuromag``, ``ctf``, ``kit``, ``4D``/``bti``, and OPM-style
@@ -656,12 +662,21 @@ automatically, so they do not need user-facing configuration.
 
    deepreject:
      enabled: true
-     backend: auto      # auto, torch
      device: cpu        # cpu, cuda, gpu
-     artifact_prob_threshold: 0.9
-     bad_channel_prob_threshold: null
-     artifact_merge_gap_sec: 2.0
-     artifact_min_duration_sec: 0.5
+     fold_workers: 5
+     cache_models: true
+     cpu_threads: 4
+     cpu_interop_threads: 1
+     badsegnet_batch_size: 32
+     badsegnet_hysteresis_high: 0.89
+     badsegnet_hysteresis_low: 0.18
+     badsegnet_merge_gap_sec: 10.0
+     badsegnet_min_duration_sec: 0.0
+     badsegnet_short_keep_threshold: 0.97
+     badchnnet_lambda_lcb: 1.0
+     badchnnet_floor: 0.56
+     badchnnet_z: 3.0
+     badchnnet_min_type_channels: 8
      on_error: warn     # warn or raise
 
 For ICA rule-based labeling, ``ic_label_config.ICA_classify.meg_vendor`` can be

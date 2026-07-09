@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import streamlit as st
 
-st.set_page_config(page_title="MEG Prep Reports", layout="wide", page_icon="_static/favicon.png",)
+st.set_page_config(page_title="MEGFlow Reports", layout="wide", page_icon="_static/favicon.png",)
 
 
 def _discover_cohort_datasets(root: Path):
@@ -24,15 +24,15 @@ cohort_datasets = _discover_cohort_datasets(base_report_path)
 
 if cohort_datasets:
     dataset_names = [path.name for path in cohort_datasets]
-    selected_name = st.sidebar.selectbox("Cohort dataset", dataset_names)
+    selected_name = st.sidebar.selectbox("Corpus dataset", dataset_names)
     selected_path = cohort_datasets[dataset_names.index(selected_name)]
     st.session_state.dataset_report_path = str(selected_path)
     dataset_subjects_dir = base_report_path / "smri" / selected_name
     st.session_state.subjects_dir = str(dataset_subjects_dir if dataset_subjects_dir.is_dir() else subjects_root)
     st.sidebar.caption(f"Dataset output: `{selected_path}`")
-    cohort_index = base_report_path / "cohort_static_html_report" / "index.html"
-    if cohort_index.is_file():
-        st.sidebar.markdown(f"[Open cohort static report]({cohort_index.as_uri()})")
+    corpus_index = base_report_path / "corpus_static_html_report" / "index.html"
+    if corpus_index.is_file():
+        st.sidebar.markdown(f"[Open corpus static report]({corpus_index.as_uri()})")
 else:
     st.session_state.dataset_report_path = str(base_report_path)
     st.session_state.subjects_dir = str(subjects_root)
@@ -49,8 +49,8 @@ coreg_page_3d = st.Page("reports/coregistration.py", title="Coregistration [3D]"
 
 source_page = st.Page("reports/source_imaging.py", title="Source Localization", icon=":material/dashboard:")
 
-nextflow_page = st.Page("reports/nextflow.py", title="NextFlow Resources", icon=":material/dashboard:")
-nextflow_config_page = st.Page("reports/nx_config_online.py", title="NextFlow Configure", icon=":material/dashboard:")
+nextflow_page = st.Page("reports/nextflow.py", title="Nextflow Resources", icon=":material/dashboard:")
+nextflow_config_page = st.Page("reports/nx_config_online.py", title="Nextflow Configure", icon=":material/dashboard:")
 
 artifacts_page = st.Page("reports/artifacts.py", title="Artifacts - QuickCheck", icon=":material/dashboard:")
 
