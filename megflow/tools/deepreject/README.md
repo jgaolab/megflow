@@ -20,6 +20,14 @@ weights/
 - BadSegNet: `high=0.89`, `low=0.18`, `merge_gap_sec=10.0`, `min_duration_sec=0.0`, `short_keep_threshold=0.97`
 - BadChnNet: `lambda_lcb=1.0`, `floor=0.56`, `z=3.0`, `min_type_channels=8`
 
+MEGFlow 的 `artifact_config.deepreject.mode` 支持三档后处理策略：
+
+- `default`: 使用上述 runtime 默认参数。
+- `strict`: 更严格地标记坏段，当前使用 BadSegNet `high=0.85`, `low=0.15`, `merge_gap_sec=10.0`, `short_keep_threshold=0.95`。
+- `lenient`: 更宽容地标记坏段，当前使用 BadSegNet `high=0.99`, `low=0.95`, `merge_gap_sec=0.0`, `short_keep_threshold=1.0`。
+
+MEGFlow 不会根据 OPM 或其它数据类型自动切换 mode。用户可以在全局、dataset 或 recording 级配置中显式选择 mode；如果同时设置低层参数，例如 `badsegnet_hysteresis_high`，低层参数会覆盖 mode preset。
+
 ## 依赖
 
 运行环境需要安装：

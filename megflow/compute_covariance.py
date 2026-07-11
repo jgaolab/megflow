@@ -7,6 +7,8 @@ import matplotlib.pyplot as plt
 from utils import handle_yaml_scientific_notation,set_random_seed,str2bool
 import yaml
 from pathlib import Path
+from epochs import _get_epoch_kwargs, prepare_epoching_raw_and_events
+from epochs_preproc import prepare_analysis_raw
 mne.viz.set_browser_backend('matplotlib')
 set_random_seed(2025)
 
@@ -63,12 +65,25 @@ def visualize_covariance_and_spectra(noise_cov, raw_data, output_dir):
     print(f"Saved covariance and spectra plots to {output_dir}")
 
 
+def prepare_covariance_epochs(raw, events_file, config):
+    """Create baseline epochs with the same Raw/event preparation as epochs.py."""
+    raw, events, _ = prepare_epoching_raw_and_events(
+        raw,
+        config,
+        events_file,
+        preproc_config={'preproc': config.get('analysis_preproc')},
+        preproc_config_name='covariance.analysis_preproc',
+    )
+    return raw, mne.Epochs(raw=raw, events=events, **_get_epoch_kwargs(config))
+
+
 def parse_arguments():
     """
     Parse command line arguments.
     """
     parser = argparse.ArgumentParser(description="Compute and visualize noise covariance matrix.")
     parser.add_argument('--raw_data_file', type=str, required=True, help="Path to raw data file (e.g., .fif file)")
+    parser.add_argument('--events_file', type=str, default="", help="Path to BIDS events.tsv file.")
     parser.add_argument('--output_dir', type=str, required=True,
                         help="Path where the covariance file should be saved")
     parser.add_argument('--visualize', type=str2bool, nargs='?', const=True, default=True,
@@ -133,7 +148,7 @@ def main():
     #         rank: null # Rank used for covariance calculation
     # """
     
-    config = yaml.safe_load(args.config)
+    config = yaml.safe_load(args.config) or {}
     print(config)
 
     # Load baseline data
@@ -141,17 +156,18 @@ def main():
 
     covar_type = args.covar_type
     if covar_type == 'raw':
+        raw, _, _ = prepare_analysis_raw(
+            raw,
+            {'preproc': config.get('analysis_preproc')},
+            config_name='covariance.analysis_preproc',
+        )
         # Estimate noise covariance matrix from a continuous segment of raw data.
         noise_cov = mne.compute_raw_covariance(raw,**config.get("compute_raw_covariance"))
         noise_cov_fn = os.path.join(args.output_dir, 'bl-cov.fif')
         noise_cov.save(noise_cov_fn,overwrite=True)
 
     elif covar_type == 'epochs':
-        # epochs noise covariance
-        events = mne.find_events(raw,**config.get('events'))
-
-        # Create epochs
-        epochs = mne.Epochs(raw=raw, events=events, **config.get('epochs'))
+        raw, epochs = prepare_covariance_epochs(raw, args.events_file, config)
 
         # Step 1: Compute noise covariance
         noise_cov = compute_noise_covariance(epochs, args.output_dir, config)

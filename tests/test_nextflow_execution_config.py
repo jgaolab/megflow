@@ -1,0 +1,148 @@
+import re
+import unittest
+from pathlib import Path
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+PIPELINE = REPO_ROOT / "nextflow" / "megflow.nf"
+SOURCE_CONFIG = REPO_ROOT / "nextflow" / "nextflow.config"
+DOCKER_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_docker.config"
+DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
+MULTI_DATASET_DEMO = REPO_ROOT / "nextflow" / "nextflow_multi_dataset_demo.config"
+OPM_COG_RUNNER = REPO_ROOT / "run_OPM_COG.sh"
+MEGQC_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_megqc.config"
+DATASET_CONFIGS = (
+    REPO_ROOT / "nextflow" / "nextflow_for_holmes.config",
+    MEGQC_CONFIG,
+    REPO_ROOT / "nextflow" / "nextflow_for_opm_cog.config",
+    REPO_ROOT / "nextflow" / "nextflow_for_smn4lang.config",
+)
+LEGACY_DATASET_CONFIGS = (
+    REPO_ROOT / "nextflow" / "nextflow_for_Holmes.config",
+    REPO_ROOT / "nextflow" / "nextflow_for_opm.config",
+)
+
+
+def process_names() -> set[str]:
+    return set(re.findall(r"^process\s+([A-Za-z_]\w*)\s*\{", PIPELINE.read_text(encoding="utf-8"), re.MULTILINE))
+
+
+def process_selectors(config: Path) -> list[str]:
+    text = config.read_text(encoding="utf-8")
+    pattern = re.compile(r"withName:\s*(?:'([^']+)'|\"([^\"]+)\"|([A-Za-z_]\w*))")
+    return [next(value for value in match.groups() if value) for match in pattern.finditer(text)]
+
+
+def available_configs() -> tuple[Path, ...]:
+    return (SOURCE_CONFIG, DOCKER_CONFIG) if DOCKER_CONFIG.is_file() else (SOURCE_CONFIG,)
+
+
+def packaged_docker_config() -> Path:
+    return DOCKER_CONFIG if DOCKER_CONFIG.is_file() else SOURCE_CONFIG
+
+
+def packaged_docker_runner() -> Path:
+    return DOCKER_RUNNER if DOCKER_RUNNER.is_file() else REPO_ROOT / "nextflow" / "run.sh"
+
+
+class NextflowExecutionConfigTests(unittest.TestCase):
+    def test_every_process_selector_matches_current_pipeline(self):
+        names = process_names()
+        self.assertTrue(names)
+        for config in available_configs():
+            unmatched = [selector for selector in process_selectors(config) if not any(re.fullmatch(selector, name) for name in names)]
+            self.assertEqual(unmatched, [], config.name)
+
+    def test_observability_outputs_are_enabled_and_scoped_to_output_dir(self):
+        for config in available_configs():
+            text = config.read_text(encoding="utf-8")
+            self.assertIn('file = "${params.megflow.output_dir}/logs/nextflow.log"', text)
+            self.assertIn('file = "${params.megflow.output_dir}/report.html"', text)
+            self.assertIn('file = "${params.megflow.output_dir}/timeline.html"', text)
+            self.assertIn('file = "${params.megflow.output_dir}/trace.txt"', text)
+            self.assertGreaterEqual(text.count("enabled = true"), 3)
+
+    def test_source_config_has_portable_execution_profiles(self):
+        if not DOCKER_CONFIG.is_file():
+            self.skipTest("the container image packages only its Docker execution config")
+        text = SOURCE_CONFIG.read_text(encoding="utf-8")
+        for profile in ("local", "slurm", "singularity", "lenient", "strict", "debug"):
+            self.assertRegex(text, rf"(?m)^\s{{4}}{profile}\s*\{{")
+        self.assertIn('executor.queueSize = (System.getenv("MEGFLOW_SLURM_QUEUE_SIZE") ?: "100") as int', text)
+
+    def test_outer_container_does_not_enable_nested_docker(self):
+        text = packaged_docker_config().read_text(encoding="utf-8")
+        self.assertRegex(text, r"(?s)docker\s*\{\s*enabled\s*=\s*false\s*\}")
+        self.assertNotIn("runOptions = '-u $(id -u):$(id -g)'", text)
+
+    def test_docker_runner_uses_effective_nextflow_log_option(self):
+        text = packaged_docker_runner().read_text(encoding="utf-8")
+        self.assertIn('nextflow -log "${run_output_dir}/logs/nextflow.log" run', text)
+        self.assertIn('nextflow -log "${OUTPUT_DIR}/logs/nextflow.log" run', text)
+
+    def test_docker_runner_preserves_v2_profiles_and_uses_corpus_cli(self):
+        text = packaged_docker_runner().read_text(encoding="utf-8")
+        self.assertIn('--corpus) CORPUS_MODE=true', text)
+        self.assertNotIn("--cohort", text)
+        self.assertNotIn("--anat_only", text)
+        self.assertNotIn("--meg_only", text)
+        self.assertIn("new LinkedHashMap(params.megflow.datasets ?: [:])", text)
+        self.assertIn('megflowRuntimeCorpusDatasets.remove("docker_input")', text)
+        self.assertIn("params.megflow.dataset_include", text)
+        self.assertIn("megflowRuntimeAnatomy.fs_license_file", text)
+        self.assertIn('cp "$RUN_CONFIG_FILE" "${OUTPUT_DIR}/nextflow.config"', text)
+
+    def test_multi_dataset_demo_uses_v2_dataset_profiles(self):
+        self.assertTrue(MULTI_DATASET_DEMO.is_file())
+        text = MULTI_DATASET_DEMO.read_text(encoding="utf-8")
+        self.assertIn('includeConfig "nextflow.config"', text)
+        for profile in ("WAND_visual", "SMN4Lang_RDR", "MEG_MASC_word"):
+            self.assertRegex(text, rf"(?m)^\s{{12}}{profile}:\s*\[")
+        self.assertIn('deepreject: [', text)
+        self.assertIn('mode: "lenient"', text)
+        self.assertNotIn("params.dataset_dir", text)
+
+    def test_dataset_configs_inherit_common_execution_policy(self):
+        available = tuple(config for config in DATASET_CONFIGS if config.is_file())
+        if not available:
+            self.skipTest("dataset-specific source configs are not packaged in the image")
+
+        self.assertEqual(available, DATASET_CONFIGS)
+        for config in available:
+            text = config.read_text(encoding="utf-8")
+            self.assertIn('includeConfig "nextflow.config"', text, config.name)
+            self.assertNotIn("error_mode:", text, config.name)
+            self.assertNotIn("code_dir:", text, config.name)
+            self.assertIn('workDir = "${params.megflow.output_dir}/work"', text, config.name)
+            self.assertIn('log.file = "${params.megflow.output_dir}/logs/nextflow.log"', text, config.name)
+            self.assertIn('report.file = "${params.megflow.output_dir}/report.html"', text, config.name)
+            self.assertIn('timeline.file = "${params.megflow.output_dir}/timeline.html"', text, config.name)
+            self.assertIn('trace.file = "${params.megflow.output_dir}/trace.txt"', text, config.name)
+            self.assertIn("-profile local,lenient -resume", text, config.name)
+
+        for legacy_config in LEGACY_DATASET_CONFIGS:
+            self.assertFalse(legacy_config.exists(), legacy_config.name)
+
+    def test_opm_cog_runner_keeps_image_base_config_visible(self):
+        if not OPM_COG_RUNNER.is_file():
+            self.skipTest("the source-only OPM-COG runner is not packaged in the image")
+
+        text = OPM_COG_RUNNER.read_text(encoding="utf-8")
+        self.assertIn("--user \"$(id -u):$(id -g)\"", text)
+        self.assertIn('${config_file}:/program/nextflow/nextflow_for_opm_cog.config:ro', text)
+        self.assertIn("-C /program/nextflow/nextflow_for_opm_cog.config", text)
+        self.assertNotIn("nextflow_for_opm_cog.config:/program/nextflow/nextflow.config", text)
+
+    def test_megqc_config_uses_corpus_discovery_without_dataset_overrides(self):
+        if not MEGQC_CONFIG.is_file():
+            self.skipTest("the source-only MEGQC corpus config is not packaged in the image")
+
+        text = MEGQC_CONFIG.read_text(encoding="utf-8")
+        self.assertIn('params.megflow.corpus_root = "/data/liaopan/datasets/MEGQC"', text)
+        self.assertIn('params.megflow.dataset_exclude = ["Z_BACK"]', text)
+        self.assertIn('params.megflow.defaults.steps = "meg_artifacts"', text)
+        self.assertIn("params.megflow.datasets = [:]", text)
+
+
+if __name__ == "__main__":
+    unittest.main()

@@ -17,13 +17,10 @@ T1_DIR=""
 T1_INPUT_TYPE=""
 T1_DICOM_SERIES_GLOB=""
 ANATOMY_PREPROCESS_METHOD=""
-ANAT_ONLY=false
-MEG_ONLY=false
 VIEW_REPORT=false
-COHORT_MODE=false
+CORPUS_MODE=false
 NEXTFLOW_FILE="/program/nextflow/megflow.nf"
 STREAMLIT_APP_PATH="/program/megflow/reports/reports.py"
-COHORT_REPORT_PATH="/program/megflow/reports/cohort_static_html_report.py"
 STATIC_TASK_LOG_MODE=""
 STATIC_ARTIFACT_OVERVIEW_DURATION=""
 nextflow_args=()
@@ -150,15 +147,11 @@ while [[ "$#" -gt 0 ]]; do
         --t1_dicom_series_glob|--t1-dicom-series-glob) T1_DICOM_SERIES_GLOB="$2"; shift ;;
         --anatomy_preprocess_method|--anatomy-preprocess-method) ANATOMY_PREPROCESS_METHOD="$2"; shift ;;
 
-        # options for specifying only one part
-        --anat_only) ANAT_ONLY=true ;;
-        --meg_only) MEG_ONLY=true ;;
-
         # online reports
         -r|--view_report|--view-report) VIEW_REPORT=true ;;
 
-        # cohort mode
-        --cohort) COHORT_MODE=true ;;
+        # corpus mode
+        --corpus) CORPUS_MODE=true ;;
 
         # static report options
         --static_task_log_mode|--task-log-mode) STATIC_TASK_LOG_MODE="$2"; shift ;;
@@ -173,9 +166,9 @@ while [[ "$#" -gt 0 ]]; do
             echo "  -c, --config          Specify the Nextflow config file (default: nextflow.config)"
             echo "  -i, --input           Specify the input directory"
             echo "  -o, --output          Specify the output directory(including report results.)"
-            echo "  -s, --steps           Same as Nextflow --steps / params.steps (e.g. all, meg_all, anatomy, report, meg_epochs,skip_ica)"
+            echo "  -s, --steps           Set params.megflow.defaults.steps (e.g. all, meg_all, anatomy, report, meg_epochs,skip_ica)"
             echo "  -r, --view-report     Run Streamlit to view the report (does not run Nextflow)"
-            echo "  --cohort              Treat --input as a directory of datasets; isolate each child's output and FreeSurfer SUBJECTS_DIR"
+            echo "  --corpus              Treat --input as a directory of datasets; preserve dataset profiles and isolate each dataset's outputs"
             echo "  --static_task_log_mode failed|all-command-log|none"
             echo "  --static_artifact_overview_duration seconds"
             echo "  --fs_license_file     Specify the FreeSurfer license file"
@@ -184,8 +177,6 @@ while [[ "$#" -gt 0 ]]; do
             echo "  --t1_input_type       Specify the T1 input type"
             echo "  --t1_dicom_series_glob Optional relative glob for selecting DICOM series under each T1 DICOM root"
             echo "  --anatomy_preprocess_method freesurfer|deepprep|pseudomri"
-            echo "  --anat_only           Deprecated shortcut for --steps anatomy"
-            echo "  --meg_only            Deprecated shortcut for --steps meg_all"
             echo "  --resume              Resume the previous run(nextflow options)"
             exit 0
             ;;
@@ -240,15 +231,15 @@ if [ ! -f "$CONFIG_FILE" ]; then
 fi
 
 read_static_task_log_mode() {
-    sed -n 's/^[[:space:]]*static_task_log_mode[[:space:]]*=[[:space:]]*["'\'']\([^"'\'']*\)["'\''].*/\1/p' "$CONFIG_FILE" | head -n 1
+    sed -n 's/^[[:space:]]*static_task_log_mode[[:space:]]*[:=][[:space:]]*["'\'']\([^"'\'']*\)["'\''].*/\1/p' "$CONFIG_FILE" | head -n 1
 }
 
 read_static_artifact_overview_duration() {
-    sed -n 's/^[[:space:]]*static_artifact_overview_duration[[:space:]]*=[[:space:]]*\([^[:space:]]*\).*/\1/p' "$CONFIG_FILE" | head -n 1
+    sed -n 's/^[[:space:]]*static_artifact_overview_duration[[:space:]]*[:=][[:space:]]*\([^,[:space:]]*\).*/\1/p' "$CONFIG_FILE" | head -n 1
 }
 
 STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-$(read_static_task_log_mode)}"
-STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-failed}"
+STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-all-command-log}"
 STATIC_ARTIFACT_OVERVIEW_DURATION="${STATIC_ARTIFACT_OVERVIEW_DURATION:-$(read_static_artifact_overview_duration)}"
 STATIC_ARTIFACT_OVERVIEW_DURATION="${STATIC_ARTIFACT_OVERVIEW_DURATION:-200.0}"
 case "$STATIC_TASK_LOG_MODE" in
@@ -258,10 +249,19 @@ case "$STATIC_TASK_LOG_MODE" in
         exit 1
         ;;
 esac
+if ! [[ "$STATIC_ARTIFACT_OVERVIEW_DURATION" =~ ^[0-9]+([.][0-9]+)?$ ]] || \
+   ! awk "BEGIN { exit !(${STATIC_ARTIFACT_OVERVIEW_DURATION} > 0) }"; then
+    echo "Error: invalid --static_artifact_overview_duration '$STATIC_ARTIFACT_OVERVIEW_DURATION' (expected a positive number of seconds)"
+    exit 1
+fi
 
 echo "Using configuration file: $CONFIG_FILE"
 echo "Static report task log mode: $STATIC_TASK_LOG_MODE"
 echo "Static artifact overview duration: ${STATIC_ARTIFACT_OVERVIEW_DURATION}s"
+
+groovy_escape() {
+    printf '%s' "$1" | sed 's/\\/\\\\/g; s/"/\\"/g'
+}
 
 write_run_config() {
     local run_input_dir="$1"
@@ -269,84 +269,166 @@ write_run_config() {
     local run_config_file="$3"
     local run_fs_subjects_dir="${4:-$FS_SUBJECTS_DIR}"
     local run_t1_dir="${5:-$T1_DIR}"
+    local escaped_input
+    local escaped_output
+    local escaped_t1
+    local fs_subjects_assignment=""
+    local steps_assignment=""
+    local anatomy_assignments=""
 
     cp "$CONFIG_FILE" "$run_config_file"
 
-    if [ -n "$run_input_dir" ]; then
-        echo "Setting dataset_dir in config to: $run_input_dir"
-        sed -i "s|^\s*dataset_dir\s*=.*|    dataset_dir = \"$run_input_dir\"|" "$run_config_file"
+    escaped_input="$(groovy_escape "$run_input_dir")"
+    escaped_output="$(groovy_escape "$run_output_dir")"
+    escaped_t1="$(groovy_escape "${run_t1_dir:-$run_input_dir}")"
+
+    if [ -n "$STEPS" ]; then
+        steps_assignment="megflowRuntimeDockerInput.steps = \"$(groovy_escape "$STEPS")\""
     fi
 
-    if [ -n "$run_output_dir" ]; then
-        echo "Setting output_dir in config to: $run_output_dir"
-        sed -i "s|^\s*output_dir\s*=.*|    output_dir = \"$run_output_dir\"|" "$run_config_file"
+    if [ -n "$ANATOMY_PREPROCESS_METHOD" ] || [ -n "$T1_INPUT_TYPE" ] || [ -n "$T1_DICOM_SERIES_GLOB" ] || [ -n "$FS_LICENSE_FILE" ]; then
+        anatomy_assignments="def megflowRuntimeAnatomy = new LinkedHashMap(megflowRuntimeDockerInput.anatomy ?: [:])"
+        if [ -n "$ANATOMY_PREPROCESS_METHOD" ]; then
+            anatomy_assignments="${anatomy_assignments}
+megflowRuntimeAnatomy.method = \"$(groovy_escape "$ANATOMY_PREPROCESS_METHOD")\""
+        fi
+        if [ -n "$T1_INPUT_TYPE" ]; then
+            anatomy_assignments="${anatomy_assignments}
+megflowRuntimeAnatomy.t1_input_type = \"$(groovy_escape "$T1_INPUT_TYPE")\""
+        fi
+        if [ -n "$T1_DICOM_SERIES_GLOB" ]; then
+            anatomy_assignments="${anatomy_assignments}
+megflowRuntimeAnatomy.t1_dicom_series_glob = \"$(groovy_escape "$T1_DICOM_SERIES_GLOB")\""
+        fi
+        if [ -n "$FS_LICENSE_FILE" ]; then
+            anatomy_assignments="${anatomy_assignments}
+megflowRuntimeAnatomy.fs_license_file = \"$(groovy_escape "$FS_LICENSE_FILE")\""
+        fi
+        anatomy_assignments="${anatomy_assignments}
+megflowRuntimeDockerInput.anatomy = megflowRuntimeAnatomy"
     fi
 
     if [ -n "$run_fs_subjects_dir" ]; then
         echo "Using FreeSurfer subjects directory: $run_fs_subjects_dir"
         mkdir -p "$run_fs_subjects_dir"
-        sed -i "s|^\s*fs_subjects_dir\s*=.*|    fs_subjects_dir = \"$run_fs_subjects_dir\"|" "$run_config_file"
+        fs_subjects_assignment="megflowRuntimeDockerInput.fs_subjects_dir = \"$(groovy_escape "$run_fs_subjects_dir")\""
     fi
 
-    if [ -n "$FS_LICENSE_FILE" ]; then
-        echo "Using FreeSurfer license file: $FS_LICENSE_FILE"
-        sed -i "s|^\s*fs_license\s*=.*|    fs_license = \"$FS_LICENSE_FILE\"|" "$run_config_file"
+    cat >> "$run_config_file" <<EOF
+
+// Runtime overrides generated by run_for_docker.sh.
+params.megflow.output_dir = "${escaped_output}"
+params.megflow.corpus_root = ""
+params.megflow.dataset_include = ["docker_input"]
+params.megflow.dataset_exclude = []
+
+def megflowRuntimeDefaults = new LinkedHashMap(params.megflow.defaults ?: [:])
+def megflowRuntimeReport = new LinkedHashMap(megflowRuntimeDefaults.report ?: [:])
+megflowRuntimeReport.static_task_log_mode = "$(groovy_escape "$STATIC_TASK_LOG_MODE")"
+megflowRuntimeReport.static_artifact_overview_duration = ${STATIC_ARTIFACT_OVERVIEW_DURATION}
+megflowRuntimeDefaults.report = megflowRuntimeReport
+params.megflow.defaults = megflowRuntimeDefaults
+
+def megflowRuntimeDatasets = new LinkedHashMap(params.megflow.datasets ?: [:])
+def megflowRuntimeDockerInput = new LinkedHashMap(megflowRuntimeDatasets.docker_input ?: [:])
+megflowRuntimeDockerInput.name = "docker_input"
+megflowRuntimeDockerInput.dataset_dir = "${escaped_input}"
+megflowRuntimeDockerInput.output_dir = "${escaped_output}"
+megflowRuntimeDockerInput.preproc_dir = "${escaped_output}/preprocessed"
+megflowRuntimeDockerInput.t1_dir = "${escaped_t1}"
+${fs_subjects_assignment}
+${steps_assignment}
+${anatomy_assignments}
+megflowRuntimeDatasets.docker_input = megflowRuntimeDockerInput
+params.megflow.datasets = megflowRuntimeDatasets
+
+workDir = "${escaped_output}/work"
+log.file = "${escaped_output}/logs/nextflow.log"
+report.file = "${escaped_output}/report.html"
+timeline.file = "${escaped_output}/timeline.html"
+trace.file = "${escaped_output}/trace.txt"
+EOF
+}
+
+write_corpus_run_config() {
+    local run_input_dir="$1"
+    local run_output_dir="$2"
+    local run_config_file="$3"
+    local run_fs_subjects_root="$4"
+    local escaped_input
+    local escaped_output
+    local escaped_fs_subjects_root
+    local steps_assignment=""
+    local anatomy_assignments=""
+
+    cp "$CONFIG_FILE" "$run_config_file"
+
+    escaped_input="$(groovy_escape "$run_input_dir")"
+    escaped_output="$(groovy_escape "$run_output_dir")"
+    escaped_fs_subjects_root="$(groovy_escape "$run_fs_subjects_root")"
+
+    if [ -n "$STEPS" ]; then
+        steps_assignment="megflowRuntimeDefaults.steps = \"$(groovy_escape "$STEPS")\""
     fi
 
-    if [ -n "$run_t1_dir" ]; then
-        echo "Setting t1_dir in config to: $run_t1_dir"
-        sed -i "s|^\s*t1_dir\s*=.*|    t1_dir = \"$run_t1_dir\"|" "$run_config_file"
-        sed -i "s|^\s*t1_bids_dir\s*=.*|    t1_bids_dir = \"$run_t1_dir\"|" "$run_config_file"
-    fi
-
-    if [ -n "$T1_INPUT_TYPE" ]; then
-        echo "Setting t1_input_type in config to: $T1_INPUT_TYPE"
-        sed -i "s|^\s*t1_input_type\s*=.*|    t1_input_type = \"$T1_INPUT_TYPE\"|" "$run_config_file"
-    fi
-
-    if [ -n "$T1_DICOM_SERIES_GLOB" ]; then
-        echo "Setting t1_dicom_series_glob in config to: $T1_DICOM_SERIES_GLOB"
-        if grep -q "^[[:space:]]*t1_dicom_series_glob[[:space:]]*=" "$run_config_file"; then
-            sed -i "s|^[[:space:]]*t1_dicom_series_glob[[:space:]]*=.*|    t1_dicom_series_glob = \"$T1_DICOM_SERIES_GLOB\"|" "$run_config_file"
-        else
-            sed -i "/^[[:space:]]*t1_input_type[[:space:]]*=/a\\    t1_dicom_series_glob = \"$T1_DICOM_SERIES_GLOB\"" "$run_config_file"
+    if [ -n "$ANATOMY_PREPROCESS_METHOD" ] || [ -n "$T1_INPUT_TYPE" ] || [ -n "$T1_DICOM_SERIES_GLOB" ] || [ -n "$FS_LICENSE_FILE" ]; then
+        anatomy_assignments="def megflowRuntimeAnatomy = new LinkedHashMap(megflowRuntimeDefaults.anatomy ?: [:])"
+        if [ -n "$ANATOMY_PREPROCESS_METHOD" ]; then
+            anatomy_assignments="${anatomy_assignments}
+megflowRuntimeAnatomy.method = \"$(groovy_escape "$ANATOMY_PREPROCESS_METHOD")\""
         fi
+        if [ -n "$T1_INPUT_TYPE" ]; then
+            anatomy_assignments="${anatomy_assignments}
+megflowRuntimeAnatomy.t1_input_type = \"$(groovy_escape "$T1_INPUT_TYPE")\""
+        fi
+        if [ -n "$T1_DICOM_SERIES_GLOB" ]; then
+            anatomy_assignments="${anatomy_assignments}
+megflowRuntimeAnatomy.t1_dicom_series_glob = \"$(groovy_escape "$T1_DICOM_SERIES_GLOB")\""
+        fi
+        if [ -n "$FS_LICENSE_FILE" ]; then
+            anatomy_assignments="${anatomy_assignments}
+megflowRuntimeAnatomy.fs_license_file = \"$(groovy_escape "$FS_LICENSE_FILE")\""
+        fi
+        anatomy_assignments="${anatomy_assignments}
+megflowRuntimeDefaults.anatomy = megflowRuntimeAnatomy"
     fi
 
-    if [ -n "$ANATOMY_PREPROCESS_METHOD" ]; then
-        echo "Setting anatomy_preprocess_method in config to: $ANATOMY_PREPROCESS_METHOD"
-        sed -i "s|^[[:space:]]*anatomy_preprocess_method[[:space:]]*=.*|    anatomy_preprocess_method = \"$ANATOMY_PREPROCESS_METHOD\"|" "$run_config_file"
-    fi
+    cat >> "$run_config_file" <<EOF
 
-    echo "Setting static_task_log_mode in config to: $STATIC_TASK_LOG_MODE"
-    sed -i "s|^\s*static_task_log_mode\s*=.*|    static_task_log_mode = \"$STATIC_TASK_LOG_MODE\"|" "$run_config_file"
-    echo "Setting static_artifact_overview_duration in config to: $STATIC_ARTIFACT_OVERVIEW_DURATION"
-    sed -i "s|^\s*static_artifact_overview_duration\s*=.*|    static_artifact_overview_duration = $STATIC_ARTIFACT_OVERVIEW_DURATION|" "$run_config_file"
+// Corpus runtime overrides generated by run_for_docker.sh.
+params.megflow.output_dir = "${escaped_output}"
+params.megflow.corpus_root = "${escaped_input}"
+params.megflow.fs_subjects_root = "${escaped_fs_subjects_root}"
+
+def megflowRuntimeDefaults = new LinkedHashMap(params.megflow.defaults ?: [:])
+def megflowRuntimeReport = new LinkedHashMap(megflowRuntimeDefaults.report ?: [:])
+megflowRuntimeReport.static_task_log_mode = "$(groovy_escape "$STATIC_TASK_LOG_MODE")"
+megflowRuntimeReport.static_artifact_overview_duration = ${STATIC_ARTIFACT_OVERVIEW_DURATION}
+megflowRuntimeDefaults.report = megflowRuntimeReport
+${steps_assignment}
+${anatomy_assignments}
+params.megflow.defaults = megflowRuntimeDefaults
+
+// docker_input is the single-dataset placeholder bundled with the image.
+// All named corpus profiles from the mounted config remain available.
+def megflowRuntimeCorpusDatasets = new LinkedHashMap(params.megflow.datasets ?: [:])
+megflowRuntimeCorpusDatasets.remove("docker_input")
+params.megflow.datasets = megflowRuntimeCorpusDatasets
+
+workDir = "${escaped_output}/work/corpus_driver"
+log.file = "${escaped_output}/logs/nextflow.log"
+report.file = "${escaped_output}/corpus_report.html"
+timeline.file = "${escaped_output}/corpus_timeline.html"
+trace.file = "${escaped_output}/corpus_trace.txt"
+EOF
 }
 
 
 # Call Nextflow to run the pipeline with specified configurations
 echo "Running Nextflow pipeline..."
 
-steps_args=()
-if [ "$ANAT_ONLY" = true ] && [ "$MEG_ONLY" = true ]; then
-    echo "Error: --anat_only and --meg_only cannot be used together. Prefer --steps anatomy or --steps meg_all."
-    exit 1
-fi
-
-if [ -z "$STEPS" ] && [ "$ANAT_ONLY" = true ]; then
-    STEPS="anatomy"
-    echo "Warning: --anat_only is deprecated; using --steps anatomy."
-fi
-
-if [ -z "$STEPS" ] && [ "$MEG_ONLY" = true ]; then
-    STEPS="meg_all"
-    echo "Warning: --meg_only is deprecated; using --steps meg_all."
-fi
-
 if [ -n "$STEPS" ]; then
-    echo "Setting steps (Nextflow params.steps): $STEPS"
-    steps_args=(--steps "$STEPS")
+    echo "Setting MEGFlow steps: $STEPS"
 fi
 
 run_nextflow_pipeline() {
@@ -355,17 +437,14 @@ run_nextflow_pipeline() {
     local run_work_dir="$3"
     local work_args=()
 
-    mkdir -p "$run_output_dir"
+    mkdir -p "$run_output_dir/logs"
     if [ -n "$run_work_dir" ]; then
         mkdir -p "$run_work_dir"
         work_args=(-w "$run_work_dir")
     fi
 
-    nextflow run "${NEXTFLOW_FILE}" \
+    nextflow -log "${run_output_dir}/logs/nextflow.log" run "${NEXTFLOW_FILE}" \
         -c "${run_config_file}" \
-        "${steps_args[@]}" \
-        --static_task_log_mode "$STATIC_TASK_LOG_MODE" \
-        --static_artifact_overview_duration "$STATIC_ARTIFACT_OVERVIEW_DURATION" \
         "${work_args[@]}" \
         -with-report "${run_output_dir}/report.html" \
         -with-timeline "${run_output_dir}/timeline.html" \
@@ -384,43 +463,28 @@ run_nextflow_pipeline() {
 
 mkdir -p "$OUTPUT_DIR"
 
-if [ "$COHORT_MODE" = true ]; then
+if [ "$CORPUS_MODE" = true ]; then
     if [ ! -d "$INPUT_DIR" ]; then
-        echo "Error: --cohort requires --input to be a directory containing dataset subdirectories."
+        echo "Error: --corpus requires --input to be a directory containing dataset subdirectories."
         exit 1
     fi
 
-    echo "Running cohort mode. Dataset collection root: $INPUT_DIR"
-    cohort_work_dir="${OUTPUT_DIR}/work"
-    cohort_fs_subjects_base="${FS_SUBJECTS_DIR:-/smri}"
-    mkdir -p "${OUTPUT_DIR}/datasets" "$cohort_work_dir" "$cohort_fs_subjects_base"
+    echo "Running corpus mode. Dataset collection root: $INPUT_DIR"
+    corpus_work_dir="${OUTPUT_DIR}/work"
+    corpus_fs_subjects_root="${FS_SUBJECTS_DIR:-/smri}"
+    mkdir -p "${OUTPUT_DIR}/datasets" "${OUTPUT_DIR}/logs" "$corpus_work_dir" "$corpus_fs_subjects_root"
 
-    write_run_config "$INPUT_DIR" "$OUTPUT_DIR" "$RUN_CONFIG_FILE" "$cohort_fs_subjects_base" ""
+    write_corpus_run_config "$INPUT_DIR" "$OUTPUT_DIR" "$RUN_CONFIG_FILE" "$corpus_fs_subjects_root"
 
-    cohort_args=(
-        --cohort true
-        --cohort_t1_root "$T1_DIR"
-        --dataset_dir "$INPUT_DIR"
-        --output_dir "$OUTPUT_DIR"
-        --preproc_dir "${OUTPUT_DIR}/preprocessed"
-        --fs_subjects_dir "$cohort_fs_subjects_base"
-    )
-
-    if [ -n "$STEPS" ]; then
-        cohort_args+=(--steps "$STEPS")
-    fi
-
-    nextflow run "${NEXTFLOW_FILE}" \
+    nextflow -log "${OUTPUT_DIR}/logs/nextflow.log" run "${NEXTFLOW_FILE}" \
         -c "${RUN_CONFIG_FILE}" \
-        "${cohort_args[@]}" \
-        --static_task_log_mode "$STATIC_TASK_LOG_MODE" \
-        --static_artifact_overview_duration "$STATIC_ARTIFACT_OVERVIEW_DURATION" \
-        -w "${cohort_work_dir}/cohort_driver" \
-        -with-report "${OUTPUT_DIR}/cohort_report.html" \
-        -with-timeline "${OUTPUT_DIR}/cohort_timeline.html" \
-        -with-trace "${OUTPUT_DIR}/cohort_trace.txt" \
+        -w "${corpus_work_dir}/corpus_driver" \
+        -with-report "${OUTPUT_DIR}/corpus_report.html" \
+        -with-timeline "${OUTPUT_DIR}/corpus_timeline.html" \
+        -with-trace "${OUTPUT_DIR}/corpus_trace.txt" \
         "${nextflow_args[@]}"
 
+    cp "$RUN_CONFIG_FILE" "${OUTPUT_DIR}/nextflow.config"
     chmod -R ug+rwX "$OUTPUT_DIR" 2>/dev/null || true
     exit 0
 fi

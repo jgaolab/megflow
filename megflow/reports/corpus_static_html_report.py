@@ -23,8 +23,11 @@ from pathlib import Path
 from typing import Any
 
 
+NMDQ_FULL_NAME = "Normative MEG Data Quality Score"
+NMDQ_SHORT_NAME = "NMDQ Score"
+
 STEP_DEFS = [
-    ("quality_score", "Quality score"),
+    ("quality_score", NMDQ_SHORT_NAME),
     ("basic_preproc", "Basic preprocessing"),
     ("artifacts", "Artifacts"),
     ("ica", "ICA"),
@@ -100,6 +103,16 @@ p { color: var(--muted); margin: 6px 0; }
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
   margin-bottom: 22px;
 }
+.term-short {
+  display: none;
+}
+.kpi {
+  container-type: inline-size;
+}
+@container (max-width: 260px) {
+  .term-full { display: none; }
+  .term-short { display: inline; }
+}
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -156,6 +169,83 @@ p { color: var(--muted); margin: 6px 0; }
   font-size: 0.78rem;
   color: #475467;
   background: #fff;
+  white-space: nowrap;
+}
+.steps-cell {
+  position: relative;
+  width: 156px;
+  min-width: 156px;
+}
+.dataset-steps {
+  position: relative;
+}
+.dataset-steps summary {
+  display: grid;
+  grid-template-columns: minmax(72px, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 30px;
+  color: #475467;
+  cursor: pointer;
+  list-style: none;
+  white-space: nowrap;
+}
+.dataset-steps summary::-webkit-details-marker {
+  display: none;
+}
+.dataset-steps summary::after {
+  content: "▾";
+  color: #98a2b3;
+  font-size: 0.76rem;
+  transition: transform 120ms ease;
+}
+.dataset-steps[open] summary::after {
+  transform: rotate(180deg);
+}
+.step-progress {
+  display: block;
+  width: 100%;
+  height: 7px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e7ecf2;
+}
+.step-progress > span {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+.dataset-steps.complete .step-progress > span {
+  background: var(--good);
+}
+.step-count {
+  min-width: 30px;
+  color: #344054;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-align: right;
+}
+.step-popover {
+  display: none;
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 332px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.14);
+}
+.dataset-steps[open] .step-popover {
+  display: block;
+}
+.step-coverage {
+  margin-top: 9px;
+  color: var(--muted);
+  font-size: 0.76rem;
 }
 table {
   width: 100%;
@@ -219,10 +309,23 @@ tr:hover td { background: #fafcff; }
   margin-top: 24px;
   text-align: center;
 }
+@media (max-width: 1400px) {
+  table {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+  }
+  .step-popover {
+    position: static;
+    width: 300px;
+    margin-top: 8px;
+  }
+}
 @media (max-width: 980px) {
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .container { width: min(100% - 28px, 1320px); }
-  table { display: block; overflow-x: auto; white-space: nowrap; }
 }
 """
 
@@ -340,6 +443,15 @@ def html_text(value: Any) -> str:
     return html.escape("" if value is None else str(value))
 
 
+def responsive_label(full_label: str, short_label: str) -> str:
+    full = html_text(full_label)
+    short = html_text(short_label)
+    return (
+        f'<span class="term-full">{full}</span>'
+        f'<span class="term-short" title="{full}">{short}</span>'
+    )
+
+
 def fmt_int(value: Any) -> str:
     try:
         return f"{int(value)}"
@@ -380,6 +492,61 @@ def status_pill(status: str) -> str:
     }
     css, label = labels.get(status, ("neutral", status))
     return f'<span class="pill {css}">{html_text(label)}</span>'
+
+
+def render_dataset_steps(dataset: dict[str, Any]) -> str:
+    try:
+        total_subjects = max(int(dataset.get("total_subjects") or 0), 0)
+    except (TypeError, ValueError):
+        total_subjects = 0
+
+    expected_steps = dataset.get("expected_steps") or {}
+    completion = dataset.get("step_completion") or {}
+    chips = []
+    expected_stage_count = 0
+    complete_stage_count = 0
+    completed_subject_steps = 0
+
+    for key, label in STEP_DEFS:
+        if not expected_steps.get(key, True):
+            chips.append(f'<span class="step-chip">{html_text(label)} N/A</span>')
+            continue
+        expected_stage_count += 1
+        try:
+            completed = max(int(completion.get(key) or 0), 0)
+        except (TypeError, ValueError):
+            completed = 0
+        completed_subject_steps += min(completed, total_subjects)
+        if total_subjects > 0 and completed >= total_subjects:
+            complete_stage_count += 1
+        chips.append(
+            f'<span class="step-chip">{html_text(label)} '
+            f'{fmt_int(completed)}/{fmt_int(total_subjects)}</span>'
+        )
+
+    expected_subject_steps = expected_stage_count * total_subjects
+    completion_pct = (
+        100.0 * completed_subject_steps / expected_subject_steps
+        if expected_subject_steps > 0
+        else 0.0
+    )
+    state = "complete" if expected_stage_count > 0 and complete_stage_count == expected_stage_count else "partial"
+    stage_label = f"{complete_stage_count}/{expected_stage_count} stages"
+    coverage_label = f"{completed_subject_steps}/{expected_subject_steps} subject-stage outputs"
+    accessible_label = f"{stage_label}; {coverage_label}"
+
+    return f"""
+      <details class="dataset-steps {state}">
+        <summary title="{html_text(accessible_label)}" aria-label="{html_text(accessible_label)}">
+          <span class="step-progress" aria-hidden="true"><span style="width:{completion_pct:.1f}%"></span></span>
+          <span class="step-count">{complete_stage_count}/{expected_stage_count}</span>
+        </summary>
+        <div class="step-popover">
+          <div class="step-chips">{''.join(chips)}</div>
+          <div class="step-coverage">{html_text(coverage_label)}</div>
+        </div>
+      </details>
+    """
 
 
 def ensure_dir(path: Path) -> Path:
@@ -633,15 +800,6 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
     status_rank = {"PASS": 0, "WARN": 1, "FAIL": 2}
     rows = []
     for dataset in sorted(summary["datasets"], key=lambda item: (-item["alarm_count"], item["dataset"])):
-        step_chips = "".join(
-            (
-                f'<span class="step-chip">{html_text(label)} N/A</span>'
-                if not (dataset.get("expected_steps") or {}).get(key, True)
-                else f'<span class="step-chip">{html_text(label)} '
-                f'{fmt_int((dataset.get("step_completion") or {}).get(key))}/{fmt_int(dataset["total_subjects"])}</span>'
-            )
-            for key, label in STEP_DEFS
-        )
         averages = dataset.get("averages") or {}
         quality_score = dataset.get("quality_score") or {}
         search_blob = " ".join(
@@ -684,7 +842,7 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
               <td>{fmt_float(avg_bad_channels, 1)}</td>
               <td>{fmt_float(avg_bad_segments, 1)}</td>
               <td>{fmt_float(avg_coreg, 2, ' mm')}</td>
-              <td><div class="step-chips">{step_chips}</div></td>
+              <td class="steps-cell">{render_dataset_steps(dataset)}</td>
             </tr>
             """
         )
@@ -733,8 +891,8 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
       <div class="panel kpi"><div class="label">Passed</div><div class="value">{fmt_int(summary['pass_count'])}</div></div>
       <div class="panel kpi"><div class="label">Warning / Failed</div><div class="value">{fmt_int(summary['warn_count'])} / {fmt_int(summary['fail_count'])}</div></div>
       <div class="panel kpi"><div class="label">QC alerts</div><div class="value">{fmt_int(summary['alarm_count'])}</div></div>
-      <div class="panel kpi"><div class="label">Mean QC score</div><div class="value">{fmt_float((summary.get('quality_score') or {}).get('avg_score'), 1)}</div></div>
-      <div class="panel kpi"><div class="label">QC Warnings</div><div class="value">{fmt_int((summary.get('quality_score') or {}).get('warning_count'))}</div></div>
+      <div class="panel kpi"><div class="label">{responsive_label(f'Mean {NMDQ_FULL_NAME}', f'Mean {NMDQ_SHORT_NAME}')}</div><div class="value">{fmt_float((summary.get('quality_score') or {}).get('avg_score'), 1)}</div></div>
+      <div class="panel kpi"><div class="label">{responsive_label('Normative MEG Data Quality Warnings', 'NMDQ Warnings')}</div><div class="value">{fmt_int((summary.get('quality_score') or {}).get('warning_count'))}</div></div>
     </section>
 
     <section class="panel">
@@ -756,8 +914,8 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="warning" onclick="setDatasetSort('warning')"><span>Warning</span><span class="sort-indicator">↕</span></button></th>
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="failed" onclick="setDatasetSort('failed')"><span>Failed</span><span class="sort-indicator">↕</span></button></th>
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarms" onclick="setDatasetSort('alarms')"><span>QC alerts</span><span class="sort-indicator">↕</span></button></th>
-            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgQc" onclick="setDatasetSort('avgQc')"><span>Mean QC score</span><span class="sort-indicator">↕</span></button></th>
-            <th class="sortable"><button type="button" class="sort-header" data-sort-key="qcWarnings" onclick="setDatasetSort('qcWarnings')"><span>QC Warnings</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgQc" onclick="setDatasetSort('avgQc')" title="Mean {html_text(NMDQ_FULL_NAME)}"><span>Mean {html_text(NMDQ_SHORT_NAME)}</span><span class="sort-indicator">↕</span></button></th>
+            <th class="sortable"><button type="button" class="sort-header" data-sort-key="qcWarnings" onclick="setDatasetSort('qcWarnings')" title="Normative MEG Data Quality Warnings"><span>NMDQ Warnings</span><span class="sort-indicator">↕</span></button></th>
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgBadCh" onclick="setDatasetSort('avgBadCh')"><span>Mean bad-channel count</span><span class="sort-indicator">↕</span></button></th>
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgBadSeg" onclick="setDatasetSort('avgBadSeg')"><span>Mean bad-segment count</span><span class="sort-indicator">↕</span></button></th>
             <th class="sortable"><button type="button" class="sort-header" data-sort-key="avgCoreg" onclick="setDatasetSort('avgCoreg')"><span>Mean coregistration distance</span><span class="sort-indicator">↕</span></button></th>

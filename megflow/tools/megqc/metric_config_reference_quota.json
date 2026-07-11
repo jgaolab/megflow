@@ -9,16 +9,17 @@
       "families": [
         {
           "rank": 1,
-          "family": "tsfel.max_abs_diff.abs_q95",
+          "family": "max_abs_diff.abs_q95",
+          "display_label": "Max absolute difference, absolute Q95",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.abs_q95",
-            "tsfel.max_abs_diff.grad.abs_q95"
+            "max_abs_diff.mag.abs_q95",
+            "max_abs_diff.grad.abs_q95"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.abs_q95": "lower_is_better",
-            "tsfel.max_abs_diff.grad.abs_q95": "lower_is_better"
+            "max_abs_diff.mag.abs_q95": "lower_is_better",
+            "max_abs_diff.grad.abs_q95": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -26,16 +27,17 @@
         },
         {
           "rank": 2,
-          "family": "tsfel.max_abs_diff.q75",
+          "family": "max_abs_diff.q75",
+          "display_label": "Max absolute difference, Q75",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.q75",
-            "tsfel.max_abs_diff.grad.q75"
+            "max_abs_diff.mag.q75",
+            "max_abs_diff.grad.q75"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.q75": "lower_is_better",
-            "tsfel.max_abs_diff.grad.q75": "lower_is_better"
+            "max_abs_diff.mag.q75": "lower_is_better",
+            "max_abs_diff.grad.q75": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -43,16 +45,17 @@
         },
         {
           "rank": 3,
-          "family": "tsfel.max_abs_diff.iqr",
+          "family": "max_abs_diff.iqr",
+          "display_label": "Max absolute difference, IQR",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.iqr",
-            "tsfel.max_abs_diff.grad.iqr"
+            "max_abs_diff.mag.iqr",
+            "max_abs_diff.grad.iqr"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.iqr": "lower_is_better",
-            "tsfel.max_abs_diff.grad.iqr": "lower_is_better"
+            "max_abs_diff.mag.iqr": "lower_is_better",
+            "max_abs_diff.grad.iqr": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -60,16 +63,17 @@
         },
         {
           "rank": 4,
-          "family": "tsfel.max_abs_diff.mean",
+          "family": "max_abs_diff.mean",
+          "display_label": "Max absolute difference, mean",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.mean",
-            "tsfel.max_abs_diff.grad.mean"
+            "max_abs_diff.mag.mean",
+            "max_abs_diff.grad.mean"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.mean": "lower_is_better",
-            "tsfel.max_abs_diff.grad.mean": "lower_is_better"
+            "max_abs_diff.mag.mean": "lower_is_better",
+            "max_abs_diff.grad.mean": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -78,6 +82,7 @@
         {
           "rank": 5,
           "family": "freq_domain.skewness_amplitude",
+          "display_label": "Spectral amplitude skewness",
           "domain": "Spectral",
           "metrics": [
             "freq_domain.skewness_amplitude.mag",
@@ -95,6 +100,7 @@
         {
           "rank": 6,
           "family": "freq_domain.kurtosis_amplitude",
+          "display_label": "Spectral amplitude kurtosis",
           "domain": "Spectral",
           "metrics": [
             "freq_domain.kurtosis_amplitude.mag",
@@ -111,16 +117,17 @@
         },
         {
           "rank": 7,
-          "family": "tsfel.ptp_amp.abs_q95",
-          "domain": "Statistic",
+          "family": "ptp_amp.abs_q95",
+          "display_label": "Peak-to-peak amplitude, absolute Q95",
+          "domain": "Statistical",
           "metrics": [
-            "tsfel.ptp_amp.mag.abs_q95",
-            "tsfel.ptp_amp.grad.abs_q95"
+            "ptp_amp.mag.abs_q95",
+            "ptp_amp.grad.abs_q95"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.ptp_amp.mag.abs_q95": "lower_is_better",
-            "tsfel.ptp_amp.grad.abs_q95": "lower_is_better"
+            "ptp_amp.mag.abs_q95": "lower_is_better",
+            "ptp_amp.grad.abs_q95": "lower_is_better"
           },
           "meaning": "Peak-to-peak amplitude range",
           "quality_interpretation": "Reflects increased overall dynamic range due to large oscillations, drift, or abnormal channels.",
@@ -129,6 +136,7 @@
         {
           "rank": 8,
           "family": "fractal_domain.DFA",
+          "display_label": "DFA exponent",
           "domain": "Fractal",
           "metrics": [
             "fractal_domain.DFA.mag",
@@ -150,16 +158,17 @@
       "families": [
         {
           "rank": 1,
-          "family": "tsfel.max_abs_diff.abs_q95",
+          "family": "max_abs_diff.abs_q95",
+          "display_label": "Max absolute difference, absolute Q95",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.abs_q95",
-            "tsfel.max_abs_diff.grad.abs_q95"
+            "max_abs_diff.mag.abs_q95",
+            "max_abs_diff.grad.abs_q95"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.abs_q95": "lower_is_better",
-            "tsfel.max_abs_diff.grad.abs_q95": "lower_is_better"
+            "max_abs_diff.mag.abs_q95": "lower_is_better",
+            "max_abs_diff.grad.abs_q95": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -167,16 +176,17 @@
         },
         {
           "rank": 2,
-          "family": "tsfel.max_abs_diff.q75",
+          "family": "max_abs_diff.q75",
+          "display_label": "Max absolute difference, Q75",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.q75",
-            "tsfel.max_abs_diff.grad.q75"
+            "max_abs_diff.mag.q75",
+            "max_abs_diff.grad.q75"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.q75": "lower_is_better",
-            "tsfel.max_abs_diff.grad.q75": "lower_is_better"
+            "max_abs_diff.mag.q75": "lower_is_better",
+            "max_abs_diff.grad.q75": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -184,16 +194,17 @@
         },
         {
           "rank": 3,
-          "family": "tsfel.max_abs_diff.iqr",
+          "family": "max_abs_diff.iqr",
+          "display_label": "Max absolute difference, IQR",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.iqr",
-            "tsfel.max_abs_diff.grad.iqr"
+            "max_abs_diff.mag.iqr",
+            "max_abs_diff.grad.iqr"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.iqr": "lower_is_better",
-            "tsfel.max_abs_diff.grad.iqr": "lower_is_better"
+            "max_abs_diff.mag.iqr": "lower_is_better",
+            "max_abs_diff.grad.iqr": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -201,16 +212,17 @@
         },
         {
           "rank": 4,
-          "family": "tsfel.max_abs_diff.mean",
+          "family": "max_abs_diff.mean",
+          "display_label": "Max absolute difference, mean",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.mean",
-            "tsfel.max_abs_diff.grad.mean"
+            "max_abs_diff.mag.mean",
+            "max_abs_diff.grad.mean"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.mean": "lower_is_better",
-            "tsfel.max_abs_diff.grad.mean": "lower_is_better"
+            "max_abs_diff.mag.mean": "lower_is_better",
+            "max_abs_diff.grad.mean": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -218,16 +230,17 @@
         },
         {
           "rank": 5,
-          "family": "tsfel.max_abs_diff.median",
+          "family": "max_abs_diff.median",
+          "display_label": "Max absolute difference, median",
           "domain": "Temporal",
           "metrics": [
-            "tsfel.max_abs_diff.mag.median",
-            "tsfel.max_abs_diff.grad.median"
+            "max_abs_diff.mag.median",
+            "max_abs_diff.grad.median"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.max_abs_diff.mag.median": "lower_is_better",
-            "tsfel.max_abs_diff.grad.median": "lower_is_better"
+            "max_abs_diff.mag.median": "lower_is_better",
+            "max_abs_diff.grad.median": "lower_is_better"
           },
           "meaning": "Cross-channel statistic of the maximum absolute change between adjacent samples",
           "quality_interpretation": "Highly sensitive to spikes, abrupt jumps, and incompletely removed high-frequency transient artifacts; larger values usually indicate lower quality.",
@@ -236,6 +249,7 @@
         {
           "rank": 6,
           "family": "freq_domain.skewness_amplitude",
+          "display_label": "Spectral amplitude skewness",
           "domain": "Spectral",
           "metrics": [
             "freq_domain.skewness_amplitude.mag",
@@ -253,6 +267,7 @@
         {
           "rank": 7,
           "family": "freq_domain.kurtosis_amplitude",
+          "display_label": "Spectral amplitude kurtosis",
           "domain": "Spectral",
           "metrics": [
             "freq_domain.kurtosis_amplitude.mag",
@@ -269,16 +284,17 @@
         },
         {
           "rank": 8,
-          "family": "tsfel.ptp_amp.abs_q95",
-          "domain": "Statistic",
+          "family": "ptp_amp.abs_q95",
+          "display_label": "Peak-to-peak amplitude, absolute Q95",
+          "domain": "Statistical",
           "metrics": [
-            "tsfel.ptp_amp.mag.abs_q95",
-            "tsfel.ptp_amp.grad.abs_q95"
+            "ptp_amp.mag.abs_q95",
+            "ptp_amp.grad.abs_q95"
           ],
           "mode": "lower_is_better",
           "mode_by_metric": {
-            "tsfel.ptp_amp.mag.abs_q95": "lower_is_better",
-            "tsfel.ptp_amp.grad.abs_q95": "lower_is_better"
+            "ptp_amp.mag.abs_q95": "lower_is_better",
+            "ptp_amp.grad.abs_q95": "lower_is_better"
           },
           "meaning": "Peak-to-peak amplitude range",
           "quality_interpretation": "Reflects increased overall dynamic range due to large oscillations, drift, or abnormal channels.",
@@ -287,6 +303,7 @@
         {
           "rank": 9,
           "family": "fractal_domain.DFA",
+          "display_label": "DFA exponent",
           "domain": "Fractal",
           "metrics": [
             "fractal_domain.DFA.mag",

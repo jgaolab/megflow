@@ -7,6 +7,7 @@ Script to generate epochs from raw MEG data and save rejected epochs info.
 import os
 import mne
 import re
+import ast
 import argparse
 import numpy as np
 import logging
@@ -17,6 +18,7 @@ from collections import defaultdict
 from pathlib import Path
 from autoreject import AutoReject
 from autoreject import get_rejection_threshold
+from epochs_preproc import get_analysis_preproc_steps, prepare_analysis_raw
 from utils import set_random_seed
 import matplotlib.pyplot as plt
 mne.viz.set_browser_backend('matplotlib')
@@ -64,6 +66,15 @@ def _get_epoch_kwargs(config):
     """Return MNE Epochs kwargs and keep MEGFlow-only keys out of MNE."""
     epoch_kwargs = dict(config.get('epochs') or {})
     epoch_kwargs.pop('exclude_event_id', None)
+    for key in (
+        'event_time_shift_sec',
+        'event_time_shift_ms',
+        'event_time_shift',
+        'stimulus_delay_sec',
+        'stimulus_delay_ms',
+        'event_timing',
+    ):
+        epoch_kwargs.pop(key, None)
     return epoch_kwargs
 
 
@@ -72,6 +83,100 @@ def _get_exclude_event_id(config):
     if exclude_event_id is None:
         exclude_event_id = (config.get('epochs') or {}).get('exclude_event_id', None)
     return exclude_event_id
+
+
+def analysis_preproc_has_operation(config, operation, *, config_name="epochs.preproc"):
+    return any(
+        operation in step
+        for step in get_analysis_preproc_steps(config, config_name=config_name)
+    )
+
+
+def _auxiliary_trigger_events_for_resample(raw, config):
+    """Find trigger events used only to make Raw resampling event-aware."""
+    find_config = dict(config.get('find_events') or config.get('events') or {})
+    find_config.setdefault('initial_event', True)
+    find_config['verbose'] = False
+    try:
+        events = mne.find_events(raw, **find_config)
+    except (ValueError, RuntimeError):
+        return None
+    if events is None or len(events) == 0:
+        return None
+    return events
+
+
+def _config_float(value, key):
+    if value in (None, ''):
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{key} must be a numeric value, got {value!r}") from exc
+
+
+def _get_event_time_shift_sec(config):
+    """Return configured event timing shift in seconds.
+
+    Positive values move event sample indices later in time, which is useful
+    when hardware triggers precede the actual sensory stimulus arrival.
+    """
+    event_timing = config.get('event_timing') or {}
+    if not isinstance(event_timing, dict):
+        raise ValueError("event_timing must be a mapping when provided.")
+
+    seconds_keys = (
+        ('event_time_shift_sec', config.get('event_time_shift_sec')),
+        ('event_time_shift', config.get('event_time_shift')),
+        ('stimulus_delay_sec', config.get('stimulus_delay_sec')),
+        ('event_timing.event_time_shift_sec', event_timing.get('event_time_shift_sec')),
+        ('event_timing.shift_sec', event_timing.get('shift_sec')),
+        ('event_timing.stimulus_delay_sec', event_timing.get('stimulus_delay_sec')),
+    )
+    for key, value in seconds_keys:
+        parsed = _config_float(value, key)
+        if parsed is not None:
+            return parsed
+
+    millisecond_keys = (
+        ('event_time_shift_ms', config.get('event_time_shift_ms')),
+        ('stimulus_delay_ms', config.get('stimulus_delay_ms')),
+        ('event_timing.event_time_shift_ms', event_timing.get('event_time_shift_ms')),
+        ('event_timing.shift_ms', event_timing.get('shift_ms')),
+        ('event_timing.stimulus_delay_ms', event_timing.get('stimulus_delay_ms')),
+    )
+    for key, value in millisecond_keys:
+        parsed = _config_float(value, key)
+        if parsed is not None:
+            return parsed / 1000.0
+
+    return 0.0
+
+
+def apply_event_time_shift(events, sfreq, config, context="events"):
+    """Apply a configured event timing shift to MNE events."""
+    if events is None or len(events) == 0:
+        return events
+
+    shift_sec = _get_event_time_shift_sec(config)
+    if not shift_sec:
+        return events
+
+    shift_samples = int(round(shift_sec * float(sfreq)))
+    if shift_samples == 0:
+        print(
+            f"Configured event_time_shift_sec={shift_sec:g} for {context}, "
+            f"but it rounds to 0 samples at {sfreq:g} Hz."
+        )
+        return events
+
+    shifted = events.copy()
+    shifted[:, 0] = shifted[:, 0] + shift_samples
+    print(
+        f"Applied event_time_shift_sec={shift_sec:g} "
+        f"({shift_samples} samples at {sfreq:g} Hz) to {context}."
+    )
+    return shifted
 
 
 def _validate_epoch_events(events, context):
@@ -112,9 +217,29 @@ def _should_read_bids_events(events_file):
 
 
 def _find_events(raw, config, exclude_event_id):
-    events = mne.find_events(raw, **config.get('find_events', {}))
+    find_events_config = config.get('find_events')
+    if find_events_config is None:
+        find_events_config = config.get('events', {})
+    events = mne.find_events(raw, **(find_events_config or {}))
     events = filter_events_by_exclude(events, exclude_event_id)
     return _validate_epoch_events(events, "find_events")
+
+
+def _events_from_annotations(raw, config, exclude_event_id):
+    annotations_config = config.get('annotations') or {}
+    fixed_event_id = annotations_config.get('event_id')
+    event_id_map = annotations_config.get('event_id_map')
+
+    if fixed_event_id is not None:
+        event_id = lambda desc: int(fixed_event_id)
+    elif event_id_map:
+        event_id = event_id_map
+    else:
+        event_id = annotations_config.get('event_id_mode', 'auto')
+
+    events, _ = mne.events_from_annotations(raw, event_id=event_id)
+    events = filter_events_by_exclude(events, exclude_event_id)
+    return _validate_epoch_events(events, "annotations")
 
 
 def filter_events_by_exclude(events, exclude_event_id):
@@ -140,6 +265,77 @@ def filter_events_by_exclude(events, exclude_event_id):
         print(f"Excluded event ids {sorted(exclude_ids)}: "
               f"{len(events) - len(filtered)} events removed, {len(filtered)} kept.")
     return filtered
+
+
+def _as_list(value):
+    if value is None:
+        return []
+    if isinstance(value, (list, tuple, set)):
+        return list(value)
+    return [value]
+
+
+def _first_event_type_key(event_types, header):
+    if not isinstance(event_types, dict):
+        return 'trial_type'
+    if event_types.get('column'):
+        return event_types.get('column')
+
+    control_keys = {
+        'event_id',
+        'value_column',
+        'trial_type_contains',
+        'trial_type_regex',
+        'trial_type_fields',
+    }
+    for key in event_types.keys():
+        if key not in control_keys and key in header:
+            return key
+    return 'trial_type'
+
+
+def _parse_mapping_text(value):
+    try:
+        parsed = ast.literal_eval(value)
+    except Exception:
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _matches_field_filters(value, field_filters):
+    if not field_filters:
+        return True
+
+    parsed = _parse_mapping_text(value)
+    if not parsed:
+        return False
+
+    for field_name, expected in field_filters.items():
+        actual = parsed.get(field_name)
+        expected_values = [str(item) for item in _as_list(expected)]
+        if str(actual) not in expected_values:
+            return False
+    return True
+
+
+def _matches_text_filters(value, contains_filters, regex_filters):
+    if contains_filters:
+        if not any(str(token) in value for token in contains_filters):
+            return False
+    if regex_filters:
+        if not any(re.search(str(pattern), value) for pattern in regex_filters):
+            return False
+    return True
+
+
+def _event_value_from_row(columns, value_idx, event_type_value, exact_mapping, fixed_event_id):
+    if exact_mapping is not None:
+        return int(exact_mapping[event_type_value])
+    if fixed_event_id is not None:
+        return int(fixed_event_id)
+    if value_idx is None:
+        return 1
+    return int(columns[value_idx].strip('"'))
 
 
 def read_bids_events(events_file,sfreq,event_types=None,exclude_event_id=None):
@@ -180,36 +376,65 @@ def read_bids_events(events_file,sfreq,event_types=None,exclude_event_id=None):
         value_idx = None
 
     event_types = event_types or {'trial_type': None}
-    type_key = list(event_types.keys())[0]
+    type_key = _first_event_type_key(event_types, header)
     type_idx = header.index(type_key)
 
-    if event_types[type_key] is not None:
+    type_filter = event_types.get(type_key) if isinstance(event_types, dict) else None
+    exact_values = None
+    exact_mapping = None
+    if type_filter is not None:
         filtered_events = []
-        for evt in event_types.values():
-            if isinstance(evt, dict):
-                filtered_events.extend(list(evt.keys()))
-            else:
-                filtered_events.extend(evt)
+        if isinstance(type_filter, dict):
+            filtered_events.extend(list(type_filter.keys()))
+            exact_mapping = type_filter
+        else:
+            filtered_events.extend(_as_list(type_filter))
+        exact_values = {str(item) for item in filtered_events}
         print("filtered_events:", filtered_events)
         print("type_key:", type_key)
 
+    contains_filters = _as_list(event_types.get(f'{type_key}_contains')) if isinstance(event_types, dict) else []
+    if not contains_filters and type_key == 'trial_type' and isinstance(event_types, dict):
+        contains_filters = _as_list(event_types.get('trial_type_contains'))
+    regex_filters = _as_list(event_types.get(f'{type_key}_regex')) if isinstance(event_types, dict) else []
+    if not regex_filters and type_key == 'trial_type' and isinstance(event_types, dict):
+        regex_filters = _as_list(event_types.get('trial_type_regex'))
+    field_filters = event_types.get(f'{type_key}_fields') if isinstance(event_types, dict) else None
+    if not field_filters and type_key == 'trial_type' and isinstance(event_types, dict):
+        field_filters = event_types.get('trial_type_fields')
+    fixed_event_id = event_types.get('event_id') if isinstance(event_types, dict) else None
+
     for line in lines[1:]:
         columns = line.strip().split('\t')
+        if len(columns) <= onset_idx or len(columns) <= type_idx:
+            continue
         onset = float(columns[onset_idx])
         event_type_value = columns[type_idx].strip() if type_idx is not None else None
 
-        if event_types[type_key] is not None:
-            if event_type_value not in filtered_events:
+        if exact_values is not None:
+            if event_type_value not in exact_values:
+                continue
+        if not _matches_text_filters(event_type_value, contains_filters, regex_filters):
+            continue
+        if not _matches_field_filters(event_type_value, field_filters):
+            continue
+
+        if value_idx is not None and len(columns) <= value_idx:
+            if fixed_event_id is None and exact_mapping is None:
                 continue
 
         # handle the problem that value is not int
         try:
-            if isinstance(event_types[type_key], dict):
-                value = event_types[type_key][event_type_value]
-            else:
-                value = int(columns[value_idx].strip('"'))  # Remove quotes and convert to int.
+            value = _event_value_from_row(
+                columns,
+                value_idx,
+                event_type_value,
+                exact_mapping,
+                fixed_event_id,
+            )
         except ValueError as e:
-            print(f"ValueError: The value:{columns[value_idx]} is not int.(Please check the event file.)", e)
+            row_value = columns[value_idx] if value_idx is not None and len(columns) > value_idx else ''
+            print(f"ValueError: The value:{row_value} is not int.(Please check the event file.)", e)
             break
 
         value = int(value)
@@ -220,7 +445,101 @@ def read_bids_events(events_file,sfreq,event_types=None,exclude_event_id=None):
 
     return np.array(events, dtype=int)
 
-def epochs(subj_data_file,output_epoch_file, output_dir, events_file, config):
+
+def prepare_epoching_raw_and_events(
+    raw,
+    config,
+    events_file="",
+    *,
+    preproc_config=None,
+    preproc_config_name="epochs.preproc",
+    output_analysis_raw_file=None,
+):
+    """Prepare continuous Raw data and events through one shared path.
+
+    Trigger-channel events are detected before resampling so MNE can remap their
+    sample indices. BIDS onsets and annotations are converted after optional
+    preprocessing using the final sampling rate.
+    """
+    config = config or {}
+    analysis_config = config if preproc_config is None else preproc_config
+    task_type = config.get('task_type', 'task')
+    event_source = config.get('event_source', 'find_events')
+    exclude_event_id = _get_exclude_event_id(config)
+    events = None
+    read_bids_event_file = False
+
+    if task_type == 'task':
+        if event_source == 'find_events':
+            events = _find_events(raw, config, exclude_event_id)
+        elif event_source == 'event_file':
+            read_bids_event_file = _should_read_bids_events(events_file)
+            if not read_bids_event_file:
+                events = _find_events(raw, config, exclude_event_id)
+        elif event_source != 'annotations':
+            raise ValueError(
+                "Unknown event_source specified in the config. "
+                "Use 'find_events', 'annotations', or 'event_file'."
+            )
+    elif task_type != 'resting':
+        raise ValueError("Unknown task_type specified in the config. Use 'resting' or 'task'.")
+
+    events_are_authoritative = events is not None
+    resample_events = events
+    if resample_events is None and analysis_preproc_has_operation(
+        analysis_config,
+        'resample',
+        config_name=preproc_config_name,
+    ):
+        resample_events = _auxiliary_trigger_events_for_resample(raw, config)
+        if resample_events is not None:
+            print(
+                f"Tracking {len(resample_events)} auxiliary trigger events during Raw resampling; "
+                f"{event_source} remains the epoch event source."
+            )
+
+    raw, remapped_events, preprocessed = prepare_analysis_raw(
+        raw,
+        analysis_config,
+        events=resample_events,
+        save_path=output_analysis_raw_file,
+        config_name=preproc_config_name,
+    )
+    events = remapped_events if events_are_authoritative else None
+
+    if task_type == 'resting':
+        fixed_length_duration = (config.get('resting') or {}).get('fixed_length_duration', 2.0)
+        print(f"Resting Epochs, fixed length duration: {fixed_length_duration}")
+        events = mne.make_fixed_length_events(raw, id=1, duration=fixed_length_duration)
+        return raw, events, preprocessed
+
+    if event_source == 'annotations':
+        events = _events_from_annotations(raw, config, exclude_event_id)
+    elif event_source == 'event_file' and read_bids_event_file:
+        print(f"Load bids events file from {events_file}")
+        events = read_bids_events(
+            events_file,
+            raw.info['sfreq'],
+            config.get('event_file'),
+            exclude_event_id,
+        )
+        events = _validate_epoch_events(events, "event_file")
+        events[:, 0] = events[:, 0] + raw.first_samp
+        print("bids events:\n", events)
+
+    events = _validate_epoch_events(events, event_source)
+    events = apply_event_time_shift(events, raw.info['sfreq'], config, event_source)
+    return raw, events, preprocessed
+
+
+def epochs(
+    subj_data_file,
+    output_epoch_file,
+    output_dir,
+    events_file,
+    config,
+    output_analysis_raw_file=None,
+):
     """
     Process each subject and session to generate epochs and handle rejection logs.
     """
@@ -229,42 +548,15 @@ def epochs(subj_data_file,output_epoch_file, output_dir, events_file, config):
     raw = mne.io.read_raw_fif(subj_data_file)
 
     # Extract parameters from config
-    task_type = config.get('task_type', 'task')
     subj_tag = os.path.basename(subj_data_file)
-
-    event_source = config.get('event_source', 'find_events')
-    exclude_event_id = _get_exclude_event_id(config)
     epoch_kwargs = _get_epoch_kwargs(config)
-
-
-    if task_type == 'resting':
-        fixed_length_duration = config.get('resting', {}).get('fixed_length_duration', 2.0)
-        print("Resting Epochs, fixed length duration: {}".format(fixed_length_duration))
-        events = mne.make_fixed_length_events(raw, id=1, duration=fixed_length_duration)
-        epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
-    elif task_type == 'task':
-        if event_source == 'find_events':
-            events = _find_events(raw, config, exclude_event_id)
-            epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
-        elif event_source == 'event_file':
-            # According to the event file to generate epochs (in BIDS format)
-            # events = mne.read_events(events_file)
-            if _should_read_bids_events(events_file):
-                print("Load bids events file from {}".format(events_file))
-                events = read_bids_events(
-                    events_file, raw.info['sfreq'], config.get('event_file'), exclude_event_id
-                )
-                events = _validate_epoch_events(events, "event_file")
-                # add first sample
-                events[:, 0] = events[:, 0] + raw.first_samp
-                print("bids events:\n", events)
-            else:
-                events = _find_events(raw, config, exclude_event_id)
-            epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
-        else:
-            raise ValueError("Unknown event_source specified in the config. Use 'find_events' or 'event_file'.")
-    else:
-        raise ValueError("Unknown task_type specified in the config. Use 'resting' or 'task'.")
+    raw, events, _ = prepare_epoching_raw_and_events(
+        raw,
+        config,
+        events_file,
+        output_analysis_raw_file=output_analysis_raw_file,
+    )
+    epochs_data = mne.Epochs(raw=raw, events=events, **epoch_kwargs)
 
     if config.get('interpolate_bads', False):
         print("Interpolating bad channels in epochs.")
@@ -300,6 +592,7 @@ def epochs(subj_data_file,output_epoch_file, output_dir, events_file, config):
     save_rejected_epochs(epochs_data, subj_tag, reject_epochs_id_file)
 
     plot_epochs(epochs_data, subj_tag, output_dir)
+    return epochs_data
 
 
 def save_rejected_epochs(epochs, subj_tag, reject_epochs_id_file):
@@ -329,6 +622,12 @@ def parse_arguments():
     parser.add_argument('--preproc_raw_file', type=str, required=True, help="")
     parser.add_argument('--events_file', type=str, default="", help="Path to the events.tsv file. (BIDS)")
     parser.add_argument('--output_epoch_file', type=str, default="epoch-epo.fif", help="")
+    parser.add_argument(
+        '--output_analysis_raw_file',
+        type=str,
+        default="",
+        help="Optional output path for continuous Raw after epochs.preproc.",
+    )
     parser.add_argument('--output_dir', type=str, default=".", help="")
     parser.add_argument('--config', type=str,  default="{}", help="YAML configuration string for epochs")
 
@@ -395,10 +694,17 @@ def main():
     # args.config = epoch_config
 
     # Parse YAML configuration
-    config = yaml.safe_load(args.config)
+    config = yaml.safe_load(args.config) or {}
     print(config)
     os.makedirs(args.output_dir, exist_ok=True)
-    epochs(args.preproc_raw_file, args.output_epoch_file, args.output_dir, args.events_file, config)
+    epochs(
+        args.preproc_raw_file,
+        args.output_epoch_file,
+        args.output_dir,
+        args.events_file,
+        config,
+        output_analysis_raw_file=args.output_analysis_raw_file or None,
+    )
 
 
 if __name__ == "__main__":

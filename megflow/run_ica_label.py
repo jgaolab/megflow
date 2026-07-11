@@ -90,6 +90,36 @@ def normalize_score_dict(scores_dict, n_components=None):
     return normalized
 
 
+def collect_exclude_indices(
+    config,
+    n_components,
+    megnet_artifacts=None,
+    mne_artifacts=None,
+    rules_artifacts=None,
+    ic_ecg=None,
+    ic_eog=None,
+    ic_outlier=None,
+):
+    exclude_idx = []
+
+    if config.get('ica_label', True):
+        exclude_idx.extend(megnet_artifacts or [])
+    if config.get('mne_algorithm', True):
+        exclude_idx.extend(mne_artifacts or [])
+    if config.get('rules_algorithm', True):
+        exclude_idx.extend(rules_artifacts or [])
+
+    # Keep category switches as additive compatibility for existing configs.
+    if config.get('ic_ecg'):
+        exclude_idx.extend(ic_ecg or [])
+    if config.get('ic_eog'):
+        exclude_idx.extend(ic_eog or [])
+    if config.get('ic_outlier'):
+        exclude_idx.extend(ic_outlier or [])
+
+    return sorted(unique_ints(exclude_idx, n_components))
+
+
 def main():
     args = parse_arguments()
 
@@ -171,6 +201,9 @@ def main():
         ic_ecg = []
         ic_eog = []
         ic_outlier = []
+        megnet_artifacts = []
+        mne_artifacts = []
+        rules_artifacts = []
         scores_dict = {'ecg': [], 'ecg_indices': [], 'eog': [], 'eog_indices': []}
         scores_dict = defaultdict(list, scores_dict)
         # Load the ICA file
@@ -202,6 +235,7 @@ def main():
                         mne_ic_labels['labels'].extend(['EOG']*len(eog_indices))
                         mne_ic_labels['y_pred_proba'].extend(eog_scores[eog_indices])
                         ic_eog.extend(eog_indices)
+                        mne_artifacts.extend(eog_indices)
                         for component_idx in eog_indices:
                             append_component_score(scores_dict, "eog", component_idx, eog_scores[component_idx])
             except Exception as e:
@@ -224,6 +258,7 @@ def main():
                 mne_ic_labels['labels'].extend(['ECG'] * len(ecg_indices))
                 mne_ic_labels['y_pred_proba'].extend(ecg_scores[ecg_indices])
                 ic_ecg.extend(ecg_indices)
+                mne_artifacts.extend(ecg_indices)
                 for component_idx in ecg_indices:
                     append_component_score(scores_dict, "ecg", component_idx, ecg_scores[component_idx])
             except Exception as e:
@@ -237,6 +272,7 @@ def main():
                 mne_ic_labels['labels'].extend(['MUSCLE'] * len(muscle_indices))
                 mne_ic_labels['y_pred_proba'].extend(muscle_scores[muscle_indices])
                 ic_outlier.extend(muscle_indices)
+                mne_artifacts.extend(muscle_indices)
             except RuntimeError as e:
                 logging.error(e)
 
@@ -262,6 +298,9 @@ def main():
                 ic_ecg.extend(rule_ecg)
                 ic_eog.extend(rule_eog)
                 ic_outlier.extend(rule_outlier)
+                rules_artifacts.extend(rule_ecg)
+                rules_artifacts.extend(rule_eog)
+                rules_artifacts.extend(rule_outlier)
                 for component_idx in rule_ecg:
                     append_component_score(scores_dict, "ecg", component_idx, 0.5)  # rule-based score placeholder
                 for component_idx in rule_eog:
@@ -285,13 +324,15 @@ def main():
             ic_labels = label_components(raw, ica, method="megnet")  # slow in cpu.
             _ic_list = []
             for idx, ic_l in enumerate(ic_labels["labels"]):
-                if "heart beat" == ic_l and (idx not in scores_dict["ecg_indices"]):
+                if "heart beat" == ic_l:
                     append_component_score(scores_dict, "ecg", idx, ic_labels["y_pred_proba"][idx])
                     ic_ecg.append(idx)
+                    megnet_artifacts.append(idx)
                     _ic_list.append(idx)
-                elif (("eye blink" == ic_l) or ("eye movement" == ic_l)) and (idx not in scores_dict["eog_indices"]):
+                elif ("eye blink" == ic_l) or ("eye movement" == ic_l):
                     append_component_score(scores_dict, "eog", idx, ic_labels["y_pred_proba"][idx])
                     ic_eog.append(idx)
+                    megnet_artifacts.append(idx)
                     _ic_list.append(idx)
             print("[MNE-ICLabel] Component labels:", _ic_list)
 
@@ -306,18 +347,16 @@ def main():
         )
 
         # marked artifact IC
-        exclude_idx = []
-        if config.get('ic_ecg'):
-            exclude_idx.extend(ic_ecg)
-        if config.get('ic_eog'):
-            exclude_idx.extend(ic_eog)
-        if config.get('ic_outlier'):
-            exclude_idx.extend(ic_outlier)
-
-
-        # exclude_idx.extend(mne_ic_labels['index'])
-        # exclude_idx.extend(marked_ics)
-        exclude_idx = sorted(unique_ints(exclude_idx, n_components))
+        exclude_idx = collect_exclude_indices(
+            config,
+            n_components,
+            megnet_artifacts=megnet_artifacts,
+            mne_artifacts=mne_artifacts,
+            rules_artifacts=rules_artifacts,
+            ic_ecg=ic_ecg,
+            ic_eog=ic_eog,
+            ic_outlier=ic_outlier,
+        )
         print(f"run_ica_label - Exclude ICs:{exclude_idx}")
 
         with open(artifact_ic_output_file, "w") as f:

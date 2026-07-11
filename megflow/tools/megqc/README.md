@@ -1,13 +1,12 @@
 # MEG QC standalone reference-quota scorer
 
-This folder is the deployment-oriented scorer for
-`lowcost_quota_T4_S2_Stat1_Fr1`.
+This folder contains the deployment-oriented scorer for the bundled normative
+MEG quality reference.
 
 Key points:
 
-- No `tsfel` package is imported. The `tsfel.*` names are the canonical metric
-  names used during selection; their selected low-cost formulas are implemented
-  directly with NumPy.
+- Temporal quality metrics are implemented directly with NumPy, keeping the
+  runtime small and the calculations reproducible.
 - No `msqms` package is imported. The required `freq_domain.*` and
   `fractal_domain.DFA` formulas are ported from the local msqms source code to
   avoid package-version drift.
@@ -30,11 +29,11 @@ python3 score_meg_reference_quota_standalone.py \
 
 Outputs:
 
-- `*.summary.json`: final Normative Reference score, 0-100, higher is better.
+- `*.summary.json`: final Normative MEG Data Quality Score, 0-100, higher is better.
 - `*.component_scores.csv`: raw metric value, q05/q50/q95 reference interval,
   direction, component score, and out-of-range status.
-- `*.reference_position.png`: visual position of each metric in the reference
-  interval.
+- `*.normative_quality_score.png`: 0-100 family scores and the overall
+  Normative MEG Data Quality Score.
 
 Useful options:
 

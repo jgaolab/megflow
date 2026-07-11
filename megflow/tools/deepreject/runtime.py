@@ -24,6 +24,35 @@ from .postprocess import artifact_probs_to_bad_intervals
 from .preprocessing import build_badchnnet_record, build_torch_data_list, load_single_fif_record
 
 
+def _mask_record_bad_channels(record, bad_channels: Sequence[str]):
+    """Return a shallow record copy with BadChnNet bad channels masked for BadSegNet."""
+    bad_name_set = {str(name) for name in bad_channels or [] if str(name)}
+    if not bad_name_set:
+        return record
+
+    ch_names = list(record.get("ch_names") or [])
+    if not ch_names:
+        return record
+
+    n_channels = len(ch_names)
+    node_valid = np.asarray(record.get("node_valid", np.ones(n_channels)), dtype=np.int64).reshape(-1)
+    if node_valid.shape[0] != n_channels:
+        node_valid = np.ones(n_channels, dtype=np.int64)
+
+    bad_mask = np.asarray([1 if name in bad_name_set else 0 for name in ch_names], dtype=np.int64)
+    if not bad_mask.any():
+        return record
+
+    masked_record = dict(record)
+    masked_record["node_valid"] = (node_valid * (1 - bad_mask)).astype(np.int64, copy=False)
+
+    y_bad_channel = np.asarray(record.get("y_bad_channel", np.zeros(n_channels)), dtype=np.int64).reshape(-1)
+    if y_bad_channel.shape[0] == n_channels:
+        masked_record["y_bad_channel"] = np.maximum(y_bad_channel, bad_mask).astype(np.int64, copy=False)
+
+    return masked_record
+
+
 @dataclass
 class DeepRejectPrediction:
     """Prediction output from the final standalone runtime."""
@@ -176,43 +205,6 @@ class DeepRejectPredictor:
         artifact_pred = np.zeros(len(record["window_signals"]), dtype=np.int64)
         bad_intervals: List[Tuple[float, float]] = []
 
-        if run_bad_segments:
-            data_list = build_torch_data_list(record, edge_k=self.badsegnet_edge_k)
-            if self.cache_models:
-                self.preload_models(run_bad_segments=True, run_bad_channels=False)
-                seg = predict_loaded_badsegnet_ensemble(
-                    self._badsegnet_models,
-                    data_list,
-                    device=self.device,
-                    batch_size=self.badsegnet_batch_size,
-                    fold_workers=self.fold_workers,
-                )
-            else:
-                seg = predict_badsegnet_ensemble(
-                    data_list,
-                    weights_dir=self.badsegnet_weights_dir,
-                    folds=self.folds,
-                    device=self.device,
-                    batch_size=self.badsegnet_batch_size,
-                    encoder_chunk_size=self.badsegnet_encoder_chunk_size,
-                    fold_workers=self.fold_workers,
-                )
-            artifact_folds = seg["folds"]
-            artifact_fold_probs = seg["fold_probs"]
-            artifact_fold_logits = seg["fold_logits"]
-            artifact_probs = seg["artifact_probs"]
-            artifact_pred = (artifact_probs >= self.badsegnet_hysteresis_high).astype(np.int64)
-            bad_intervals = artifact_probs_to_bad_intervals(
-                artifact_probs,
-                duration_sec=self.badsegnet_window_duration_sec,
-                hysteresis_high=self.badsegnet_hysteresis_high,
-                hysteresis_low=self.badsegnet_hysteresis_low,
-                merge_gap_sec=self.badsegnet_merge_gap_sec,
-                min_duration_sec=self.badsegnet_min_duration_sec,
-                short_keep_threshold=self.badsegnet_short_keep_threshold,
-            )
-            del data_list
-
         bad_channel_folds = np.asarray([], dtype=np.int64)
         bad_channel_fold_probs = np.empty((0, len(ch_names)), dtype=np.float32)
         bad_channel_probs = np.zeros(len(ch_names), dtype=np.float32)
@@ -282,6 +274,45 @@ class DeepRejectPredictor:
             del ch_record
 
         bad_channels = [name for name, flag in zip(ch_names, bad_channel_pred, strict=False) if int(flag)]
+
+        if run_bad_segments:
+            segment_record = _mask_record_bad_channels(record, bad_channels)
+            data_list = build_torch_data_list(segment_record, edge_k=self.badsegnet_edge_k)
+            if self.cache_models:
+                self.preload_models(run_bad_segments=True, run_bad_channels=False)
+                seg = predict_loaded_badsegnet_ensemble(
+                    self._badsegnet_models,
+                    data_list,
+                    device=self.device,
+                    batch_size=self.badsegnet_batch_size,
+                    fold_workers=self.fold_workers,
+                )
+            else:
+                seg = predict_badsegnet_ensemble(
+                    data_list,
+                    weights_dir=self.badsegnet_weights_dir,
+                    folds=self.folds,
+                    device=self.device,
+                    batch_size=self.badsegnet_batch_size,
+                    encoder_chunk_size=self.badsegnet_encoder_chunk_size,
+                    fold_workers=self.fold_workers,
+                )
+            artifact_folds = seg["folds"]
+            artifact_fold_probs = seg["fold_probs"]
+            artifact_fold_logits = seg["fold_logits"]
+            artifact_probs = seg["artifact_probs"]
+            artifact_pred = (artifact_probs >= self.badsegnet_hysteresis_high).astype(np.int64)
+            bad_intervals = artifact_probs_to_bad_intervals(
+                artifact_probs,
+                duration_sec=self.badsegnet_window_duration_sec,
+                hysteresis_high=self.badsegnet_hysteresis_high,
+                hysteresis_low=self.badsegnet_hysteresis_low,
+                merge_gap_sec=self.badsegnet_merge_gap_sec,
+                min_duration_sec=self.badsegnet_min_duration_sec,
+                short_keep_threshold=self.badsegnet_short_keep_threshold,
+            )
+            del data_list
+
         return DeepRejectPrediction(
             ch_names=ch_names,
             bad_intervals=bad_intervals,

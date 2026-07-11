@@ -46,8 +46,11 @@ DEFAULT_THRESHOLDS = {
     "megqc_alarm_score": 70.0,
 }
 
+NMDQ_FULL_NAME = "Normative MEG Data Quality Score"
+NMDQ_SHORT_NAME = "NMDQ Score"
+
 STEP_DEFS = [
-    ("quality_score", "QC score"),
+    ("quality_score", NMDQ_SHORT_NAME),
     ("basic_preproc", "Basic preprocessing"),
     ("artifacts", "Artifacts"),
     ("ica", "ICA"),
@@ -307,6 +310,26 @@ a:hover {
 .grid {
   display: grid;
   gap: 16px;
+}
+
+.term-short {
+  display: none;
+}
+
+.card,
+.metric-box,
+.control-group {
+  container-type: inline-size;
+}
+
+@container (max-width: 260px) {
+  .term-full {
+    display: none;
+  }
+
+  .term-short {
+    display: inline;
+  }
 }
 
 .grid.cards {
@@ -1042,7 +1065,7 @@ tr.row-fail:hover td.active-sort-cell {
 }
 
 .quality-summary-panel,
-.quality-reference-panel {
+.quality-score-figure-panel {
   min-width: 0;
 }
 
@@ -1056,21 +1079,21 @@ tr.row-fail:hover td.active-sort-cell {
   margin-top: 0;
 }
 
-.quality-reference-panel {
+.quality-score-figure-panel {
   padding: 16px;
 }
 
-.quality-reference-panel .gallery {
+.quality-score-figure-panel .gallery {
   grid-template-columns: 1fr;
   gap: 0;
 }
 
-.quality-reference-figure img {
+.quality-score-figure img {
   box-sizing: border-box;
   padding: 8px 10px 2px;
 }
 
-.quality-reference-figure .caption {
+.quality-score-figure .caption {
   border-top: 1px solid var(--line);
   background: #fbfdff;
   color: var(--text);
@@ -1862,7 +1885,7 @@ function getJsonScriptData(elementId) {
 }
 
 const STEP_MATRIX_DEFS = [
-  { key: "quality_score", label: "QC score" },
+  { key: "quality_score", label: "NMDQ Score" },
   { key: "basic_preproc", label: "Basic preprocessing" },
   { key: "artifacts", label: "Artifacts" },
   { key: "ica", label: "ICA" },
@@ -2338,13 +2361,25 @@ def parse_args() -> argparse.Namespace:
         "--megqc_alarm_score",
         type=float,
         default=DEFAULT_THRESHOLDS["megqc_alarm_score"],
-        help="Alarm threshold for Normative Reference MEG QC score, 0-100; lower scores are flagged.",
+        help="Alarm threshold for the Normative MEG Data Quality (NMDQ) Score, 0-100; lower scores are flagged.",
     )
     parser.add_argument(
         "--artifact_overview_duration",
         type=float,
         default=DEFAULT_THRESHOLDS["artifact_overview_duration"],
         help="Seconds represented by the single Artifact Review overview plot in the static report.",
+    )
+    parser.add_argument(
+        "--alert_missing_ecg_components",
+        type=str,
+        default="true",
+        help="Whether to add a QC alert when no ECG-related ICA components are detected. true/false.",
+    )
+    parser.add_argument(
+        "--alert_missing_eog_components",
+        type=str,
+        default="true",
+        help="Whether to add a QC alert when no EOG-related ICA components are detected. true/false.",
     )
     parser.add_argument(
         "--zip_output",
@@ -2387,6 +2422,15 @@ def sanitize_name(name: str) -> str:
 
 def html_text(value: Any) -> str:
     return html.escape("" if value is None else str(value))
+
+
+def responsive_label(full_label: str, short_label: str) -> str:
+    full = html_text(full_label)
+    short = html_text(short_label)
+    return (
+        f'<span class="term-full">{full}</span>'
+        f'<span class="term-short" title="{full}">{short}</span>'
+    )
 
 
 def json_ready(value: Any) -> Any:
@@ -2498,9 +2542,23 @@ def coreg_asset_sort_key(file_path: Path) -> tuple[int, int, str]:
     return (len(COREG_ASSET_STEPS), len(COREG_ASSET_VIEW_SUFFIXES), stem)
 
 
+REPORT_ASSET_EXTENSIONS = {
+    ".png",
+    ".jpg",
+    ".jpeg",
+    ".gif",
+    ".svg",
+    ".json",
+    ".csv",
+    ".txt",
+    ".jl",
+    ".html",
+}
+
+
 def copy_asset(src: Path, output_root: Path, subject_slug: str, category: str) -> str:
     ext = src.suffix.lower()
-    if ext in {".png", ".jpg", ".jpeg", ".gif", ".svg", ".json", ".csv", ".txt", ".jl", ".html"}:
+    if ext in REPORT_ASSET_EXTENSIONS:
         category_dir = ensure_dir(output_root / "files" / subject_slug / category)
         dest = category_dir / src.name
         shutil.copy2(src, dest)
@@ -2510,7 +2568,7 @@ def copy_asset(src: Path, output_root: Path, subject_slug: str, category: str) -
 
 def copy_asset_as(src: Path, output_root: Path, subject_slug: str, category: str, file_name: str) -> str:
     ext = src.suffix.lower()
-    if ext not in {".png", ".jpg", ".jpeg", ".gif", ".svg", ".json", ".csv", ".txt", ".jl", ".html"}:
+    if ext not in REPORT_ASSET_EXTENSIONS:
         raise ValueError(f"Unsupported asset type for copy: {src}")
     category_dir = ensure_dir(output_root / "files" / subject_slug / category)
     safe_name = sanitize_name(Path(file_name).stem) + ext
@@ -2549,8 +2607,8 @@ def direction_label(mode: str, direction: str = "") -> str:
 def find_quality_score_files(qc_dir: Path) -> tuple[Path | None, Path | None, Path | None]:
     summary_file = next(iter(sorted(qc_dir.glob("*.summary.json"))), None)
     component_file = next(iter(sorted(qc_dir.glob("*.component_scores.csv"))), None)
-    reference_plot = next(iter(sorted(qc_dir.glob("*.reference_position.png"))), None)
-    return summary_file, component_file, reference_plot
+    quality_score_plot = next(iter(sorted(qc_dir.glob("*.normative_quality_score.png"))), None)
+    return summary_file, component_file, quality_score_plot
 
 
 def read_quality_components(component_file: Path | None, max_rows: int = 24) -> list[dict[str, Any]]:
@@ -2567,8 +2625,10 @@ def read_quality_components(component_file: Path | None, max_rows: int = 24) -> 
         rows.append(
             {
                 "family": row.get("family", ""),
+                "family_display_label": row.get("family_display_label", row.get("family", "")),
                 "domain": row.get("domain", ""),
                 "metric": row.get("metric", ""),
+                "component_type": row.get("component_type", ""),
                 "raw_value": finite_float(row.get("raw_value")),
                 "q05": finite_float(row.get("q05")),
                 "q50": finite_float(row.get("q50")),
@@ -2594,17 +2654,16 @@ def collect_quality_score_data(
     subject_slug: str,
 ) -> dict[str, Any]:
     qc_dir = preprocessed_dir / "quality_control" / subject
-    summary_file, component_file, reference_plot = find_quality_score_files(qc_dir)
+    summary_file, component_file, quality_score_plot = find_quality_score_files(qc_dir)
     summary_json = safe_json(summary_file) if summary_file else {}
     score = finite_float(summary_json.get("score_0_100"))
     component_rows = read_quality_components(component_file)
     quality_data: dict[str, Any] = {
-        "exists": bool(summary_file or component_file or reference_plot),
+        "exists": bool(summary_file or component_file or quality_score_plot),
         "raw_file": summary_json.get("raw_file", ""),
         "score_0_100": score,
         "score_scale": summary_json.get("score_scale", "0-100; higher is better"),
         "score_higher_is_better": bool(summary_json.get("score_higher_is_better", True)),
-        "model": summary_json.get("model", ""),
         "device_type": summary_json.get("device_type", ""),
         "category": summary_json.get("category", ""),
         "reference_scope": summary_json.get("reference_scope", ""),
@@ -2615,8 +2674,6 @@ def collect_quality_score_data(
         "status": summary_json.get("status", ""),
         "error": summary_json.get("error", ""),
         "reference_preprocessing": summary_json.get("reference_preprocessing", []),
-        "bad_channel_policy": summary_json.get("bad_channel_policy", ""),
-        "bad_annotation_policy": summary_json.get("bad_annotation_policy", ""),
         "family_scores": summary_json.get("family_scores", []),
         "components": component_rows,
         "files": {},
@@ -2625,8 +2682,13 @@ def collect_quality_score_data(
         quality_data["files"]["summary_json"] = copy_asset(summary_file, output_root, subject_slug, "quality_score")
     if component_file and component_file.is_file():
         quality_data["files"]["component_scores_csv"] = copy_asset(component_file, output_root, subject_slug, "quality_score")
-    if reference_plot and reference_plot.is_file():
-        quality_data["reference_plot_rel"] = copy_asset(reference_plot, output_root, subject_slug, "quality_score")
+    if quality_score_plot and quality_score_plot.is_file():
+        quality_data["quality_score_plot_rel"] = copy_asset(
+            quality_score_plot,
+            output_root,
+            subject_slug,
+            "quality_score",
+        )
     return quality_data
 
 
@@ -2860,7 +2922,7 @@ def collect_nextflow_task_details(
 
     for trace_file in trace_files:
         with open(trace_file, "r", encoding="utf-8", errors="replace", newline="") as f:
-            reader = csv.DictReader(f, delimiter="\t")
+            reader = csv.DictReader((line.replace("\x00", "") for line in f), delimiter="\t")
             for row in reader:
                 process_name, tag = parse_trace_task_name(row.get("name", ""))
                 subject = match_task_subject(tag, subjects, dataset_name=dataset_name)
@@ -3206,6 +3268,682 @@ def select_artifact_images(artifact_dir: Path, overview_duration: float = 200.0)
     return result
 
 
+def _generate_static_artifact_score_overview(
+    raw_file: Path,
+    bad_channels: list[str],
+    bad_segment_rows: list[dict[str, Any]],
+    output_root: Path,
+    subject_slug: str,
+    overview_duration: float,
+) -> dict[str, Any] | None:
+    try:
+        import matplotlib
+        matplotlib.use("Agg", force=True)
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from matplotlib.colors import BoundaryNorm, ListedColormap
+    except Exception:
+        return None
+
+    try:
+        raw = mne.io.read_raw_fif(str(raw_file), preload=False, verbose="ERROR")
+        picks = list(mne.pick_types(raw.info, meg=True, eeg=False, ref_meg=False, exclude=[]))
+        if not picks:
+            return None
+
+        duration = max(float(overview_duration or 0), 0.0)
+        data_end = float(raw.times[-1]) if len(raw.times) else 0.0
+        raw_first_time = float(getattr(raw, "first_time", 0.0) or 0.0)
+        end_time = min(duration, data_end) if duration > 0 else data_end
+        if end_time <= 0:
+            return None
+        plot_start = raw_first_time
+        plot_stop = raw_first_time + end_time
+
+        raw_window = raw.copy().pick(picks).crop(tmin=0.0, tmax=end_time, include_tmax=True)
+        raw_window.load_data(verbose="ERROR")
+        data, times = raw_window.get_data(return_times=True)
+        if data.size == 0:
+            return None
+
+        times = times + raw_first_time
+        ch_names = list(raw_window.ch_names)
+        ch_types = [mne.channel_type(raw_window.info, idx) for idx in range(len(ch_names))]
+        n_samples = data.shape[1]
+
+        # Estimate each channel's baseline from a bounded sample set. A second,
+        # sensor-type baseline keeps persistently noisy channels visible instead
+        # of normalizing their abnormal amplitude away.
+        stat_stride = max(1, int(np.ceil(n_samples / 10000)))
+        stat_data = data[:, ::stat_stride]
+        channel_center = np.nanmedian(stat_data, axis=1)
+        channel_mad = np.nanmedian(np.abs(stat_data - channel_center[:, None]), axis=1)
+        channel_scale = 1.4826 * channel_mad
+        valid_channel_scale = np.isfinite(channel_scale) & (channel_scale > np.finfo(float).tiny)
+        global_scale = (
+            float(np.nanmedian(channel_scale[valid_channel_scale]))
+            if valid_channel_scale.any()
+            else 1.0
+        )
+        shared_scale = np.full(len(ch_names), global_scale, dtype=float)
+        for ch_type in sorted(set(ch_types)):
+            type_idx = np.asarray([idx for idx, item in enumerate(ch_types) if item == ch_type], dtype=int)
+            valid_type_scale = channel_scale[type_idx]
+            valid_type_scale = valid_type_scale[
+                np.isfinite(valid_type_scale) & (valid_type_scale > np.finfo(float).tiny)
+            ]
+            type_scale = float(np.nanmedian(valid_type_scale)) if valid_type_scale.size else global_scale
+            shared_scale[type_idx] = type_scale
+            invalid_idx = type_idx[~valid_channel_scale[type_idx]]
+            channel_scale[invalid_idx] = type_scale
+        channel_scale[~np.isfinite(channel_scale) | (channel_scale <= 0)] = global_scale
+        shared_scale[~np.isfinite(shared_scale) | (shared_scale <= 0)] = global_scale
+
+        # Always aggregate to the output's horizontal resolution. Per-bin minima
+        # and maxima preserve brief spikes and high-frequency bursts that simple
+        # decimation or antialiased dense line plots can hide.
+        max_plot_bins = 1600
+        n_plot_bins = min(max_plot_bins, n_samples)
+        if n_samples > n_plot_bins:
+            edges = np.linspace(0, n_samples, n_plot_bins + 1, dtype=int)
+            plot_times = np.empty(n_plot_bins, dtype=float)
+            envelope_min = np.empty((len(ch_names), n_plot_bins), dtype=np.float32)
+            envelope_max = np.empty((len(ch_names), n_plot_bins), dtype=np.float32)
+            for bin_idx, (start_idx, stop_idx) in enumerate(zip(edges[:-1], edges[1:])):
+                stop_idx = max(stop_idx, start_idx + 1)
+                chunk = data[:, start_idx:stop_idx]
+                envelope_min[:, bin_idx] = np.nanmin(chunk, axis=1)
+                envelope_max[:, bin_idx] = np.nanmax(chunk, axis=1)
+                plot_times[bin_idx] = 0.5 * (
+                    times[start_idx] + times[min(stop_idx - 1, n_samples - 1)]
+                )
+        else:
+            plot_times = times
+            envelope_min = data.astype(np.float32, copy=False)
+            envelope_max = envelope_min
+
+        excursion = np.maximum(
+            np.abs(envelope_min - channel_center[:, None]),
+            np.abs(envelope_max - channel_center[:, None]),
+        )
+        channel_score = excursion / channel_scale[:, None]
+        sensor_type_score = excursion / shared_scale[:, None]
+        peak_score = np.maximum(channel_score, sensor_type_score)
+        peak_score[~np.isfinite(peak_score)] = 0.0
+
+        highlight_threshold = 6.0
+        score_cap = 20.0
+        display_score = np.clip(peak_score, 0.0, score_cap)
+        affected_fraction = np.mean(peak_score >= highlight_threshold, axis=0) * 100.0
+        maximum_score = np.max(peak_score, axis=0)
+
+        bad_intervals = []
+        for row in bad_segment_rows:
+            try:
+                onset = float(row.get("onset_sec", row.get("onset")))
+                duration_row = float(row.get("duration_sec", row.get("duration")))
+            except (TypeError, ValueError):
+                continue
+            start = max(plot_start, onset)
+            stop = min(plot_stop, onset + max(duration_row, 0.0))
+            if stop > start:
+                bad_intervals.append((start, stop))
+
+        bad_bin_mask = np.zeros(len(plot_times), dtype=bool)
+        half_bin_width = (
+            0.5 * float(np.nanmedian(np.diff(plot_times)))
+            if len(plot_times) > 1
+            else 0.0
+        )
+        for start, stop in bad_intervals:
+            bad_bin_mask |= (
+                (plot_times + half_bin_width >= start)
+                & (plot_times - half_bin_width <= stop)
+            )
+
+        has_bad_segments = bool(bad_bin_mask.any())
+        # Keep the unmarked recording as low-contrast context. Excursions above
+        # the emphasis threshold gain no additional visual weight unless that
+        # time bin belongs to a detected bad segment.
+        base_display_score = np.minimum(display_score, highlight_threshold)
+        base_cmap = ListedColormap(["#ffffff", "#fbfcfd", "#f8fafc", "#f4f6f8", "#eff2f5", "#e9edf1"])
+        highlight_cmap = ListedColormap(["#fffaf0", "#fef3c7", "#fde68a", "#fdba74", "#f97316", "#b42318"])
+        norm = BoundaryNorm(
+            [0.0, 2.0, 4.0, 6.0, 10.0, 15.0, score_cap + 1e-6],
+            base_cmap.N,
+        )
+        bad_set = set(bad_channels)
+        fig_height = max(5.2, min(12.0, 2.5 + 0.025 * len(ch_names)))
+        fig = plt.figure(figsize=(12.0, fig_height), dpi=130)
+        if has_bad_segments:
+            grid = fig.add_gridspec(
+                2,
+                1,
+                height_ratios=[max(fig_height - 2.0, 3.6), 1.1],
+                hspace=0.18,
+            )
+            ax = fig.add_subplot(grid[0])
+            ax_summary = fig.add_subplot(grid[1], sharex=ax)
+        else:
+            ax = fig.add_subplot(1, 1, 1)
+            ax_summary = None
+        image = ax.imshow(
+            base_display_score,
+            aspect="auto",
+            interpolation="nearest",
+            origin="upper",
+            extent=[plot_start, plot_stop, len(ch_names) - 0.5, -0.5],
+            cmap=base_cmap,
+            norm=norm,
+            rasterized=True,
+        )
+        if has_bad_segments:
+            highlight_mask = np.broadcast_to(~bad_bin_mask, display_score.shape)
+            ax.imshow(
+                np.ma.array(display_score, mask=highlight_mask),
+                aspect="auto",
+                interpolation="nearest",
+                origin="upper",
+                extent=[plot_start, plot_stop, len(ch_names) - 0.5, -0.5],
+                cmap=highlight_cmap,
+                norm=norm,
+                rasterized=True,
+            )
+        color_scale = matplotlib.cm.ScalarMappable(
+            norm=norm,
+            cmap=highlight_cmap if has_bad_segments else base_cmap,
+        )
+        colorbar = fig.colorbar(color_scale, ax=ax, pad=0.012, fraction=0.024)
+        colorbar.set_ticks([2, 4, 6, 10, 15, 20])
+        colorbar.set_ticklabels(["2", "4", "6", "10", "15", "20+"])
+        colorbar.ax.tick_params(labelsize=7, colors="#475467")
+        colorbar.set_label(
+            "Peak excursion in marked segments (robust z)"
+            if has_bad_segments
+            else "Signal excursion (robust z)",
+            fontsize=8,
+            color="#475467",
+        )
+
+        for start, stop in bad_intervals:
+            ax.axvspan(start, stop, facecolor="#fef3c7", edgecolor="#c4320a", linewidth=0.8, alpha=0.13)
+            if ax_summary is not None:
+                ax_summary.axvspan(start, stop, color="#fbbf24", alpha=0.10, lw=0)
+
+        max_y_ticks = 28
+        if len(ch_names) <= max_y_ticks:
+            tick_idx = np.arange(len(ch_names))
+        else:
+            tick_idx = np.unique(np.linspace(0, len(ch_names) - 1, max_y_ticks).astype(int))
+        ax.set_yticks(tick_idx)
+        ax.set_yticklabels([ch_names[idx] for idx in tick_idx], fontsize=7, color="#475467")
+        for tick_label, channel_idx in zip(ax.get_yticklabels(), tick_idx):
+            if ch_names[channel_idx] in bad_set:
+                tick_label.set_color("#c4320a")
+                tick_label.set_fontweight("bold")
+        ax.set_ylabel(f"MEG channels (n={len(ch_names)})", fontsize=9, color="#334155")
+        ax.tick_params(axis="x", labelbottom=False)
+        ax.tick_params(axis="y", length=2, colors="#475467")
+        ax.set_title("Artifact Overview", loc="left", fontsize=13, fontweight="bold", color="#17212b", pad=22)
+        emphasis_text = (
+            "Warm-color emphasis is restricted to detected bad segments; unmarked time remains neutral."
+            if has_bad_segments
+            else "No bad segments are marked in this window; signal is shown without artifact emphasis."
+        )
+        ax.text(
+            0,
+            1.012,
+            emphasis_text,
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=8.5,
+            color="#667085",
+        )
+
+        ax_peak = None
+        if has_bad_segments and ax_summary is not None:
+            highlighted_fraction = np.where(bad_bin_mask, affected_fraction, np.nan)
+            ax_summary.fill_between(
+                plot_times,
+                highlighted_fraction,
+                color="#f59e0b",
+                alpha=0.34,
+                linewidth=0,
+            )
+            ax_summary.plot(plot_times, highlighted_fraction, color="#d97706", linewidth=0.85)
+            ax_summary.set_ylim(0, 100)
+            ax_summary.set_ylabel("Channels\n> 6 z (%)", fontsize=8, color="#667085")
+            ax_summary.tick_params(axis="y", labelsize=7, colors="#667085")
+            ax_summary.set_xlabel("Time (s)", fontsize=9, color="#334155")
+            ax_summary.tick_params(axis="x", labelsize=8, colors="#475467")
+            ax_summary.grid(axis="x", color="#dbe4ee", lw=0.6, alpha=0.85)
+
+            ax_peak = ax_summary.twinx()
+            clipped_maximum_score = np.minimum(maximum_score, score_cap)
+            highlighted_maximum = np.where(bad_bin_mask, clipped_maximum_score, np.nan)
+            ax_peak.plot(plot_times, highlighted_maximum, color="#b42318", linewidth=0.9)
+            ax_peak.axhline(highlight_threshold, color="#98a2b3", linewidth=0.6, linestyle=":", alpha=0.7)
+            ax_peak.set_ylim(0, score_cap)
+            ax_peak.set_yticks([0, 6, 10, 20])
+            ax_peak.set_ylabel("Max robust z", fontsize=8, color="#667085")
+            ax_peak.tick_params(axis="y", labelsize=7, colors="#667085")
+        else:
+            ax.set_xlabel("Time (s)", fontsize=9, color="#334155")
+            ax.tick_params(axis="x", labelsize=8, colors="#475467", labelbottom=True)
+
+        for axis in (ax, ax_summary, ax_peak):
+            if axis is None:
+                continue
+            axis.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        if ax_summary is not None:
+            ax_summary.spines["right"].set_visible(False)
+        fig.subplots_adjust(
+            left=0.095,
+            right=0.90,
+            top=0.90,
+            bottom=0.10 if has_bad_segments else 0.09,
+            hspace=0.18,
+        )
+        fig.patch.set_facecolor("white")
+
+        rel_path = Path("assets") / "subjects" / subject_slug / "artifacts" / "static_overview.jpg"
+        output_path = output_root / rel_path
+        ensure_dir(output_path.parent)
+        fig.savefig(
+            output_path,
+            format="jpg",
+            dpi=130,
+            bbox_inches="tight",
+            facecolor="white",
+            pil_kwargs={
+                "quality": 84,
+                "optimize": True,
+                "progressive": True,
+                "subsampling": 0,
+            },
+        )
+        plt.close(fig)
+        return {
+            "rel_path": rel_path.as_posix(),
+            "start_time": plot_start,
+            "duration": end_time,
+            "n_channels": len(ch_names),
+            "plot_bins": int(n_plot_bins),
+            "overview_type": "robust_peak_excursion",
+            "artifact_emphasis_applied": has_bad_segments,
+            "max_peak_robust_z": float(np.max(peak_score)),
+            "max_affected_channels_pct": float(np.max(affected_fraction)),
+            "highlighted_bin_count": int(np.count_nonzero(bad_bin_mask)),
+            "max_highlighted_peak_robust_z": (
+                float(np.max(peak_score[:, bad_bin_mask])) if has_bad_segments else 0.0
+            ),
+            "max_highlighted_affected_channels_pct": (
+                float(np.max(affected_fraction[bad_bin_mask])) if has_bad_segments else 0.0
+            ),
+            "details": (
+                f"{artifact_overview_caption(plot_start, end_time)} · Robust peak-excursion map; "
+                + (
+                    "warm-color emphasis is limited to marked bad segments."
+                    if has_bad_segments
+                    else "no marked bad segments fall within the displayed window, so no artifact emphasis is applied."
+                )
+            ),
+        }
+    except Exception:
+        try:
+            plt.close("all")
+        except Exception:
+            pass
+        return None
+
+
+def _generate_static_artifact_enhanced_overview(
+    raw_file: Path,
+    bad_channels: list[str],
+    bad_segment_rows: list[dict[str, Any]],
+    output_root: Path,
+    subject_slug: str,
+    overview_duration: float,
+) -> dict[str, Any] | None:
+    """Render true MEG waveforms with marked bad-segment enhancement."""
+    try:
+        import matplotlib
+        matplotlib.use("Agg", force=True)
+        import matplotlib.pyplot as plt
+        import numpy as np
+        from matplotlib.collections import LineCollection
+    except Exception:
+        return None
+
+    try:
+        raw = mne.io.read_raw_fif(str(raw_file), preload=False, verbose="ERROR")
+        picks = list(mne.pick_types(raw.info, meg=True, eeg=False, ref_meg=False, exclude=[]))
+        if not picks:
+            return None
+
+        duration = max(float(overview_duration or 0), 0.0)
+        data_end = float(raw.times[-1]) if len(raw.times) else 0.0
+        raw_first_time = float(getattr(raw, "first_time", 0.0) or 0.0)
+        end_time = min(duration, data_end) if duration > 0 else data_end
+        if end_time <= 0:
+            return None
+        plot_start = raw_first_time
+        plot_stop = raw_first_time + end_time
+
+        raw_window = raw.copy().pick(picks).crop(tmin=0.0, tmax=end_time, include_tmax=True)
+        raw_window.load_data(verbose="ERROR")
+        data, times = raw_window.get_data(return_times=True)
+        if data.size == 0:
+            return None
+
+        times = times + raw_first_time
+        ch_names = list(raw_window.ch_names)
+        ch_types = [mne.channel_type(raw_window.info, idx) for idx in range(len(ch_names))]
+        n_samples = data.shape[1]
+
+        # Preserve the original MNE-style contract: channels of the same sensor
+        # type share a scale, so unusually large channels remain unusually large.
+        raw_plot_scalings = {
+            "mag": 1e-12,
+            "grad": 4e-11,
+            "ref_meg": 1e-12,
+            "eeg": 20e-6,
+        }
+        scale = np.asarray([raw_plot_scalings.get(ch_type, np.nan) for ch_type in ch_types], dtype=float)
+        for ch_type in sorted(set(ch_types)):
+            type_idx = np.asarray([idx for idx, item in enumerate(ch_types) if item == ch_type], dtype=int)
+            if type_idx.size == 0:
+                continue
+            default_scale = raw_plot_scalings.get(ch_type)
+            if default_scale is None or not np.isfinite(default_scale) or default_scale <= 0:
+                finite_abs = np.abs(data[type_idx][np.isfinite(data[type_idx])])
+                type_scale = float(np.nanpercentile(finite_abs, 95)) if finite_abs.size else 1.0
+                scale[type_idx] = type_scale if np.isfinite(type_scale) and type_scale > 0 else 1.0
+        scale[~np.isfinite(scale) | (scale <= 0)] = 1.0
+        scaled_data = data / scale[:, None]
+
+        # Aggregate to the horizontal output resolution. The center trace shows
+        # the waveform trend, while true per-bin minima and maxima retain brief
+        # spikes and high-frequency excursions without plotting millions of points.
+        max_plot_bins = 1600
+        n_plot_bins = min(max_plot_bins, n_samples)
+        if n_samples > n_plot_bins:
+            edges = np.linspace(0, n_samples, n_plot_bins + 1, dtype=int)
+            plot_times = np.empty(n_plot_bins, dtype=float)
+            envelope_min = np.empty((len(ch_names), n_plot_bins), dtype=np.float32)
+            envelope_max = np.empty((len(ch_names), n_plot_bins), dtype=np.float32)
+            envelope_center = np.empty((len(ch_names), n_plot_bins), dtype=np.float32)
+            for bin_idx, (start_idx, stop_idx) in enumerate(zip(edges[:-1], edges[1:])):
+                stop_idx = max(stop_idx, start_idx + 1)
+                chunk = scaled_data[:, start_idx:stop_idx]
+                envelope_min[:, bin_idx] = np.nanmin(chunk, axis=1)
+                envelope_max[:, bin_idx] = np.nanmax(chunk, axis=1)
+                envelope_center[:, bin_idx] = np.nanmedian(chunk, axis=1)
+                plot_times[bin_idx] = 0.5 * (
+                    times[start_idx] + times[min(stop_idx - 1, n_samples - 1)]
+                )
+        else:
+            plot_times = times
+            envelope_min = scaled_data.astype(np.float32, copy=False)
+            envelope_max = envelope_min
+            envelope_center = envelope_min
+
+        stat_stride = max(1, int(np.ceil(n_samples / 10000)))
+        stat_data = scaled_data[:, ::stat_stride]
+        channel_center = np.nanmedian(stat_data, axis=1)
+        channel_mad = np.nanmedian(np.abs(stat_data - channel_center[:, None]), axis=1)
+        channel_scale = 1.4826 * channel_mad
+        valid_scale = np.isfinite(channel_scale) & (channel_scale > np.finfo(float).tiny)
+        global_scale = float(np.nanmedian(channel_scale[valid_scale])) if valid_scale.any() else 1.0
+        shared_scale = np.full(len(ch_names), global_scale, dtype=float)
+        for ch_type in sorted(set(ch_types)):
+            type_idx = np.asarray([idx for idx, item in enumerate(ch_types) if item == ch_type], dtype=int)
+            type_values = channel_scale[type_idx]
+            type_values = type_values[np.isfinite(type_values) & (type_values > np.finfo(float).tiny)]
+            type_scale = float(np.nanmedian(type_values)) if type_values.size else global_scale
+            shared_scale[type_idx] = type_scale
+            invalid_idx = type_idx[~valid_scale[type_idx]]
+            channel_scale[invalid_idx] = type_scale
+        channel_scale[~np.isfinite(channel_scale) | (channel_scale <= 0)] = global_scale
+        shared_scale[~np.isfinite(shared_scale) | (shared_scale <= 0)] = global_scale
+
+        excursion = np.maximum(
+            np.abs(envelope_min - channel_center[:, None]),
+            np.abs(envelope_max - channel_center[:, None]),
+        )
+        peak_score = np.maximum(
+            excursion / channel_scale[:, None],
+            excursion / shared_scale[:, None],
+        )
+        peak_score[~np.isfinite(peak_score)] = 0.0
+        affected_fraction = np.mean(peak_score >= 6.0, axis=0) * 100.0
+
+        bad_intervals = []
+        for row in bad_segment_rows:
+            try:
+                onset = float(row.get("onset_sec", row.get("onset")))
+                duration_row = float(row.get("duration_sec", row.get("duration")))
+            except (TypeError, ValueError):
+                continue
+            start = max(plot_start, onset)
+            stop = min(plot_stop, onset + max(duration_row, 0.0))
+            if stop > start:
+                bad_intervals.append((start, stop))
+
+        bad_bin_mask = np.zeros(len(plot_times), dtype=bool)
+        half_bin_width = (
+            0.5 * float(np.nanmedian(np.diff(plot_times)))
+            if len(plot_times) > 1
+            else 0.0
+        )
+        for start, stop in bad_intervals:
+            bad_bin_mask |= (
+                (plot_times + half_bin_width >= start)
+                & (plot_times - half_bin_width <= stop)
+            )
+        has_bad_segments = bool(bad_bin_mask.any())
+
+        bad_set = set(bad_channels)
+        offsets = np.arange(len(ch_names), dtype=float)[::-1]
+        trace_gain = 0.42
+        fig_height = max(7.0, min(20.0, 2.0 + 0.065 * len(ch_names)))
+        fig, ax = plt.subplots(figsize=(13.0, fig_height), dpi=120)
+
+        for start, stop in bad_intervals:
+            ax.axvspan(
+                start,
+                stop,
+                facecolor="#fef0c7",
+                edgecolor="#d92d20",
+                linewidth=0.75,
+                alpha=0.22,
+                zorder=0,
+            )
+
+        for idx, ch_name in enumerate(ch_names):
+            offset = offsets[idx]
+            center_y = envelope_center[idx] * trace_gain + offset
+            min_y = envelope_min[idx] * trace_gain + offset
+            max_y = envelope_max[idx] * trace_gain + offset
+            base_color = "#b42318" if ch_name in bad_set else "#27364a"
+            base_alpha = 0.84 if ch_name in bad_set else 0.68
+            base_width = 0.62 if ch_name in bad_set else 0.38
+
+            ax.plot(
+                plot_times,
+                center_y,
+                color=base_color,
+                linewidth=base_width,
+                alpha=base_alpha,
+                rasterized=True,
+                zorder=2,
+            )
+            envelope_segments = np.stack(
+                [
+                    np.column_stack((plot_times, min_y)),
+                    np.column_stack((plot_times, max_y)),
+                ],
+                axis=1,
+            )
+            ax.add_collection(
+                LineCollection(
+                    envelope_segments,
+                    colors=base_color,
+                    linewidths=0.22,
+                    alpha=0.26 if ch_name not in bad_set else 0.38,
+                    rasterized=True,
+                    zorder=1,
+                )
+            )
+
+            if has_bad_segments:
+                marked_center = np.where(bad_bin_mask, center_y, np.nan)
+                ax.plot(
+                    plot_times,
+                    marked_center,
+                    color="#d92d20",
+                    linewidth=0.72,
+                    alpha=0.92,
+                    rasterized=True,
+                    zorder=4,
+                )
+                marked_idx = np.flatnonzero(bad_bin_mask)
+                if marked_idx.size:
+                    marked_segments = np.stack(
+                        [
+                            np.column_stack((plot_times[marked_idx], min_y[marked_idx])),
+                            np.column_stack((plot_times[marked_idx], max_y[marked_idx])),
+                        ],
+                        axis=1,
+                    )
+                    ax.add_collection(
+                        LineCollection(
+                            marked_segments,
+                            colors="#f79009",
+                            linewidths=0.65,
+                            alpha=0.82,
+                            rasterized=True,
+                            zorder=3,
+                        )
+                    )
+
+                extreme_mask = bad_bin_mask & (peak_score[idx] >= 6.0)
+                if extreme_mask.any():
+                    max_is_larger = (
+                        np.abs(envelope_max[idx] - channel_center[idx])
+                        >= np.abs(envelope_min[idx] - channel_center[idx])
+                    )
+                    extreme_values = np.where(max_is_larger, envelope_max[idx], envelope_min[idx])
+                    ax.scatter(
+                        plot_times[extreme_mask],
+                        extreme_values[extreme_mask] * trace_gain + offset,
+                        s=4.0,
+                        color="#b42318",
+                        alpha=0.88,
+                        linewidths=0,
+                        rasterized=True,
+                        zorder=5,
+                    )
+
+        ax.set_xlim(plot_start, plot_stop)
+        ax.set_ylim(-0.8, len(ch_names) - 0.2)
+        max_y_ticks = 28
+        if len(ch_names) <= max_y_ticks:
+            tick_idx = np.arange(len(ch_names))
+        else:
+            tick_idx = np.unique(np.linspace(0, len(ch_names) - 1, max_y_ticks).astype(int))
+            bad_idx = np.asarray([idx for idx, name in enumerate(ch_names) if name in bad_set], dtype=int)
+            if bad_idx.size:
+                if bad_idx.size > 12:
+                    bad_idx = bad_idx[np.linspace(0, bad_idx.size - 1, 12).astype(int)]
+                tick_idx = np.unique(np.concatenate([tick_idx, bad_idx]))
+        ax.set_yticks(offsets[tick_idx])
+        ax.set_yticklabels([ch_names[idx] for idx in tick_idx], fontsize=7, color="#475467")
+        for tick_label, channel_idx in zip(ax.get_yticklabels(), tick_idx):
+            if ch_names[channel_idx] in bad_set:
+                tick_label.set_color("#b42318")
+                tick_label.set_fontweight("bold")
+
+        ax.set_xlabel("Time (s)", fontsize=9, color="#334155")
+        ax.set_ylabel("MEG channels (shared sensor-type scaling)", fontsize=9, color="#334155")
+        ax.tick_params(axis="x", labelsize=8, colors="#475467")
+        ax.tick_params(axis="y", length=2, colors="#475467")
+        ax.grid(axis="x", color="#dbe4ee", linewidth=0.55, alpha=0.82)
+        ax.spines["top"].set_visible(False)
+        ax.spines["right"].set_visible(False)
+        ax.set_title("Artifact Overview", loc="left", fontsize=13, fontweight="bold", color="#17212b", pad=22)
+        subtitle = (
+            "MEG waveforms with min/max envelopes; warm overlays are limited to marked bad segments."
+            if has_bad_segments
+            else "MEG waveforms with min/max envelopes; no bad segments are marked in this window."
+        )
+        ax.text(
+            0,
+            1.006,
+            subtitle,
+            transform=ax.transAxes,
+            ha="left",
+            va="bottom",
+            fontsize=8.5,
+            color="#667085",
+        )
+        fig.subplots_adjust(left=0.105, right=0.985, top=0.955, bottom=0.055)
+        fig.patch.set_facecolor("white")
+
+        rel_path = Path("assets") / "subjects" / subject_slug / "artifacts" / "static_overview.jpg"
+        output_path = output_root / rel_path
+        ensure_dir(output_path.parent)
+        fig.savefig(
+            output_path,
+            format="jpg",
+            dpi=120,
+            bbox_inches="tight",
+            facecolor="white",
+            pil_kwargs={
+                "quality": 87,
+                "optimize": True,
+                "progressive": True,
+                "subsampling": 0,
+            },
+        )
+        plt.close(fig)
+        return {
+            "rel_path": rel_path.as_posix(),
+            "start_time": plot_start,
+            "duration": end_time,
+            "n_channels": len(ch_names),
+            "plot_bins": int(n_plot_bins),
+            "overview_type": "sensor_type_scaled_waveform_envelope",
+            "artifact_emphasis_applied": has_bad_segments,
+            "max_peak_robust_z": float(np.max(peak_score)),
+            "max_affected_channels_pct": float(np.max(affected_fraction)),
+            "highlighted_bin_count": int(np.count_nonzero(bad_bin_mask)),
+            "max_highlighted_peak_robust_z": (
+                float(np.max(peak_score[:, bad_bin_mask])) if has_bad_segments else 0.0
+            ),
+            "max_highlighted_affected_channels_pct": (
+                float(np.max(affected_fraction[bad_bin_mask])) if has_bad_segments else 0.0
+            ),
+            "details": (
+                f"{artifact_overview_caption(plot_start, end_time)} · "
+                "Sensor-type-scaled MEG waveforms with true min/max envelopes; "
+                + (
+                    "warm overlays are limited to marked bad segments."
+                    if has_bad_segments
+                    else "no marked bad segments fall within the displayed window."
+                )
+            ),
+        }
+    except Exception:
+        try:
+            plt.close("all")
+        except Exception:
+            pass
+        return None
+
+
 def generate_static_artifact_overview(
     raw_file: Path,
     bad_channels: list[str],
@@ -3214,6 +3952,7 @@ def generate_static_artifact_overview(
     subject_slug: str,
     overview_duration: float,
 ) -> dict[str, Any] | None:
+    """Render the original shared-scale multichannel MEG waveform overview."""
     try:
         import matplotlib
         matplotlib.use("Agg", force=True)
@@ -3244,8 +3983,7 @@ def generate_static_artifact_overview(
             return None
 
         times = times + raw_first_time
-
-        ch_names = [raw_window.ch_names[idx] for idx in range(len(raw_window.ch_names))]
+        ch_names = list(raw_window.ch_names)
         ch_types = [mne.channel_type(raw_window.info, idx) for idx in range(len(ch_names))]
         raw_plot_scalings = {
             "mag": 1e-12,
@@ -3264,37 +4002,40 @@ def generate_static_artifact_overview(
                 type_scale = np.nanpercentile(finite_abs, 95) if finite_abs.size else 1.0
                 scale[type_idx] = type_scale if np.isfinite(type_scale) and type_scale > 0 else 1.0
         scale[~np.isfinite(scale) | (scale <= 0)] = 1.0
-        # Match raw.plot's visual contract more closely: channels of the same type
-        # share a scale, so unusually large channels remain visibly large.
+
+        # This is the original display contract: channels of the same type share
+        # one physical scale, preserving the visible amplitude relationships.
         display_data = data / scale[:, None]
         max_full_plot_samples = 60000
         max_plot_bins = 5000
         if display_data.shape[1] > max_full_plot_samples:
             n_samples = display_data.shape[1]
-            print(
-                "Static artifact overview uses min/max envelope downsampling "
-                f"for {raw_file}: {n_samples} samples > {max_full_plot_samples} sample threshold."
-            )
             edges = np.linspace(0, n_samples, max_plot_bins + 1, dtype=int)
             centers = np.empty(max_plot_bins, dtype=float)
             envelope = np.empty((display_data.shape[0], max_plot_bins * 3), dtype=float)
             for bin_idx, (start_idx, stop_idx) in enumerate(zip(edges[:-1], edges[1:])):
                 stop_idx = max(stop_idx, start_idx + 1)
                 chunk = display_data[:, start_idx:stop_idx]
-                centers[bin_idx] = 0.5 * (times[start_idx] + times[min(stop_idx - 1, n_samples - 1)])
+                centers[bin_idx] = 0.5 * (
+                    times[start_idx] + times[min(stop_idx - 1, n_samples - 1)]
+                )
                 envelope[:, bin_idx * 3] = np.nanmin(chunk, axis=1)
                 envelope[:, bin_idx * 3 + 1] = np.nanmax(chunk, axis=1)
                 envelope[:, bin_idx * 3 + 2] = np.nan
             plot_times = np.repeat(centers, 3)
             plot_data = envelope
+            plot_bins = max_plot_bins
         else:
             plot_times = times
             plot_data = display_data
+            plot_bins = len(plot_times)
+
         bad_set = set(bad_channels)
         offsets = np.arange(len(ch_names), dtype=float)[::-1]
         fig_height = max(5.2, min(28.0, 1.5 + 0.10 * len(ch_names)))
         fig, ax = plt.subplots(figsize=(12.5, fig_height), dpi=150)
 
+        bad_intervals = []
         for row in bad_segment_rows:
             try:
                 onset = float(row.get("onset_sec", row.get("onset")))
@@ -3304,13 +4045,20 @@ def generate_static_artifact_overview(
             start = max(plot_start, onset)
             stop = min(plot_stop, onset + max(duration_row, 0.0))
             if stop > start:
-                ax.axvspan(start, stop, color="#f97066", alpha=0.18, lw=0)
+                bad_intervals.append((start, stop))
+                ax.axvspan(start, stop, color="#f97066", alpha=0.18, linewidth=0)
 
         for idx, ch_name in enumerate(ch_names):
             color = "#c4320a" if ch_name in bad_set else "#27364a"
-            lw = 0.9 if ch_name in bad_set else 0.5
+            linewidth = 0.9 if ch_name in bad_set else 0.5
             alpha = 0.90 if ch_name in bad_set else 0.76
-            ax.plot(plot_times, plot_data[idx] * 0.42 + offsets[idx], color=color, lw=lw, alpha=alpha)
+            ax.plot(
+                plot_times,
+                plot_data[idx] * 0.42 + offsets[idx],
+                color=color,
+                linewidth=linewidth,
+                alpha=alpha,
+            )
 
         ax.set_xlim(plot_start, plot_stop)
         ax.set_ylim(-0.8, len(ch_names) - 0.2)
@@ -3321,7 +4069,7 @@ def generate_static_artifact_overview(
         ax.set_yticklabels(tick_labels, fontsize=7)
         ax.set_xlabel("Time (s)", fontsize=9)
         ax.set_ylabel("Channels (MNE-style shared scaling)", fontsize=9)
-        ax.grid(axis="x", color="#dbe4ee", lw=0.6, alpha=0.85)
+        ax.grid(axis="x", color="#dbe4ee", linewidth=0.6, alpha=0.85)
         ax.spines["top"].set_visible(False)
         ax.spines["right"].set_visible(False)
         fig.tight_layout(pad=0.45)
@@ -3329,13 +4077,23 @@ def generate_static_artifact_overview(
         rel_path = Path("assets") / "subjects" / subject_slug / "artifacts" / "static_overview.jpg"
         output_path = output_root / rel_path
         ensure_dir(output_path.parent)
-        fig.savefig(output_path, format="jpg", dpi=150, bbox_inches="tight", pil_kwargs={"quality": 92})
+        fig.savefig(
+            output_path,
+            format="jpg",
+            dpi=150,
+            bbox_inches="tight",
+            pil_kwargs={"quality": 92, "optimize": True, "progressive": True},
+        )
         plt.close(fig)
         return {
             "rel_path": rel_path.as_posix(),
             "start_time": plot_start,
             "duration": end_time,
             "n_channels": len(ch_names),
+            "plot_bins": int(plot_bins),
+            "overview_type": "mne_shared_scale_waveforms",
+            "artifact_emphasis_applied": bool(bad_intervals),
+            "details": artifact_overview_caption(plot_start, end_time),
         }
     except Exception:
         try:
@@ -3429,6 +4187,8 @@ def collect_subject_data(
     qc_scope: dict[str, Any] | None = None,
     task_details: list[dict[str, Any]] | None = None,
     artifact_overview_duration: float = DEFAULT_THRESHOLDS["artifact_overview_duration"],
+    alert_missing_ecg_components: bool = True,
+    alert_missing_eog_components: bool = True,
 ) -> dict[str, Any]:
     preprocessed_dir = report_root / "preprocessed"
     subject_slug = sanitize_name(subject)
@@ -3469,6 +4229,7 @@ def collect_subject_data(
     # Artifacts
     artifact_data = {
         "bad_channels": [],
+        "bad_channel_rows": [],
         "bad_segments": 0,
         "bad_duration_sec": None,
         "bad_ratio": None,
@@ -3485,6 +4246,26 @@ def collect_subject_data(
         rel = copy_asset(bad_channels_file, output_root, subject_slug, "artifacts")
         artifact_data["bad_channels_rel"] = rel
         summary["files"].append({"label": "Bad channels", "path": rel})
+        description_file = bad_channels_file.with_name(
+            bad_channels_file.name.replace("_bad_channels.txt", "_bad_channels_description.json")
+        )
+        if description_file.is_file():
+            payload = safe_json(description_file)
+            description_map = {
+                str(item.get("channel", "")): str(item.get("description", ""))
+                for item in payload.get("bad_channels", [])
+                if item.get("channel")
+            }
+            artifact_data["bad_channel_rows"] = [
+                {
+                    "channel": ch_name,
+                    "description": description_map.get(ch_name, ""),
+                }
+                for ch_name in artifact_data["bad_channels"]
+            ]
+            rel = copy_asset(description_file, output_root, subject_slug, "artifacts")
+            artifact_data["bad_channels_description_rel"] = rel
+            summary["files"].append({"label": "Bad-channel descriptions", "path": rel})
 
     if bad_segments_file:
         rel = copy_asset(bad_segments_file, output_root, subject_slug, "artifacts")
@@ -3559,14 +4340,15 @@ def collect_subject_data(
     if static_overview:
         artifact_data["assets"].append(
             {
-                "title": "Overview view 1",
+                "title": "Artifact Overview",
                 "rel_path": static_overview["rel_path"],
                 "category": "Artifacts",
                 "artifact_group": "overview",
                 "start_time": static_overview.get("start_time", 0),
                 "duration": static_overview.get("duration", artifact_overview_duration),
                 "n_channels": static_overview.get("n_channels"),
-                "details": artifact_overview_caption(
+                "details": static_overview.get("details")
+                or artifact_overview_caption(
                     static_overview.get("start_time", 0),
                     static_overview.get("duration", artifact_overview_duration),
                 ),
@@ -3703,6 +4485,8 @@ def collect_subject_data(
         "exists": False,
     }
     dists_file = trans_dir / "dists.csv"
+    trans_file = trans_dir / "coreg-trans.fif"
+
     if dists_file.exists():
         try:
             df = pd.read_csv(dists_file)
@@ -3719,7 +4503,7 @@ def collect_subject_data(
     for file_path in sorted(trans_dir.glob("*.png"), key=coreg_asset_sort_key):
         rel = copy_asset(file_path, output_root, subject_slug, "coreg")
         coreg_data["assets"].append({"title": file_path.stem, "rel_path": rel})
-    coreg_data["exists"] = trans_dir.exists() and (dists_file.exists() or bool(coreg_data["assets"]))
+    coreg_data["exists"] = trans_dir.exists() and (trans_file.exists() or dists_file.exists() or bool(coreg_data["assets"]))
     summary["coregistration"] = coreg_data
     summary["steps"]["coregistration"] = coreg_data["exists"]
 
@@ -3798,17 +4582,21 @@ def collect_subject_data(
     qc_score = quality_score_data.get("score_0_100")
     qc_alarm_threshold = thresholds.get("megqc_alarm_score", DEFAULT_THRESHOLDS["megqc_alarm_score"])
     if not quality_score_data.get("exists"):
-        alarms.append({"category": "QC Score", "severity": "warn", "message": "Normative Reference QC score is missing."})
+        alarms.append(
+            {"category": NMDQ_FULL_NAME, "severity": "warn", "message": f"{NMDQ_FULL_NAME} is missing."}
+        )
     elif qc_score is None:
         error = quality_score_data.get("error") or "Score could not be computed."
-        alarms.append({"category": "QC Score", "severity": "danger", "message": f"Normative Reference QC score failed: {error}"})
+        alarms.append(
+            {"category": NMDQ_FULL_NAME, "severity": "danger", "message": f"{NMDQ_FULL_NAME} failed: {error}"}
+        )
     elif float(qc_score) < float(qc_alarm_threshold):
         alarms.append(
             {
-                "category": "QC Score",
+                "category": NMDQ_FULL_NAME,
                 "severity": "warn",
                 "message": (
-                    f"Normative Reference score {fmt_float(qc_score, 1)} is below "
+                    f"{NMDQ_FULL_NAME} {fmt_float(qc_score, 1)} is below "
                     f"the warning threshold {fmt_float(qc_alarm_threshold, 1)}. Higher is better."
                 ),
             }
@@ -3857,7 +4645,8 @@ def collect_subject_data(
         alarms.append({"category": "Completeness", "severity": "warn", "message": "ICA outputs are missing."})
     elif ica_data["exists"]:
         if not ica_data["has_ecg"]:
-            alarms.append({"category": "ICA", "severity": "warn", "message": "No ECG-related components detected."})
+            if alert_missing_ecg_components:
+                alarms.append({"category": "ICA", "severity": "warn", "message": "No ECG-related components detected."})
         elif ica_data["marked_count"] == 0:
             alarms.append(
                 {
@@ -3868,7 +4657,8 @@ def collect_subject_data(
             )
 
         if not ica_data["has_eog"]:
-            alarms.append({"category": "ICA", "severity": "warn", "message": "No EOG-related components detected."})
+            if alert_missing_eog_components:
+                alarms.append({"category": "ICA", "severity": "warn", "message": "No EOG-related components detected."})
         elif ica_data["marked_count"] == 0:
             alarms.append(
                 {
@@ -4084,20 +4874,37 @@ def render_quality_family_scores(family_scores: list[dict[str, Any]]) -> str:
     if not family_scores:
         return '<div class="small">No family scores available.</div>'
     rows = []
-    for item in family_scores:
+    domain_order = {"Temporal": 0, "Statistical": 1, "Spectral": 2, "Fractal": 3}
+    ordered_scores = sorted(
+        family_scores,
+        key=lambda item: (
+            domain_order.get(str(item.get("domain", "")), len(domain_order)),
+            int(item.get("rank", 999)),
+            str(item.get("family", "")),
+        ),
+    )
+    for item in ordered_scores:
+        domain = item.get("domain", "")
+        components = ", ".join(
+            str(component)
+            for component in ensure_list(item.get("components"))
+            if str(component).strip()
+        )
+        if not components and item.get("n_components") not in (None, ""):
+            components = f"{fmt_int(item.get('n_components'))} available"
         rows.append(
             f"""
             <tr>
-              <td>{html_text(item.get('domain', ''))}</td>
-              <td>{html_text(item.get('family', ''))}</td>
+              <td>{html_text(domain)}</td>
+              <td>{html_text(item.get('display_label', item.get('family', '')))}</td>
               <td>{fmt_float(item.get('score_0_100'), 1)}</td>
-              <td>{fmt_int(item.get('n_components'))}</td>
+              <td>{html_text(components)}</td>
             </tr>
             """
         )
     return f"""
     <table>
-      <thead><tr><th>Domain</th><th>Metric family</th><th>Family score</th><th>Components</th></tr></thead>
+      <thead><tr><th>Domain</th><th>Quality metric</th><th>Family score</th><th>Components included</th></tr></thead>
       <tbody>{''.join(rows)}</tbody>
     </table>
     """
@@ -4138,11 +4945,16 @@ def render_quality_component_table(components: list[dict[str, Any]]) -> str:
     rows = []
     for item in components:
         score = item.get("component_score_0_1")
+        domain = item.get("domain", "")
         rows.append(
             f"""
             <tr>
-              <td class="mono-path">{html_text(item.get('metric', ''))}</td>
-              <td>{html_text(item.get('domain', ''))}</td>
+              <td>
+                <div>{html_text(item.get('family_display_label', item.get('family', '')))}</div>
+                <div class="small mono-path">{html_text(item.get('metric', ''))}</div>
+              </td>
+              <td>{html_text(item.get('component_type', ''))}</td>
+              <td>{html_text(domain)}</td>
               <td>{fmt_metric_value(item.get('raw_value'), 4)}</td>
               <td>{fmt_metric_value(item.get('q05'), 4)} / {fmt_metric_value(item.get('q50'), 4)} / {fmt_metric_value(item.get('q95'), 4)}</td>
               <td>{html_text(item.get('direction_label', ''))}</td>
@@ -4158,6 +4970,7 @@ def render_quality_component_table(components: list[dict[str, Any]]) -> str:
       <thead>
         <tr>
           <th>Metric</th>
+          <th>Component</th>
           <th>Domain</th>
           <th>Raw</th>
           <th>q05 / q50 / q95</th>
@@ -4360,7 +5173,11 @@ def render_step_snapshot(summary: dict[str, Any], compact: bool = False) -> str:
     return '<div class="snapshot-grid">' + "".join(parts) + "</div>"
 
 
-def render_bad_channel_block(channels: list[str], max_inline: int = 18) -> str:
+def render_bad_channel_block(
+    channels: list[str],
+    bad_channel_rows: list[dict[str, Any]] | None = None,
+    max_inline: int = 18,
+) -> str:
     if not channels:
         return '<div class="small">No bad channels listed.</div>'
     inline = channels[:max_inline]
@@ -4368,13 +5185,26 @@ def render_bad_channel_block(channels: list[str], max_inline: int = 18) -> str:
     extra_note = ""
     if len(channels) > max_inline:
         extra_note = f'<div class="info-note">Showing first {max_inline} of {len(channels)} bad channels. Full list is scrollable below.</div>'
-    table_rows = "".join(
-        f"<tr><td>{idx + 1}</td><td>{html_text(ch)}</td></tr>" for idx, ch in enumerate(channels)
-    )
+    if bad_channel_rows:
+        row_lookup = {str(row.get("channel", "")): row for row in bad_channel_rows}
+        table_rows = "".join(
+            "<tr>"
+            f"<td>{idx + 1}</td>"
+            f"<td>{html_text(ch)}</td>"
+            f"<td>{html_text(row_lookup.get(ch, {}).get('description', ''))}</td>"
+            "</tr>"
+            for idx, ch in enumerate(channels)
+        )
+        table_header = "<thead><tr><th>#</th><th>Channel</th><th>Description</th></tr></thead>"
+    else:
+        table_rows = "".join(
+            f"<tr><td>{idx + 1}</td><td>{html_text(ch)}</td></tr>" for idx, ch in enumerate(channels)
+        )
+        table_header = "<thead><tr><th>#</th><th>Channel</th></tr></thead>"
     return (
         f'<div class="chips">{chips}</div>'
         f"{extra_note}"
-        f'<div class="scroll-box" style="margin-top:10px"><table class="detail-table"><thead><tr><th>#</th><th>Channel</th></tr></thead><tbody>{table_rows}</tbody></table></div>'
+        f'<div class="scroll-box" style="margin-top:10px"><table class="detail-table">{table_header}<tbody>{table_rows}</tbody></table></div>'
     )
 
 
@@ -4497,7 +5327,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
 
     step_chips = []
     subject_step_labels = {
-        "quality_score": "QC Score",
+        "quality_score": NMDQ_SHORT_NAME,
         "basic_preproc": "Basic preprocessing",
         "artifacts": "Artifacts",
         "ica": "ICA",
@@ -4583,7 +5413,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
 
     <div class="grid cards">
       <div class="card">
-        <div class="label">Normative Reference QC score</div>
+        <div class="label">{responsive_label(NMDQ_FULL_NAME, NMDQ_SHORT_NAME)}</div>
         <div class="value">{fmt_float(quality_score_value, 1)}</div>
         <div class="subvalue">0-100, higher is better; warning below {fmt_float(summary['thresholds'].get('megqc_alarm_score'), 1)}</div>
       </div>
@@ -4645,30 +5475,27 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
     </div>
 
     <div class="section">
-      <h2>Normative Reference QC Score</h2>
+      <h2>{html_text(NMDQ_FULL_NAME)}</h2>
       <div class="two-col quality-score-layout">
         <div class="panel quality-summary-panel">
           <div class="metric-list">
-            <div class="metric-box"><div class="k">Score</div><div class="v">{fmt_float(quality_score_value, 1)}</div></div>
+            <div class="metric-box"><div class="k">{responsive_label(NMDQ_FULL_NAME, NMDQ_SHORT_NAME)}</div><div class="v">{fmt_float(quality_score_value, 1)}</div></div>
             <div class="metric-box"><div class="k">Processing Minimum</div><div class="v">{fmt_float(quality_score.get('processing_min_score'), 1)}</div></div>
             <div class="metric-box"><div class="k">Warning Threshold</div><div class="v">{fmt_float(summary['thresholds'].get('megqc_alarm_score'), 1)}</div></div>
-            <div class="metric-box"><div class="k">Model</div><div class="v wrap">{html_text(quality_score.get('model', 'N/A'))}</div></div>
             <div class="metric-box"><div class="k">Device Reference</div><div class="v">{html_text(quality_score.get('device_type', 'N/A'))}</div></div>
             <div class="metric-box"><div class="k">Category</div><div class="v">{html_text(quality_score.get('category', 'N/A'))}</div></div>
-            <div class="metric-box wide"><div class="k">Bad-channel policy</div><div class="v wrap">{html_text(quality_score.get('bad_channel_policy', 'N/A'))}</div></div>
-            <div class="metric-box wide"><div class="k">Bad-annotation policy</div><div class="v wrap">{html_text(quality_score.get('bad_annotation_policy', 'N/A'))}</div></div>
           </div>
-          <div class="info-note">Final score uses a 0-100 scale where higher is better. Before scoring, raw data is aligned to the reference space with the QC preprocessing below. The 1-100 Hz band-pass is fixed for Normative Reference scoring and should not be changed. Bad channels and BAD annotations are kept by default to match the normative reference.</div>
+          <div class="info-note">The Normative MEG Data Quality (NMDQ) Score uses a 0-100 scale where higher is better. Each family score averages its available MAG and GRAD component scores; the overall score averages all available family scores. Before scoring, raw data is aligned to the reference space with the NormMEG-QC preprocessing below. The 1-100 Hz band-pass is fixed for normative scoring and should not be changed.</div>
           {render_quality_preprocessing_steps(quality_score.get('reference_preprocessing', []))}
         </div>
-        <div class="panel quality-reference-panel">
-          {render_gallery([{'title': 'Reference-relative metric positions', 'rel_path': quality_score.get('reference_plot_rel'), 'figure_class': 'quality-reference-figure'}] if quality_score.get('reference_plot_rel') else [], prefix="../")}
+        <div class="panel quality-score-figure-panel">
+          {render_gallery([{'title': NMDQ_FULL_NAME, 'rel_path': quality_score.get('quality_score_plot_rel'), 'figure_class': 'quality-score-figure'}] if quality_score.get('quality_score_plot_rel') else [], prefix="../")}
         </div>
       </div>
       <div class="panel quality-detail-panel">
         <div class="panel-title-group">
-          <h3>Metric Family Scores</h3>
-          <div class="panel-subtitle">Domain-level score summary used by the final quality score.</div>
+          <h3>Family Scores</h3>
+          <div class="panel-subtitle">Exact metric-family scores used to calculate the overall {html_text(NMDQ_FULL_NAME)}.</div>
         </div>
         {render_quality_family_scores(quality_score.get('family_scores', []))}
       </div>
@@ -4707,7 +5534,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
           </div>
           <div class="section">
             <h2>Bad-channel list</h2>
-            {render_bad_channel_block(summary['artifacts']['bad_channels'])}
+            {render_bad_channel_block(summary['artifacts']['bad_channels'], summary['artifacts'].get('bad_channel_rows'))}
           </div>
           <div class="section">
             <h2>Bad-segment details</h2>
@@ -4960,7 +5787,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
                 <span class="pill neutral">QC alerts: {fmt_int(summary['alarm_count'])}</span>
               </div>
               <div class="small" style="margin-top:8px">Bad-channel count {fmt_int(summary['artifacts']['bad_channels_count'])}, bad-segment count {fmt_int(summary['artifacts']['bad_segments'])}, mean coregistration distance {fmt_float(summary['coregistration']['dist_mean'], 2, ' mm')}</div>
-              <div class="small">QC score {fmt_float(summary['quality_score'].get('score_0_100'), 1)} / 100</div>
+              <div class="small" title="{html_text(NMDQ_FULL_NAME)}">{html_text(NMDQ_SHORT_NAME)} {fmt_float(summary['quality_score'].get('score_0_100'), 1)} / 100</div>
             </div>
             """
         )
@@ -4971,12 +5798,12 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
     )
 
     threshold_cards = [
-        ("QC score below threshold", threshold_counts["megqc_score"]),
-        ("Bad-channel count above threshold", threshold_counts["bad_channels"]),
-        ("Bad-segment count above threshold", threshold_counts["bad_segments"]),
-        ("Mean coregistration distance above threshold", threshold_counts["coreg_mean"]),
-        ("Epoch rejection rate above threshold", threshold_counts["epoch_reject"]),
-        ("Any missing steps", threshold_counts["missing_steps"]),
+        (f"{NMDQ_FULL_NAME} below threshold", f"{NMDQ_SHORT_NAME} below threshold", threshold_counts["megqc_score"]),
+        ("Bad-channel count above threshold", "Bad-channel count above threshold", threshold_counts["bad_channels"]),
+        ("Bad-segment count above threshold", "Bad-segment count above threshold", threshold_counts["bad_segments"]),
+        ("Mean coregistration distance above threshold", "Mean coregistration distance above threshold", threshold_counts["coreg_mean"]),
+        ("Epoch rejection rate above threshold", "Epoch rejection rate above threshold", threshold_counts["epoch_reject"]),
+        ("Any missing steps", "Any missing steps", threshold_counts["missing_steps"]),
     ]
 
     step_completion_summary = "".join(
@@ -5045,7 +5872,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <label for="subjectMissingStepFilter">Missing Step</label>
             <select id="subjectMissingStepFilter" onchange="resetSubjectPage()">
               <option value="all">All step completeness</option>
-              <option value="quality_score">Missing quality score</option>
+              <option value="quality_score">Missing {html_text(NMDQ_FULL_NAME)}</option>
               <option value="basic_preproc">Missing basic preprocessing</option>
               <option value="artifacts">Missing artifacts</option>
               <option value="ica">Missing ICA</option>
@@ -5063,7 +5890,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               <option value="status">Sort by status</option>
               <option value="subject">Sort by subject</option>
               <option value="missing_steps">Sort by missing steps</option>
-              <option value="quality_score">Sort by quality score</option>
+              <option value="quality_score">Sort by {html_text(NMDQ_FULL_NAME)}</option>
               <option value="alarm_count">Sort by QC alerts</option>
               <option value="bad_channels">Sort by bad-channel count</option>
               <option value="bad_segments">Sort by bad-segment count</option>
@@ -5075,7 +5902,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
           </div>
           <div class="quality-score-controls">
             <div class="control-group">
-              <label for="qualityScoreMode">QC Score</label>
+              <label for="qualityScoreMode">{responsive_label(NMDQ_FULL_NAME, NMDQ_SHORT_NAME)}</label>
               <select id="qualityScoreMode" onchange="resetSubjectPage()">
                 <option value="all">All scores</option>
                 <option value="gte">Score at or above</option>
@@ -5084,7 +5911,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
               </select>
             </div>
             <div class="control-group">
-              <label for="qualityScoreThreshold">QC Score Cutoff</label>
+              <label for="qualityScoreThreshold">{responsive_label(f'{NMDQ_FULL_NAME} Cutoff', f'{NMDQ_SHORT_NAME} Cutoff')}</label>
               <input id="qualityScoreThreshold" type="number" min="0" max="100" step="1" value="{fmt_float(dataset_summary['thresholds'].get('megqc_alarm_score'), 0)}" oninput="resetSubjectPage()">
             </div>
           </div>
@@ -5141,7 +5968,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             </div>
           </div>
           <div class="metric-list">
-            <div class="metric-box"><div class="k">Mean QC score</div><div class="v">{fmt_float(dataset_summary['averages']['megqc_score'], 1)}</div></div>
+            <div class="metric-box"><div class="k">{responsive_label(f'Mean {NMDQ_FULL_NAME}', f'Mean {NMDQ_SHORT_NAME}')}</div><div class="v">{fmt_float(dataset_summary['averages']['megqc_score'], 1)}</div></div>
             <div class="metric-box"><div class="k">Mean bad-channel count</div><div class="v">{fmt_float(dataset_summary['averages']['bad_channels'], 1)}</div></div>
             <div class="metric-box"><div class="k">Mean bad-segment count</div><div class="v">{fmt_float(dataset_summary['averages']['bad_segments'], 1)}</div></div>
             <div class="metric-box"><div class="k">Mean coregistration distance</div><div class="v">{fmt_float(dataset_summary['averages']['coreg_mean_mm'], 2, ' mm')}</div></div>
@@ -5212,7 +6039,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             </div>
           </div>
           <div class="metric-list">
-            {''.join(f'<div class="metric-box"><div class="k">{html_text(label)}</div><div class="v">{fmt_int(count)}</div></div>' for label, count in threshold_cards)}
+            {''.join(f'<div class="metric-box"><div class="k">{responsive_label(full_label, short_label)}</div><div class="v">{fmt_int(count)}</div></div>' for full_label, short_label, count in threshold_cards)}
           </div>
         </div>
         <div class="panel">
@@ -5227,7 +6054,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <div class="rule-item"><strong>Passed</strong><div class="small">No QC alerts under the current static thresholds.</div></div>
             <div class="rule-item"><strong>Warning</strong><div class="small">1-2 QC alerts and no danger-level alert.</div></div>
             <div class="rule-item"><strong>Failed</strong><div class="small">3 or more QC alerts, or at least one danger-level alert such as a coregistration threshold breach.</div></div>
-            <div class="rule-item"><strong>Normative Reference QC Score</strong><div class="small">0-100, higher is better. Files below the processing minimum are skipped downstream; files below the warning threshold remain visible and are flagged.</div></div>
+            <div class="rule-item"><strong>{html_text(NMDQ_FULL_NAME)}</strong><div class="small">0-100, higher is better. Files below the processing minimum are skipped downstream; files below the warning threshold remain visible and are flagged.</div></div>
             <div class="rule-item"><strong>Step Completion</strong><div class="small">Completion is presence-based. A step counts as complete when its expected report outputs exist, not when it necessarily passes QC.</div></div>
             <div class="rule-item"><strong>Adjust Thresholds</strong><div class="small">Regenerate the static report with CLI flags such as <code>--bad_channel_threshold</code>, <code>--bad_segment_threshold</code>, <code>--coreg_mean_threshold</code>, <code>--coreg_max_threshold</code>, and <code>--epoch_reject_rate_threshold</code>.</div></div>
           </div>
@@ -5264,7 +6091,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
             <tr>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="subject" onclick="setSubjectSort('subject')"><span>Subject</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="status" onclick="setSubjectSort('status')"><span>Status</span><span class="sort-indicator">↕</span></button></th>
-              <th class="sortable"><button type="button" class="sort-header" data-sort-key="quality_score" onclick="setSubjectSort('quality_score')"><span>QC Score</span><span class="sort-indicator">↕</span></button></th>
+              <th class="sortable"><button type="button" class="sort-header" data-sort-key="quality_score" onclick="setSubjectSort('quality_score')" title="{html_text(NMDQ_FULL_NAME)}"><span>{html_text(NMDQ_SHORT_NAME)}</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="alarm_count" onclick="setSubjectSort('alarm_count')"><span>QC alerts</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_channels" onclick="setSubjectSort('bad_channels')"><span>Bad-channel count</span><span class="sort-indicator">↕</span></button></th>
               <th class="sortable"><button type="button" class="sort-header" data-sort-key="bad_segments" onclick="setSubjectSort('bad_segments')"><span>Bad-segment count</span><span class="sort-indicator">↕</span></button></th>
@@ -5404,6 +6231,8 @@ def generate_static_report(args: argparse.Namespace) -> Path:
             qc_scope=qc_scope,
             task_details=task_details_by_subject.get(subject, []),
             artifact_overview_duration=args.artifact_overview_duration,
+            alert_missing_ecg_components=str_to_bool(args.alert_missing_ecg_components),
+            alert_missing_eog_components=str_to_bool(args.alert_missing_eog_components),
         )
         for subject in subjects
     ]

@@ -33,7 +33,7 @@ from score_meg_reference_quota_standalone import (  # noqa: E402
     DEFAULT_MODEL,
     apply_reference_preprocessing,
     compute_metric_values,
-    draw_reference_position_plot,
+    draw_quality_score_plot,
     load_optional_mne,
     score_metrics,
 )
@@ -110,7 +110,7 @@ def load_config(config_path: Path, model: str) -> dict[str, Any]:
     config_all = json.loads(config_path.read_text(encoding="utf-8"))
     models = config_all.get("models", {})
     if model not in models:
-        raise ValueError(f"Unknown MEG QC model {model}. Available models: {', '.join(models)}")
+        raise ValueError(f"Unknown NormMEG-QC profile {model}. Available profiles: {', '.join(models)}")
     return models[model]
 
 
@@ -124,7 +124,7 @@ def write_placeholder_png(path: Path, message: str) -> None:
             font = ImageFont.truetype("/System/Library/Fonts/Supplemental/Arial.ttf", 24)
         except Exception:
             font = ImageFont.load_default()
-        draw.text((40, 48), "MEG QC score unavailable", fill="#111827", font=font)
+        draw.text((40, 48), "NMDQ score unavailable", fill="#111827", font=font)
         draw.text((40, 100), message[:500], fill="#B42318", font=font)
         image.save(path)
     except Exception:
@@ -149,8 +149,10 @@ def write_failure_outputs(
         [
             {
                 "family": "",
+                "family_display_label": "",
                 "domain": "",
                 "metric": "",
+                "component_type": "",
                 "raw_value": "",
                 "mode": "",
                 "direction": "",
@@ -190,7 +192,7 @@ def write_failure_outputs(
         "passed_processing_threshold": False,
         "quality_alarm": True,
         "component_scores_file": str(component_path),
-        "reference_position_plot": str(figure_path),
+        "quality_score_plot": str(figure_path),
         "output_stem": stem,
     }
     write_summary_json(summary_path, summary)
@@ -205,7 +207,7 @@ def score_file(args: argparse.Namespace) -> Path:
     out_prefix = args.output_dir / f"{stem}.{args.model}"
     summary_path = Path(f"{out_prefix}.summary.json")
     component_path = Path(f"{out_prefix}.component_scores.csv")
-    figure_path = Path(f"{out_prefix}.reference_position.png")
+    figure_path = Path(f"{out_prefix}.normative_quality_score.png")
 
     try:
         config = load_config(Path(args.config), args.model)
@@ -238,12 +240,7 @@ def score_file(args: argparse.Namespace) -> Path:
 
         detail.to_csv(component_path, index=False)
         score = fnum(summary.get("score_0_100"))
-        draw_reference_position_plot(
-            detail,
-            figure_path,
-            title=f"Normative Reference MEG QC score: {score:.1f} / 100" if score is not None else "Normative Reference MEG QC score: unavailable",
-            subtitle=f"Model {args.model}  ·  Reference scope: {args.reference_scope}  ·  Category: {category}",
-        )
+        draw_quality_score_plot(summary, figure_path)
 
         summary.update(
             {
@@ -260,7 +257,7 @@ def score_file(args: argparse.Namespace) -> Path:
                 "passed_processing_threshold": bool(score is not None and score >= float(args.min_score)),
                 "quality_alarm": bool(score is None or score < float(args.alarm_score)),
                 "component_scores_file": str(component_path),
-                "reference_position_plot": str(figure_path),
+                "quality_score_plot": str(figure_path),
                 "output_stem": stem,
             }
         )
@@ -282,7 +279,7 @@ def score_file(args: argparse.Namespace) -> Path:
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Score a MEG file against bundled Normative Reference metrics.")
     parser.add_argument("--input", required=True, type=Path, help="Input MEG raw file or directory.")
-    parser.add_argument("--output_dir", required=True, type=Path, help="Directory for QC score outputs.")
+    parser.add_argument("--output_dir", required=True, type=Path, help="Directory for NMDQ score outputs.")
     parser.add_argument("--model", default=DEFAULT_MODEL)
     parser.add_argument("--config", type=Path, default=MEGQC_DIR / "metric_config_reference_quota.json")
     parser.add_argument("--reference_csv", type=Path, default=MEGQC_DIR / "reference_intervals_reference_quota.csv")
@@ -319,7 +316,7 @@ def parse_args() -> argparse.Namespace:
         "--n_jobs",
         type=int,
         default=-1,
-        help="Parallel workers for MEGQC metric computation. Nextflow passes task.cpus; standalone default uses all available cores.",
+        help="Parallel workers for NormMEG-QC metric computation. Nextflow passes task.cpus; standalone default uses all available cores.",
     )
     parser.add_argument("--seg_length", type=int, default=100)
     return parser.parse_args()

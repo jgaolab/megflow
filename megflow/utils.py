@@ -342,32 +342,41 @@ def is_xvfb_running():
         return False
 
 
-def find_free_display():
-    """Find a free display number by checking port numbers."""
-    while True:
-        # Generate a random display number between 1000 and 65535
-        display_number = random.randint(1000, 65535)
-        # Check if the port is free
+def find_free_display(max_attempts=200):
+    """Find a free X display number without using the globally seeded RNG."""
+    rng = random.SystemRandom()
+    for _ in range(max_attempts):
+        display_number = rng.randint(100, 2000)
+        lock_path = Path(f"/tmp/.X{display_number}-lock")
+        socket_path = Path(f"/tmp/.X11-unix/X{display_number}")
+        if lock_path.exists() or socket_path.exists():
+            continue
         with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            if sock.connect_ex(('localhost', display_number)) != 0:
+            if sock.connect_ex(("127.0.0.1", 6000 + display_number)) != 0:
                 return display_number
+    raise RuntimeError("No free Xvfb display was found.")
 
 
 def start_xvfb(interactive=False):
-    """Start Xvfb on a randomly chosen free display and set the DISPLAY environment variable."""
-    # Find a free display number
-    free_display = find_free_display()
-    display_str = f":{free_display}"  # Create display string
-    print(f"Starting Xvfb on {display_str}...")
+    """Start Xvfb on a private display and set the DISPLAY environment variable."""
+    proc = None
+    for _ in range(20):
+        free_display = find_free_display()
+        display_str = f":{free_display}"
+        print(f"Starting Xvfb on {display_str}...")
 
-    # Start Xvfb
-    # subprocess.Popen(['Xvfb', display_str, '-screen', '0', '1920x1080x24'])
-    proc = subprocess.Popen(
-        ['Xvfb', display_str, '-screen', '0', '1024x768x24'],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+        proc = subprocess.Popen(
+            ['Xvfb', display_str, '-screen', '0', '1024x768x24'],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+        time.sleep(0.1)
+        if proc.poll() is None:
+            break
+    else:
+        raise RuntimeError("Xvfb failed to start on a private display.")
+
     os.environ["MESA_GLSL_VERSION_OVERRIDE"] = "150"
     os.environ["MESA_GL_VERSION_OVERRIDE"] = "3.2"
     os.environ["LIBGL_ALWAYS_SOFTWARE"] = "1"
@@ -377,12 +386,16 @@ def start_xvfb(interactive=False):
     os.environ['DISPLAY'] = display_str
     print(f"DISPLAY environment variable set to {os.environ['DISPLAY']}")
 
-    for _ in range(20):
-        if proc.poll() is not None:
+    lock_path = Path(f"/tmp/.X{free_display}-lock")
+    socket_path = Path(f"/tmp/.X11-unix/X{free_display}")
+    for _ in range(50):
+        if proc is not None and proc.poll() is not None:
             raise RuntimeError(f"Xvfb failed to start on {display_str}")
-        if Path(f"/tmp/.X{free_display}-lock").exists():
+        if lock_path.exists() and socket_path.exists():
             break
         time.sleep(0.1)
+    else:
+        raise RuntimeError(f"Xvfb display {display_str} did not become ready.")
 
     # REQUIRED: Pre-initialize the VTK off-screen rendering context to avoid segmentation fault in headless pyvistaqt.
     pv.OFF_SCREEN = True
@@ -399,14 +412,18 @@ def stop_xvfb(display_number, delay=3):
     """Stop the Xvfb process associated with the specified display number."""
     try:
         display_str = f":{display_number}"
-        # Use pgrep to find the PID of running Xvfb
-        pid = subprocess.check_output(["pgrep", "-f", f"Xvfb {display_str}"]).strip()
-        pid_str = pid.decode("utf-8")
-        if pid:
+        lock_path = Path(f"/tmp/.X{display_number}-lock")
+        pid_text = ""
+        if lock_path.exists():
+            pid_text = lock_path.read_text(errors="ignore").strip()
+        if not pid_text:
+            pids = subprocess.check_output(["pgrep", "-f", f"Xvfb {display_str} "]).decode("utf-8").split()
+            pid_text = " ".join(pids)
+        if pid_text:
             # Let Qt/PyVista clients disconnect before the X server is stopped;
             # killing it immediately causes noisy XIO messages during shutdown.
             subprocess.Popen(
-                ["bash", "-lc", f"sleep {delay}; kill {pid_str} >/dev/null 2>&1 || true"],
+                ["bash", "-lc", f"sleep {delay}; kill {pid_text} >/dev/null 2>&1 || true"],
                 stdout=subprocess.DEVNULL,
                 stderr=subprocess.DEVNULL,
                 start_new_session=True,

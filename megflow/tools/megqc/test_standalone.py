@@ -28,8 +28,6 @@ def load_scorer():
 def main() -> None:
     source = SCORER.read_text(encoding="utf-8")
     banned = [
-        r"^\s*import\s+tsfel\b",
-        r"^\s*from\s+tsfel\b",
         r"^\s*import\s+msqms\b",
         r"^\s*from\s+msqms\b",
     ]
@@ -41,6 +39,15 @@ def main() -> None:
     config = scorer.json.loads((SCRIPT_DIR / "metric_config_reference_quota.json").read_text(encoding="utf-8"))
     model = config["models"][config["default_model"]]
     ref_df = pd.read_csv(SCRIPT_DIR / "reference_intervals_reference_quota.csv", low_memory=False)
+
+    reference_families = set(ref_df["family"].astype(str))
+    reference_metrics = set(ref_df["metric"].astype(str))
+    configured_families = {family["family"] for family in model["families"]}
+    configured_metrics = {metric for family in model["families"] for metric in family["metrics"]}
+    if not configured_families.issubset(reference_families):
+        raise SystemExit("configured metric families do not match the bundled reference table")
+    if not configured_metrics.issubset(reference_metrics):
+        raise SystemExit("configured metrics do not match the bundled reference table")
 
     metrics = {}
     for family in model["families"]:
@@ -56,6 +63,11 @@ def main() -> None:
         raise SystemExit("summary score is not finite")
     if int(summary["n_families_available"]) != int(summary["n_families_expected"]):
         raise SystemExit("not all expected families were scored in reference-table smoke test")
+    if summary["family_scores"][0]["display_label"] != "Max absolute difference, absolute Q95":
+        raise SystemExit("family display labels were not preserved")
+    statistical = [item for item in summary["family_scores"] if item["domain"] == "Statistical"]
+    if len(statistical) != 1:
+        raise SystemExit("Statistical family was not normalized")
     print(
         {
             "standalone": "ok",

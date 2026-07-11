@@ -1,0 +1,786 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Pipeline Details &#8212; MEGFlow Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=80c17a58" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=e645c8fa"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'details/pipeline_details';</script>
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Configuration Reference" href="../reference/configuration.html" />
+    <link rel="prev" title="Outputs" href="../tutorial/outputs.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.png" class="logo__image only-light" alt="MEGFlow Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="MEGFlow Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Quickstart</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/quick_guide.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/full_workflow.html">Full Workflow</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_local.html">Local</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_cluster.html">Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/reports.html">Reports</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/outputs.html">Outputs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Pipeline Details</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Pipeline Details</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../reference/configuration.html">Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/deepreject.html">DeepReject Artifact Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/qc_metrics.html">Quality Control Metrics</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/examples.html">Configuration Examples</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/details/pipeline_details.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Pipeline Details</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#execution-modes">Execution Modes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#high-level-flow">High-Level Flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#continuous-core-preprocessing">Continuous Core Preprocessing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-edits-and-resume">Interactive Edits and Resume</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bad-segments-marking-vs-exclusion">Bad Segments: Marking vs Exclusion</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#resting-state-and-task-based-epochs">Resting-State and Task-Based Epochs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#covariance-and-empty-room-style-records">Covariance and Empty-Room Style Records</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coregistration-forward-model-and-source-reconstruction">Coregistration, Forward Model, and Source Reconstruction</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#static-processing-and-qc-report">Static Processing and QC Report</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-dataset-profiles">Multi-Dataset Profiles</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#primary-outputs-by-step">Primary Outputs by Step</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="pipeline-details">
+<h1>Pipeline Details<a class="headerlink" href="#pipeline-details" title="Link to this heading">#</a></h1>
+<p>MEGFlow is a Nextflow workflow that combines structural MRI processing,
+continuous MEG preprocessing, artifact detection, ICA cleaning, optional
+epoching, covariance estimation, MEG-MRI coregistration, forward modeling,
+source reconstruction, and static quality-control reporting.</p>
+<p>The main workflow is implemented in <code class="docutils literal notranslate"><span class="pre">nextflow/megflow.nf</span></code>.
+Configuration is supplied through <code class="docutils literal notranslate"><span class="pre">nextflow.config</span></code> and can be overridden by
+selected command-line options. See <a class="reference internal" href="../reference/configuration.html"><span class="doc">Configuration Reference</span></a> for the
+complete configuration reference.</p>
+<section id="execution-modes">
+<h2>Execution Modes<a class="headerlink" href="#execution-modes" title="Link to this heading">#</a></h2>
+<p>The workflow is controlled by <code class="docutils literal notranslate"><span class="pre">params.megflow.defaults.steps</span></code> and optional
+dataset- or recording-level <code class="docutils literal notranslate"><span class="pre">steps</span></code> overrides:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 20.0%" />
+<col style="width: 80.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Mode</p></th>
+<th class="head"><p>Processing scope</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">anatomy</span></code></p></td>
+<td><p>MRI import, FreeSurfer or DeepPrep reconstruction, head surface, and BEM.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">meg_artifacts</span></code></p></td>
+<td><p>MEG import, continuous preprocessing, bad-channel and bad-segment
+detection, then static report.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">meg_ica</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">meg_artifacts</span></code> plus ICA fitting, artifact IC labeling, and ICA
+application.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">meg_epochs</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">meg_ica</span></code> plus epoch generation. With <code class="docutils literal notranslate"><span class="pre">skip_ica</span></code>, epochs are created
+from the OSL preprocessed raw files instead of ICA-clean raw files.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">meg_all</span></code></p></td>
+<td><p>Full MEG workflow using an existing <code class="docutils literal notranslate"><span class="pre">fs_subjects_dir</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
+<td><p>Structural MRI workflow plus full MEG workflow.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">report</span></code></p></td>
+<td><p>Static HTML report only, using existing outputs.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="high-level-flow">
+<h2>High-Level Flow<a class="headerlink" href="#high-level-flow" title="Link to this heading">#</a></h2>
+<p>The complete <code class="docutils literal notranslate"><span class="pre">meg_all</span></code> or <code class="docutils literal notranslate"><span class="pre">all</span></code> execution order is:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>MEG import
+  -&gt; continuous preprocessing
+  -&gt; artifact detection
+  -&gt; ICA fit
+  -&gt; ICA labeling
+  -&gt; ICA application
+  -&gt; epoching
+  -&gt; covariance estimation
+  -&gt; MEG-MRI coregistration
+  -&gt; forward solution
+  -&gt; source reconstruction
+  -&gt; static HTML report
+</pre></div>
+</div>
+<p>When anatomy is enabled, structural processing runs before the downstream
+coregistration and source reconstruction steps:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>MRI import
+  -&gt; FreeSurfer or DeepPrep reconstruction
+  -&gt; head surface
+  -&gt; BEM model
+  -&gt; MEG-MRI coregistration dependencies
+</pre></div>
+</div>
+<p>When <code class="docutils literal notranslate"><span class="pre">anatomy.method</span> <span class="pre">=</span> <span class="pre">&quot;pseudomri&quot;</span></code>, MEGFlow first imports MEG
+files to access digitization/headshape points, generates a pseudo T1 image, and
+then reuses the normal FreeSurfer and BEM stages:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>MEG import
+  -&gt; pseudo-MRI generation
+  -&gt; FreeSurfer reconstruction
+  -&gt; BEM model
+  -&gt; MEG-MRI coregistration dependencies
+</pre></div>
+</div>
+</section>
+<section id="continuous-core-preprocessing">
+<h2>Continuous Core Preprocessing<a class="headerlink" href="#continuous-core-preprocessing" title="Link to this heading">#</a></h2>
+<p>The continuous MEG core is task independent and applies to both resting-state
+and task-based recordings.</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">import_meg_dataset</span></code> discovers input recordings.
+BIDS input is filtered by <code class="docutils literal notranslate"><span class="pre">meg_import</span></code> entities. Raw input is
+selected by <code class="docutils literal notranslate"><span class="pre">file_suffix</span></code> and optional <code class="docutils literal notranslate"><span class="pre">raw_include_keywords</span></code> /
+<code class="docutils literal notranslate"><span class="pre">raw_exclude_keywords</span></code>. Raw discovery matches both files and directories,
+so CTF <code class="docutils literal notranslate"><span class="pre">.ds</span></code> folders are supported.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">meg_basic_preproc</span></code> calls <code class="docutils literal notranslate"><span class="pre">meg_preproc_osl.py</span></code>, which passes the
+effective <code class="docutils literal notranslate"><span class="pre">preproc</span></code> block to OSL-Ephys <code class="docutils literal notranslate"><span class="pre">run_proc_batch</span></code>. The listed preprocessing
+steps are executed in order. Common steps include Maxwell/tSSS for
+Elekta/MEGIN data, band-pass filtering, notch filtering, and resampling.
+Resampling is the current configurable downsampling mechanism.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">detect_artifacts</span></code> calls <code class="docutils literal notranslate"><span class="pre">meg_detect_artifacts.py</span></code>. It detects bad
+channels and bad time spans using the configured PyPREP, PSD, OSL, MNE, and
+optional DeepReject methods. Within DeepReject, BadChnNet runs first; its bad
+channels are masked before BadSegNet predicts bad time windows. Results from
+all enabled detectors are merged into <code class="docutils literal notranslate"><span class="pre">*_bad_channels.txt</span></code> and
+<code class="docutils literal notranslate"><span class="pre">*_bad_segments.txt</span></code>. The process also writes detector provenance and a
+recording-wide artifact-mask heatmap. Detailed waveform images are optional.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">run_ica</span></code> loads the preprocessed raw file plus the artifact sidecars. Bad
+channels are excluded from picks, and bad annotations are ignored during ICA
+fitting through <code class="docutils literal notranslate"><span class="pre">reject_by_annotation=True</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">run_ic_label</span></code> labels artifact-related ICA components using the configured
+ECG, EOG, MNE-ICLabel, and rule-based settings.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">apply_ica</span></code> loads the marked components, applies the ICA solution, and
+saves <code class="docutils literal notranslate"><span class="pre">*_clean_raw.fif</span></code>. The cleaned continuous file keeps the bad-channel
+and bad-segment metadata.</p></li>
+</ol>
+</section>
+<section id="interactive-edits-and-resume">
+<h2>Interactive Edits and Resume<a class="headerlink" href="#interactive-edits-and-resume" title="Link to this heading">#</a></h2>
+<p>Some sidecar files can be edited after a Nextflow run through the interactive
+reports. MEGFlow includes content hashes of those files in the relevant
+Nextflow task inputs so <code class="docutils literal notranslate"><span class="pre">-resume</span></code> can invalidate only the affected downstream
+tasks:</p>
+<ul class="simple">
+<li><p>Editing <code class="docutils literal notranslate"><span class="pre">artifact_report/*/*_bad_channels.txt</span></code> or
+<code class="docutils literal notranslate"><span class="pre">artifact_report/*/*_bad_segments.txt</span></code> invalidates ICA fitting and later
+steps for that recording.</p></li>
+<li><p>Editing <code class="docutils literal notranslate"><span class="pre">ica_report/*/marked_components.txt</span></code> invalidates ICA application
+and later steps for that recording.</p></li>
+<li><p>Editing <code class="docutils literal notranslate"><span class="pre">trans/*/coreg-trans.fif</span></code> invalidates forward modelling and source
+reconstruction for that recording.</p></li>
+</ul>
+<p>This downstream hash mechanism is separate from published-output deletion.
+Normal Nextflow <code class="docutils literal notranslate"><span class="pre">-resume</span></code> reuses the work cache for unchanged tasks and
+invalidates tasks when their inputs, scripts, or configuration change. Editable
+sidecars such as bad-channel lists, bad-segment lists, marked ICA components,
+and coregistration transforms are hashed from their published locations, so
+manual edits are preserved and invalidate downstream tasks as above. Deleting a
+published result should be handled by an explicit pre-resume guard when that
+deletion is intended to force the producing step to recompute.</p>
+</section>
+<section id="bad-segments-marking-vs-exclusion">
+<span id="bad-segment-marking"></span><h2>Bad Segments: Marking vs Exclusion<a class="headerlink" href="#bad-segments-marking-vs-exclusion" title="Link to this heading">#</a></h2>
+<p>Artifact detection marks bad segments as MNE annotations. This does not cut
+samples out of the continuous raw file. Downstream steps decide whether the
+annotations should exclude data:</p>
+<ul class="simple">
+<li><p>ICA fitting ignores annotated spans when estimating ICA components.</p></li>
+<li><p>ICA application writes a cleaned raw file with annotations attached.</p></li>
+<li><p>Epoching drops epochs overlapping annotations only when
+<code class="docutils literal notranslate"><span class="pre">epochs.epochs.reject_by_annotation</span></code> is true.</p></li>
+<li><p>Additional epoch rejection can come from <code class="docutils literal notranslate"><span class="pre">epochs.epochs.reject</span></code> or
+optional <code class="docutils literal notranslate"><span class="pre">autoreject</span></code>.</p></li>
+</ul>
+<p>By default, <code class="docutils literal notranslate"><span class="pre">artifacts.find_bad_segments.keep_existing_annotations</span></code> is
+<code class="docutils literal notranslate"><span class="pre">false</span></code>. Artifact detection therefore starts from an empty annotation set and
+writes only annotations produced during the current run. Set it to <code class="docutils literal notranslate"><span class="pre">true</span></code>
+when existing input annotations are trusted and should be retained alongside
+new detector annotations. This setting controls annotation merging, not sample
+deletion.</p>
+<p>DeepReject intervals use the annotation description <code class="docutils literal notranslate"><span class="pre">BAD_deepreject</span></code>. See
+<a class="reference internal" href="../reference/deepreject.html"><span class="doc">DeepReject Artifact Detection</span></a> for the BadChnNet and BadSegNet decision rules,
+mode thresholds, and provenance output.</p>
+</section>
+<section id="resting-state-and-task-based-epochs">
+<h2>Resting-State and Task-Based Epochs<a class="headerlink" href="#resting-state-and-task-based-epochs" title="Link to this heading">#</a></h2>
+<p>Epoching is optional and happens after the continuous core. The effective
+<code class="docutils literal notranslate"><span class="pre">epochs</span></code> block
+selects how epochs are built:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">task_type:</span> <span class="pre">resting</span></code> creates fixed-length events with
+<code class="docutils literal notranslate"><span class="pre">resting.fixed_length_duration</span></code>.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">task_type:</span> <span class="pre">task</span></code> with <code class="docutils literal notranslate"><span class="pre">event_source:</span> <span class="pre">find_events</span></code> uses MNE
+<code class="docutils literal notranslate"><span class="pre">find_events</span></code> and the <code class="docutils literal notranslate"><span class="pre">find_events</span></code> config block.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">task_type:</span> <span class="pre">task</span></code> with <code class="docutils literal notranslate"><span class="pre">event_source:</span> <span class="pre">event_file</span></code> reads BIDS
+<code class="docutils literal notranslate"><span class="pre">*_events.tsv</span></code> files and applies the <code class="docutils literal notranslate"><span class="pre">event_file</span></code> filters or label-to-id
+mappings. If the inferred event path is not a tabular <code class="docutils literal notranslate"><span class="pre">.tsv</span></code> event file
+(for example a non-BIDS raw <code class="docutils literal notranslate"><span class="pre">.fif</span></code> input), MEGFlow falls back to
+<code class="docutils literal notranslate"><span class="pre">mne.find_events</span></code> so raw datasets are not parsed as text.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">exclude_event_id</span></code> can be set to one id or a list of ids to remove those
+events before epoching. With <code class="docutils literal notranslate"><span class="pre">epochs.event_id:</span> <span class="pre">null</span></code>, MEGFlow keeps all
+remaining event ids.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">event_time_shift_sec</span></code> can be set in the <code class="docutils literal notranslate"><span class="pre">epochs</span></code> block to shift all
+task events before epoching. Positive values move event samples later, for
+example to compensate for a stable auditory or visual stimulus delivery
+delay after the hardware trigger.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">epochs.preproc</span></code> can optionally filter, notch-filter, or resample the
+cleaned continuous Raw recording before events are converted into epochs.
+The default is empty and preserves the existing continuous data unchanged.</p></li>
+</ul>
+<p>The resulting epoch FIF file and rejection log are written under
+<code class="docutils literal notranslate"><span class="pre">preprocessed/epochs/&lt;recording&gt;/</span></code>. When <code class="docutils literal notranslate"><span class="pre">epochs.preproc</span></code> is configured,
+the same directory also contains <code class="docutils literal notranslate"><span class="pre">*_analysis-raw.fif</span></code>; epoch-based covariance
+uses this exact analysis-ready continuous recording.</p>
+</section>
+<section id="covariance-and-empty-room-style-records">
+<h2>Covariance and Empty-Room Style Records<a class="headerlink" href="#covariance-and-empty-room-style-records" title="Link to this heading">#</a></h2>
+<p>Covariance is computed only in the full MEG stage. Two modes are available:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">covariance.type</span> <span class="pre">=</span> <span class="pre">&quot;epochs&quot;</span></code> estimates noise covariance from baseline epochs
+created from each cleaned experimental recording.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">covariance.type</span> <span class="pre">=</span> <span class="pre">&quot;raw&quot;</span></code> estimates noise covariance from a continuous raw
+recording selected by <code class="docutils literal notranslate"><span class="pre">covariance.raw_covariance_task_id</span></code>.</p></li>
+</ul>
+<p>When analysis preprocessing is configured for epochs, raw covariance applies
+the same operations in memory to the paired baseline recording. Empty
+<code class="docutils literal notranslate"><span class="pre">epochs.preproc</span></code> configurations retain the original covariance behavior.</p>
+<p>When covariance is estimated from epochs, <code class="docutils literal notranslate"><span class="pre">covariance.event_time_shift_sec</span></code>
+uses the same sign convention as the epoching stage so baseline epochs remain
+aligned with the corrected event timing.</p>
+<p>For raw covariance, MEGFlow pairs experimental recordings with a noise or
+baseline recording by replacing the BIDS <code class="docutils literal notranslate"><span class="pre">task-...</span></code> part of the filename with
+<code class="docutils literal notranslate"><span class="pre">task-${covariance.raw_covariance_task_id}</span></code>. This is the current mechanism for
+empty-room or empty-room-like recordings. For example, if
+<code class="docutils literal notranslate"><span class="pre">covariance.raw_covariance_task_id</span> <span class="pre">=</span> <span class="pre">&quot;emptyroom&quot;</span></code>, an experimental file with
+<code class="docutils literal notranslate"><span class="pre">task-aef</span></code> is paired with a file whose matching name contains
+<code class="docutils literal notranslate"><span class="pre">task-emptyroom</span></code> when that file exists.</p>
+</section>
+<section id="coregistration-forward-model-and-source-reconstruction">
+<h2>Coregistration, Forward Model, and Source Reconstruction<a class="headerlink" href="#coregistration-forward-model-and-source-reconstruction" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">coregistration</span></code> or <code class="docutils literal notranslate"><span class="pre">coregistrations</span></code> aligns MEG sensor space to the
+subject anatomy. The process uses fiducial fitting, ICP, and a fine-tuned ICP
+stage controlled by the effective <code class="docutils literal notranslate"><span class="pre">coreg</span></code> block. It writes <code class="docutils literal notranslate"><span class="pre">coreg-trans.fif</span></code>,
+coregistration figures, and distance summaries.</p>
+<p><code class="docutils literal notranslate"><span class="pre">forward_solution</span></code> builds the forward model using the epoch file, transform,
+FreeSurfer subject directory, and the effective <code class="docutils literal notranslate"><span class="pre">forward</span></code> block.</p>
+<p><code class="docutils literal notranslate"><span class="pre">source_imaging</span></code> consumes either epochs or raw data according to
+<code class="docutils literal notranslate"><span class="pre">source.type</span></code>.
+It loads the forward model and noise covariance and then applies the configured
+source methods in the effective <code class="docutils literal notranslate"><span class="pre">source</span></code> block.</p>
+</section>
+<section id="static-processing-and-qc-report">
+<h2>Static Processing and QC Report<a class="headerlink" href="#static-processing-and-qc-report" title="Link to this heading">#</a></h2>
+<p>At the end of each selected MEG milestone, <code class="docutils literal notranslate"><span class="pre">generate_static_html_report</span></code> scans
+the existing outputs and writes a portable report under
+<code class="docutils literal notranslate"><span class="pre">&lt;dataset_output_dir&gt;/static_html_report</span></code>. The report includes a workflow
+manifest, a config snapshot when available, subject pages, dataset summaries,
+and evidence files. See <a class="reference internal" href="../tutorial/reports.html"><span class="doc">Reports</span></a> and
+<a class="reference internal" href="../reference/qc_metrics.html"><span class="doc">Quality Control Metrics</span></a> for details.</p>
+</section>
+<section id="multi-dataset-profiles">
+<h2>Multi-Dataset Profiles<a class="headerlink" href="#multi-dataset-profiles" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">params.megflow.corpus_root</span></code> can point to a directory containing multiple
+datasets. <code class="docutils literal notranslate"><span class="pre">dataset_include</span></code> and <code class="docutils literal notranslate"><span class="pre">dataset_exclude</span></code> select the children to
+run. Each dataset can override any default module block under
+<code class="docutils literal notranslate"><span class="pre">params.megflow.datasets</span></code>. A dataset can also define <code class="docutils literal notranslate"><span class="pre">recordings</span></code> entries
+with BIDS-entity <code class="docutils literal notranslate"><span class="pre">match</span></code> rules for task- or run-specific settings. This allows
+one workflow run to give WAND, SMN4Lang, and MEG-MASC different event
+definitions, preprocessing, artifact settings, and source labels. The runnable
+example is documented in <a class="reference internal" href="../reference/examples.html"><span class="doc">Configuration Examples</span></a>.</p>
+</section>
+<section id="primary-outputs-by-step">
+<h2>Primary Outputs by Step<a class="headerlink" href="#primary-outputs-by-step" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 32.0%" />
+<col style="width: 44.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Step</p></th>
+<th class="head"><p>Output location</p></th>
+<th class="head"><p>Main outputs</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Continuous preprocessing</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/&lt;recording&gt;/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*_preproc-raw.fif</span></code></p></td>
+</tr>
+<tr class="row-odd"><td><p>Artifact detection</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/artifact_report/&lt;recording&gt;/</span></code></p></td>
+<td><p>Bad-channel text and provenance JSON, bad-segment annotations,
+<code class="docutils literal notranslate"><span class="pre">deepreject_summary.json</span></code> when enabled, the artifact-mask heatmap, and
+optional detailed review images.</p></td>
+</tr>
+<tr class="row-even"><td><p>ICA</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/ica_report/&lt;recording&gt;/</span></code></p></td>
+<td><p>ICA FIF, source FIF, marked components, ECG/EOG scores, plots.</p></td>
+</tr>
+<tr class="row-odd"><td><p>ICA-clean raw</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/&lt;recording&gt;/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*_clean_raw.fif</span></code></p></td>
+</tr>
+<tr class="row-even"><td><p>Epochs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/epochs/&lt;recording&gt;/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">*-epo.fif</span></code>, rejection log, sensor/PSD/topomap figures.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Covariance</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/covariance/&lt;recording&gt;/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">bl-cov.fif</span></code>, covariance and spectra figures.</p></td>
+</tr>
+<tr class="row-even"><td><p>Coregistration</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/trans/&lt;recording&gt;/</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">coreg-trans.fif</span></code>, distance CSV, alignment figures.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Forward model</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/forward_solution/&lt;recording&gt;/</span></code></p></td>
+<td><p>Forward solution FIF and head-model figures.</p></td>
+</tr>
+<tr class="row-even"><td><p>Source reconstruction</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">preprocessed/source_recon/&lt;recording&gt;/</span></code></p></td>
+<td><p>Source estimate files and visualization figures.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Static report</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">static_html_report/</span></code></p></td>
+<td><p>Dataset dashboard, subject pages, JSON/CSV summaries.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../tutorial/outputs.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Outputs</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="../reference/configuration.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Configuration Reference</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#execution-modes">Execution Modes</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#high-level-flow">High-Level Flow</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#continuous-core-preprocessing">Continuous Core Preprocessing</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-edits-and-resume">Interactive Edits and Resume</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bad-segments-marking-vs-exclusion">Bad Segments: Marking vs Exclusion</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#resting-state-and-task-based-epochs">Resting-State and Task-Based Epochs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#covariance-and-empty-room-style-records">Covariance and Empty-Room Style Records</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#coregistration-forward-model-and-source-reconstruction">Coregistration, Forward Model, and Source Reconstruction</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#static-processing-and-qc-report">Static Processing and QC Report</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-dataset-profiles">Multi-Dataset Profiles</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#primary-outputs-by-step">Primary Outputs by Step</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By LiaoPan
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, LiaoPan.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -24,6 +24,38 @@ def _normalize_keywords(value) -> Optional[List[str]]:
     return None
 
 
+def _normalize_entity_filter(value, available_values=None) -> Optional[List[str]]:
+    """Normalize BIDS entity filters and support selectors such as ``first:10``."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        items = [value.strip()] if value.strip() else []
+    elif isinstance(value, (list, tuple, set)):
+        items = [str(x).strip() for x in value if x is not None and str(x).strip()]
+    else:
+        items = [str(value).strip()]
+
+    if not items:
+        return None
+
+    normalized = []
+    available = list(available_values or [])
+    for item in items:
+        selector = item.lower()
+        if selector.startswith("first:"):
+            if not available:
+                continue
+            try:
+                count = int(selector.split(":", 1)[1])
+            except ValueError as exc:
+                raise ValueError(f"Invalid first:n selector: {item}") from exc
+            normalized.extend(available[:count])
+        else:
+            normalized.append(item)
+
+    return normalized or None
+
+
 def _matches_suffix(path: Path, file_suffix: str) -> bool:
     """Return True when a raw file/directory name matches the configured suffix."""
     suffix = str(file_suffix or '').strip()
@@ -155,6 +187,11 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
                 entities[entity] = values
             else:
                 entities[entity] = ['']
+
+        subjects = _normalize_entity_filter(subjects, entities.get('subject'))
+        sessions = _normalize_entity_filter(sessions, entities.get('session'))
+        tasks = _normalize_entity_filter(tasks, entities.get('task'))
+        runs = _normalize_entity_filter(runs, entities.get('run'))
 
         if subjects is not None:
             entities['subject'] = subjects

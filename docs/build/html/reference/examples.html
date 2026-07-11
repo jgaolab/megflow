@@ -1,0 +1,864 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Configuration Examples &#8212; MEGFlow Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=80c17a58" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=e645c8fa"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/examples';</script>
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="prev" title="Quality Control Metrics" href="qc_metrics.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.png" class="logo__image only-light" alt="MEGFlow Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="MEGFlow Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Quickstart</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/quick_guide.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/full_workflow.html">Full Workflow</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_local.html">Local</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_cluster.html">Cluster</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/reports.html">Reports</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/outputs.html">Outputs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Pipeline Details</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../details/pipeline_details.html">Pipeline Details</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="configuration.html">Configuration Reference</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deepreject.html">DeepReject Artifact Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qc_metrics.html">Quality Control Metrics</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Configuration Examples</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/reference/examples.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Configuration Examples</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#canonical-templates">Canonical Templates</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#single-dataset-first-meg-pass">Single Dataset: First MEG Pass</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#full-meg-with-existing-anatomy">Full MEG with Existing Anatomy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#structural-mri-only">Structural MRI Only</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#resting-state-epochs">Resting-State Epochs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-events-from-bids-events-tsv">Task Events from BIDS <code class="docutils literal notranslate"><span class="pre">events.tsv</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-events-from-a-trigger-channel">Task Events from a Trigger Channel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#raw-or-empty-room-covariance">Raw or Empty-Room Covariance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-specific-deepreject">Dataset-Specific DeepReject</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-specific-overrides">Recording-Specific Overrides</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-corpus-with-different-dataset-settings">Docker Corpus with Different Dataset Settings</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-three-dataset-source-demo">Runnable Three-Dataset Source Demo</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-execution">Cluster Execution</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="configuration-examples">
+<h1>Configuration Examples<a class="headerlink" href="#configuration-examples" title="Link to this heading">#</a></h1>
+<p>MEGFlow uses one layered configuration schema for a single dataset, multiple
+datasets, and recording-specific behavior. Start from a complete base config and
+override only the values that differ for the study.</p>
+<section id="canonical-templates">
+<h2>Canonical Templates<a class="headerlink" href="#canonical-templates" title="Link to this heading">#</a></h2>
+<p>Use one of these repository files as the base:</p>
+<ul class="simple">
+<li><p><a class="reference download internal" download="" href="../_downloads/2e743630f8ac21d292f5cd2bda02ec1a/nextflow_for_docker.config"><code class="xref download docutils literal notranslate"><span class="pre">nextflow_for_docker.config</span></code></a> contains the authoritative
+paths and defaults for the distributed container.</p></li>
+<li><p><a class="reference download internal" download="" href="../_downloads/9d520c9543fcc962d57b0cdaa9fc2d5b/nextflow.config"><code class="xref download docutils literal notranslate"><span class="pre">nextflow.config</span></code></a> contains the
+source-run defaults and execution profiles.</p></li>
+<li><p><a class="reference download internal" download="" href="../_downloads/37676eeaca91e5b678114b9a95e4002e/nextflow_multi_dataset_demo.config"><code class="xref download docutils literal notranslate"><span class="pre">nextflow_multi_dataset_demo.config</span></code></a> is a complete,
+runnable source-run example for WAND, SMN4Lang, and MEG-MASC.</p></li>
+</ul>
+<p>For Docker, a small project config can include the full config already present
+inside the image:</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">includeConfig</span><span class="w"> </span><span class="s2">&quot;/program/nextflow/nextflow_for_docker.config&quot;</span>
+
+<span class="c1">// Project-specific overrides follow this line.</span>
+</pre></div>
+</div>
+<p>Mount that overlay at <code class="docutils literal notranslate"><span class="pre">/program/nextflow/nextflow.config</span></code>. For a source run,
+either copy <code class="docutils literal notranslate"><span class="pre">nextflow/nextflow.config</span></code> and edit it or include it with a path
+that is valid from the project config’s location.</p>
+</section>
+<section id="single-dataset-first-meg-pass">
+<h2>Single Dataset: First MEG Pass<a class="headerlink" href="#single-dataset-first-meg-pass" title="Link to this heading">#</a></h2>
+<p>This Docker overlay selects one BIDS task and stops after continuous
+preprocessing, artifact detection, and ICA cleaning. It avoids event,
+covariance, and source-model assumptions during the first quality check.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">includeConfig</span><span class="w"> </span><span class="s2">&quot;/program/nextflow/nextflow_for_docker.config&quot;</span>
+
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">meg_import</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">subject_id:</span><span class="w"> </span><span class="s2">&quot;first:10&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">session_id:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;rest&quot;</span><span class="o">],</span>
+<span class="w">  </span><span class="nl">run_id:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">raw_include_keywords:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">raw_exclude_keywords:</span><span class="w"> </span><span class="kc">null</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/study/bids:/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/study/megflow:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/study/megflow.config:/program/nextflow/nextflow.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cmrlab/megflow:1.0.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-i<span class="w"> </span>/input<span class="w"> </span>-o<span class="w"> </span>/output<span class="w"> </span>--steps<span class="w"> </span>meg_ica<span class="w"> </span>--resume
+</pre></div>
+</div>
+</section>
+<section id="full-meg-with-existing-anatomy">
+<h2>Full MEG with Existing Anatomy<a class="headerlink" href="#full-meg-with-existing-anatomy" title="Link to this heading">#</a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">meg_all</span></code> only after the event definition, covariance strategy, subject
+matching, and existing FreeSurfer or DeepPrep results have been checked. A full
+source run is rarely dataset independent.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">includeConfig</span><span class="w"> </span><span class="s2">&quot;/program/nextflow/nextflow_for_docker.config&quot;</span>
+
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">meg_import</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">subject_id:</span><span class="w"> </span><span class="s2">&quot;first:10&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">session_id:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;RDR&quot;</span><span class="o">],</span>
+<span class="w">  </span><span class="nl">run_id:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;1&quot;</span><span class="o">],</span>
+<span class="w">  </span><span class="nl">raw_include_keywords:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">raw_exclude_keywords:</span><span class="w"> </span><span class="kc">null</span>
+<span class="o">]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">epochs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">task_type:</span><span class="w"> </span><span class="s2">&quot;task&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;event_file&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="o">-</span><span class="mf">10.6105</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_file:</span><span class="w"> </span><span class="o">[</span><span class="nl">trial_type:</span><span class="w"> </span><span class="o">[</span><span class="kt">char</span><span class="o">:</span><span class="w"> </span><span class="mi">1</span><span class="o">]],</span>
+<span class="w">  </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.8</span><span class="o">,</span>
+<span class="w">           </span><span class="nl">baseline:</span><span class="w"> </span><span class="o">[</span><span class="kc">null</span><span class="o">,</span><span class="w"> </span><span class="mf">0.0</span><span class="o">],</span><span class="w"> </span><span class="nl">reject_by_annotation:</span><span class="w"> </span><span class="kc">true</span><span class="o">]</span>
+<span class="o">]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">covariance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">type:</span><span class="w"> </span><span class="s2">&quot;epochs&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;event_file&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="o">-</span><span class="mf">10.6105</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_file:</span><span class="w"> </span><span class="o">[</span><span class="nl">trial_type:</span><span class="w"> </span><span class="o">[</span><span class="kt">char</span><span class="o">:</span><span class="w"> </span><span class="mi">1</span><span class="o">]],</span>
+<span class="w">  </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.0</span><span class="o">,</span>
+<span class="w">           </span><span class="nl">baseline:</span><span class="w"> </span><span class="o">[</span><span class="kc">null</span><span class="o">,</span><span class="w"> </span><span class="mf">0.0</span><span class="o">],</span><span class="w"> </span><span class="nl">reject_by_annotation:</span><span class="w"> </span><span class="kc">true</span><span class="o">]</span>
+<span class="o">]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">forward</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span><span class="nl">epoch_label:</span><span class="w"> </span><span class="s2">&quot;char_onset&quot;</span><span class="o">]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">source</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">epoch_label:</span><span class="w"> </span><span class="s2">&quot;char_onset&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">source_methods:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;dSPM&quot;</span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/study/bids:/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/study/megflow:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/study/smri:/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/study/megflow.config:/program/nextflow/nextflow.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cmrlab/megflow:1.0.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-i<span class="w"> </span>/input<span class="w"> </span>-o<span class="w"> </span>/output<span class="w"> </span>--fs_subjects_dir<span class="w"> </span>/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--steps<span class="w"> </span>meg_all<span class="w"> </span>--resume
+</pre></div>
+</div>
+</section>
+<section id="structural-mri-only">
+<h2>Structural MRI Only<a class="headerlink" href="#structural-mri-only" title="Link to this heading">#</a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">steps</span> <span class="pre">=</span> <span class="pre">&quot;anatomy&quot;</span></code> when only structural processing is required. DeepPrep
+currently expects BIDS T1w input in MEGFlow. The FreeSurfer license must be
+mounted and passed through the entrypoint; the CLI value is mapped to the
+effective <code class="docutils literal notranslate"><span class="pre">anatomy.fs_license_file</span></code> field.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">includeConfig</span><span class="w"> </span><span class="s2">&quot;/program/nextflow/nextflow_for_docker.config&quot;</span>
+
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">mri_import</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">subject_id:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;05&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;09&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;11&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;14&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;15&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;17&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;18&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;23&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;24&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;25&quot;</span><span class="o">],</span>
+<span class="w">  </span><span class="nl">session_id:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">task:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">run_id:</span><span class="w"> </span><span class="kc">null</span>
+<span class="o">]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">anatomy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">method:</span><span class="w"> </span><span class="s2">&quot;deepprep&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">is_bids:</span><span class="w"> </span><span class="kc">true</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">deepprep_device:</span><span class="w"> </span><span class="s2">&quot;cpu&quot;</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/MEG-MASC:/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/MEG-MASC/anatomy_run:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/MEG-MASC/smri:/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/license.txt:/fs_license.txt:ro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/MEG-MASC/anatomy.config:/program/nextflow/nextflow.config:ro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cmrlab/megflow:1.0.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-i<span class="w"> </span>/input<span class="w"> </span>-o<span class="w"> </span>/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--fs_subjects_dir<span class="w"> </span>/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--fs_license_file<span class="w"> </span>/fs_license.txt<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--anatomy_preprocess_method<span class="w"> </span>deepprep<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--steps<span class="w"> </span>anatomy<span class="w"> </span>--resume
+</pre></div>
+</div>
+<p>For non-BIDS NIfTI or DICOM input, use <code class="docutils literal notranslate"><span class="pre">method:</span> <span class="pre">&quot;freesurfer&quot;</span></code> and configure
+<code class="docutils literal notranslate"><span class="pre">t1_input_type</span></code> plus <code class="docutils literal notranslate"><span class="pre">t1_dicom_series_glob</span></code> when needed. Pseudo-MRI is a
+third option for recordings with usable digitization/headshape points but no
+subject T1. See <a class="reference internal" href="configuration.html"><span class="doc">Configuration Reference</span></a> for all anatomy fields and conditions.</p>
+</section>
+<section id="resting-state-epochs">
+<h2>Resting-State Epochs<a class="headerlink" href="#resting-state-epochs" title="Link to this heading">#</a></h2>
+<p>Continuous preprocessing and ICA are unchanged for resting-state data. The
+optional epoch stage creates fixed-length events from the cleaned recording.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">epochs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">task_type:</span><span class="w"> </span><span class="s2">&quot;resting&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">resting:</span><span class="w"> </span><span class="o">[</span><span class="nl">fixed_length_duration:</span><span class="w"> </span><span class="mf">2.0</span><span class="o">],</span>
+<span class="w">  </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">event_id:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">tmin:</span><span class="w"> </span><span class="mf">0.0</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">2.0</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">reject_by_annotation:</span><span class="w"> </span><span class="kc">true</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">picks:</span><span class="w"> </span><span class="s2">&quot;meg&quot;</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">baseline:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">preload:</span><span class="w"> </span><span class="kc">true</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">detrend:</span><span class="w"> </span><span class="kc">null</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+</section>
+<section id="task-events-from-bids-events-tsv">
+<h2>Task Events from BIDS <code class="docutils literal notranslate"><span class="pre">events.tsv</span></code><a class="headerlink" href="#task-events-from-bids-events-tsv" title="Link to this heading">#</a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">event_source</span> <span class="pre">=</span> <span class="pre">&quot;event_file&quot;</span></code> when the trial definition is stored in a
+BIDS sidecar. Confirm the column name, value mapping, timing correction, epoch
+window, and baseline for the specific dataset.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">epochs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">task_type:</span><span class="w"> </span><span class="s2">&quot;task&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;event_file&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="mf">0.0395</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_file:</span><span class="w"> </span><span class="o">[</span><span class="nl">trial_type:</span><span class="w"> </span><span class="o">[</span><span class="nl">target:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">standard:</span><span class="w"> </span><span class="mi">2</span><span class="o">]],</span>
+<span class="w">  </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">event_id:</span><span class="w"> </span><span class="o">[</span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="mi">2</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.8</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">baseline:</span><span class="w"> </span><span class="o">[</span><span class="kc">null</span><span class="o">,</span><span class="w"> </span><span class="mf">0.0</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">reject_by_annotation:</span><span class="w"> </span><span class="kc">true</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+</section>
+<section id="task-events-from-a-trigger-channel">
+<h2>Task Events from a Trigger Channel<a class="headerlink" href="#task-events-from-a-trigger-channel" title="Link to this heading">#</a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">event_source</span> <span class="pre">=</span> <span class="pre">&quot;find_events&quot;</span></code> for hardware triggers. <code class="docutils literal notranslate"><span class="pre">stim_channel</span></code>,
+<code class="docutils literal notranslate"><span class="pre">shortest_event</span></code>, <code class="docutils literal notranslate"><span class="pre">min_duration</span></code>, event ids, and timing correction are all
+dataset-specific and should be inspected before a full run.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">epochs</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">task_type:</span><span class="w"> </span><span class="s2">&quot;task&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;find_events&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="mf">0.04858</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">find_events:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">stim_channel:</span><span class="w"> </span><span class="s2">&quot;STI101&quot;</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">shortest_event:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">min_duration:</span><span class="w"> </span><span class="mf">0.0</span>
+<span class="w">  </span><span class="o">],</span>
+<span class="w">  </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.5</span><span class="o">,</span>
+<span class="w">           </span><span class="nl">baseline:</span><span class="w"> </span><span class="o">[</span><span class="kc">null</span><span class="o">,</span><span class="w"> </span><span class="mf">0.0</span><span class="o">],</span><span class="w"> </span><span class="nl">reject_by_annotation:</span><span class="w"> </span><span class="kc">true</span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+</section>
+<section id="raw-or-empty-room-covariance">
+<h2>Raw or Empty-Room Covariance<a class="headerlink" href="#raw-or-empty-room-covariance" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">raw_covariance_task_id</span></code> is a pairing mechanism, not a separate empty-room
+workflow. The noise recording must first be imported. MEGFlow then takes an
+experimental recording name and replaces its BIDS <code class="docutils literal notranslate"><span class="pre">task-...</span></code> entity with the
+configured task id to locate the paired continuous recording.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">meg_import</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">subject_id:</span><span class="w"> </span><span class="s2">&quot;first:10&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">session_id:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;aef&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;emptyroom&quot;</span><span class="o">],</span>
+<span class="w">  </span><span class="nl">run_id:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">raw_include_keywords:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">raw_exclude_keywords:</span><span class="w"> </span><span class="kc">null</span>
+<span class="o">]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">docker_input</span><span class="o">.</span><span class="na">covariance</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">type:</span><span class="w"> </span><span class="s2">&quot;raw&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">raw_covariance_task_id:</span><span class="w"> </span><span class="s2">&quot;emptyroom&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">compute_raw_covariance:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">tmin:</span><span class="w"> </span><span class="mi">0</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">tmax:</span><span class="w"> </span><span class="kc">null</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">method:</span><span class="w"> </span><span class="s2">&quot;auto&quot;</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">reject:</span><span class="w"> </span><span class="o">[</span><span class="nl">mag:</span><span class="w"> </span><span class="mi">4</span><span class="n">e</span><span class="o">-</span><span class="mi">12</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">reject_by_annotation:</span><span class="w"> </span><span class="kc">true</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">rank:</span><span class="w"> </span><span class="s2">&quot;info&quot;</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<p>For example, <code class="docutils literal notranslate"><span class="pre">sub-01_task-aef_run-01_meg.fif</span></code> is paired with
+<code class="docutils literal notranslate"><span class="pre">sub-01_task-emptyroom_run-01_meg.fif</span></code>. Other entities still need to match.
+If the noise file uses a different naming relationship, rename or organize it
+to satisfy this mechanism before running raw covariance.</p>
+</section>
+<section id="dataset-specific-deepreject">
+<h2>Dataset-Specific DeepReject<a class="headerlink" href="#dataset-specific-deepreject" title="Link to this heading">#</a></h2>
+<p>DeepReject can be tuned per dataset without duplicating the rest of the artifact
+configuration:</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">MEG_MASC_word</span><span class="o">.</span><span class="na">artifacts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;kit&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">deepreject:</span><span class="w"> </span><span class="o">[</span><span class="nl">mode:</span><span class="w"> </span><span class="s2">&quot;lenient&quot;</span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<p>The inherited <code class="docutils literal notranslate"><span class="pre">enabled</span></code>, device, fold, and resource values remain unchanged.
+<code class="docutils literal notranslate"><span class="pre">lenient</span></code> changes BadSegNet interval post-processing; it does not switch model
+weights. See <a class="reference internal" href="deepreject.html"><span class="doc">DeepReject Artifact Detection</span></a> before setting low-level thresholds.</p>
+</section>
+<section id="recording-specific-overrides">
+<h2>Recording-Specific Overrides<a class="headerlink" href="#recording-specific-overrides" title="Link to this heading">#</a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">recordings</span></code> when imported files from the same dataset require different
+post-import settings. Match fields are case-insensitive, fields within one
+<code class="docutils literal notranslate"><span class="pre">match</span></code> map are combined with AND, and list values within a field are combined
+with OR. Exactly zero or one profile may match a recording; multiple matches are
+an error.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">LanguageStudy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">dataset_dir:</span><span class="w"> </span><span class="s2">&quot;/data/LanguageStudy&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">fs_subjects_dir:</span><span class="w"> </span><span class="s2">&quot;/data/LanguageStudy/smri&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">steps:</span><span class="w"> </span><span class="s2">&quot;meg_all&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">meg_import:</span><span class="w"> </span><span class="o">[</span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;auditory&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;visual&quot;</span><span class="o">]],</span>
+<span class="w">  </span><span class="nl">recordings:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">auditory_task:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="nl">match:</span><span class="w"> </span><span class="o">[</span><span class="nl">task:</span><span class="w"> </span><span class="s2">&quot;auditory&quot;</span><span class="o">],</span>
+<span class="w">      </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">        </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;find_events&quot;</span><span class="o">,</span>
+<span class="w">        </span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="mf">0.0395</span><span class="o">,</span>
+<span class="w">        </span><span class="nl">find_events:</span><span class="w"> </span><span class="o">[</span><span class="nl">stim_channel:</span><span class="w"> </span><span class="s2">&quot;STI101&quot;</span><span class="o">],</span>
+<span class="w">        </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.6</span><span class="o">]</span>
+<span class="w">      </span><span class="o">],</span>
+<span class="w">      </span><span class="nl">covariance:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="mf">0.0395</span><span class="o">]</span>
+<span class="w">    </span><span class="o">],</span>
+<span class="w">    </span><span class="nl">visual_run_two:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="nl">match:</span><span class="w"> </span><span class="o">[</span><span class="nl">task:</span><span class="w"> </span><span class="s2">&quot;visual&quot;</span><span class="o">,</span><span class="w"> </span><span class="nl">run:</span><span class="w"> </span><span class="s2">&quot;2&quot;</span><span class="o">],</span>
+<span class="w">      </span><span class="nl">artifacts:</span><span class="w"> </span><span class="o">[</span><span class="nl">deepreject:</span><span class="w"> </span><span class="o">[</span><span class="nl">mode:</span><span class="w"> </span><span class="s2">&quot;strict&quot;</span><span class="o">]],</span>
+<span class="w">      </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">        </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;event_file&quot;</span><span class="o">,</span>
+<span class="w">        </span><span class="nl">event_file:</span><span class="w"> </span><span class="o">[</span><span class="nl">trial_type:</span><span class="w"> </span><span class="o">[</span><span class="nl">target:</span><span class="w"> </span><span class="mi">1</span><span class="o">]],</span>
+<span class="w">        </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.8</span><span class="o">]</span>
+<span class="w">      </span><span class="o">]</span>
+<span class="w">    </span><span class="o">]</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<p>Recording profiles are resolved only after MEG import. They can specialize
+<code class="docutils literal notranslate"><span class="pre">megqc</span></code>, continuous preprocessing, digitization, artifacts, ICA, epochs,
+covariance, coregistration, forward modeling, source reconstruction, or reduce
+an already enabled MEG stage. They cannot change file discovery, import a file
+excluded by <code class="docutils literal notranslate"><span class="pre">meg_import</span></code>, create an anatomy plan, alter dataset paths, or
+change dataset-level report thresholds. Put those settings in the dataset
+profile. See <a class="reference internal" href="configuration.html#configuration-profile-resolution"><span class="std std-ref">Profile Resolution</span></a> for every match field.</p>
+</section>
+<section id="docker-corpus-with-different-dataset-settings">
+<h2>Docker Corpus with Different Dataset Settings<a class="headerlink" href="#docker-corpus-with-different-dataset-settings" title="Link to this heading">#</a></h2>
+<p>In Docker corpus mode, <code class="docutils literal notranslate"><span class="pre">/input</span></code> must contain one immediate child directory per
+dataset. Name each profile after its child directory and omit <code class="docutils literal notranslate"><span class="pre">dataset_dir</span></code>;
+the entrypoint sets <code class="docutils literal notranslate"><span class="pre">corpus_root</span></code> from <code class="docutils literal notranslate"><span class="pre">--input</span></code> and preserves these named
+profiles and dataset filters.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>/data/corpus/
+|-- WAND_Extracted/
+|-- SMN4Lang/
+`-- MEG-MASC/
+</pre></div>
+</div>
+<p>Example <code class="docutils literal notranslate"><span class="pre">corpus.config</span></code>:</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">includeConfig</span><span class="w"> </span><span class="s2">&quot;/program/nextflow/nextflow_for_docker.config&quot;</span>
+
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">dataset_include</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;WAND_Extracted&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;SMN4Lang&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;MEG-MASC&quot;</span><span class="o">]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">dataset_exclude</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">defaults</span><span class="o">.</span><span class="na">steps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;meg_ica&quot;</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">defaults</span><span class="o">.</span><span class="na">meg_import</span><span class="o">.</span><span class="na">subject_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;first:10&quot;</span>
+
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">WAND_Extracted:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">meg_import:</span><span class="w"> </span><span class="o">[</span><span class="nl">session_id:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;01&quot;</span><span class="o">],</span><span class="w"> </span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;visual&quot;</span><span class="o">]],</span>
+<span class="w">    </span><span class="nl">megqc:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;ctf&quot;</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">artifacts:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;ctf&quot;</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;find_events&quot;</span><span class="o">,</span>
+<span class="w">      </span><span class="nl">find_events:</span><span class="w"> </span><span class="o">[</span><span class="nl">stim_channel:</span><span class="w"> </span><span class="s2">&quot;UPPT001&quot;</span><span class="o">],</span>
+<span class="w">      </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">1.0</span><span class="o">]</span>
+<span class="w">    </span><span class="o">]</span>
+<span class="w">  </span><span class="o">],</span>
+<span class="w">  </span><span class="nl">SMN4Lang:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">meg_import:</span><span class="w"> </span><span class="o">[</span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;RDR&quot;</span><span class="o">],</span><span class="w"> </span><span class="nl">run_id:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;1&quot;</span><span class="o">]],</span>
+<span class="w">    </span><span class="nl">megqc:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;elekta&quot;</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;event_file&quot;</span><span class="o">,</span>
+<span class="w">      </span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="o">-</span><span class="mf">10.6105</span><span class="o">,</span>
+<span class="w">      </span><span class="nl">event_file:</span><span class="w"> </span><span class="o">[</span><span class="nl">trial_type:</span><span class="w"> </span><span class="o">[</span><span class="kt">char</span><span class="o">:</span><span class="w"> </span><span class="mi">1</span><span class="o">]],</span>
+<span class="w">      </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.8</span><span class="o">]</span>
+<span class="w">    </span><span class="o">]</span>
+<span class="w">  </span><span class="o">],</span>
+<span class="w">  </span><span class="s2">&quot;MEG-MASC&quot;</span><span class="o">:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">dataset_format:</span><span class="w"> </span><span class="s2">&quot;bids&quot;</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">file_suffix:</span><span class="w"> </span><span class="s2">&quot;.con&quot;</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">meg_import:</span><span class="w"> </span><span class="o">[</span><span class="nl">session_id:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;0&quot;</span><span class="o">],</span><span class="w"> </span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;0&quot;</span><span class="o">]],</span>
+<span class="w">    </span><span class="nl">megqc:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;kit&quot;</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">artifacts:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;kit&quot;</span><span class="o">,</span><span class="w"> </span><span class="nl">deepreject:</span><span class="w"> </span><span class="o">[</span><span class="nl">mode:</span><span class="w"> </span><span class="s2">&quot;lenient&quot;</span><span class="o">]]</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<p>Run it with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus:/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus_megflow:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus_smri:/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus.config:/program/nextflow/nextflow.config:ro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cmrlab/megflow:1.0.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-i<span class="w"> </span>/input<span class="w"> </span>-o<span class="w"> </span>/output<span class="w"> </span>--fs_subjects_dir<span class="w"> </span>/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--corpus<span class="w"> </span>--resume
+</pre></div>
+</div>
+<p>Omitting <code class="docutils literal notranslate"><span class="pre">--steps</span></code> keeps the stage policy from the config. Passing
+<code class="docutils literal notranslate"><span class="pre">--steps</span> <span class="pre">meg_ica</span></code> would change the shared corpus default while preserving any
+explicit dataset-level <code class="docutils literal notranslate"><span class="pre">steps</span></code> overrides.</p>
+</section>
+<section id="runnable-three-dataset-source-demo">
+<h2>Runnable Three-Dataset Source Demo<a class="headerlink" href="#runnable-three-dataset-source-demo" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">nextflow/nextflow_multi_dataset_demo.config</span></code> is the complete runnable
+example. It uses three named profiles with explicit paths:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">WAND_visual</span></code> uses CTF settings, <code class="docutils literal notranslate"><span class="pre">UPPT001</span></code> trigger events, and a visual
+source label.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SMN4Lang_RDR</span></code> uses Elekta settings, BIDS event-file mapping, a measured
+event-time correction, and a language source label.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MEG_MASC_word</span></code> uses KIT digitization sidecars, customized fine coregistration,
+word-event filtering, and lenient DeepReject segment post-processing.</p></li>
+</ul>
+<p>Edit only the path and subject-selection fields needed for the target server,
+then run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>/data/liaopan/datasets/megflow_multi_dataset_demo_3datasets/logs
+nextflow<span class="w"> </span>-log<span class="w"> </span>/data/liaopan/datasets/megflow_multi_dataset_demo_3datasets/logs/nextflow.log<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>run<span class="w"> </span>nextflow/megflow.nf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-c<span class="w"> </span>nextflow/nextflow_multi_dataset_demo.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-resume
+</pre></div>
+</div>
+<p>The file also demonstrates process-specific <code class="docutils literal notranslate"><span class="pre">maxForks</span></code> limits. Adjust those
+limits according to available CPU, RAM, GPU, and storage throughput; they
+control concurrency but do not change scientific parameters.</p>
+</section>
+<section id="cluster-execution">
+<h2>Cluster Execution<a class="headerlink" href="#cluster-execution" title="Link to this heading">#</a></h2>
+<p>Dataset profiles are independent of the executor. Keep the same
+<code class="docutils literal notranslate"><span class="pre">params.megflow</span></code> content and launch with the composable Slurm and Singularity
+profiles:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nextflow<span class="w"> </span>-log<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MEGFLOW_DRIVER_LOG</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-C<span class="w"> </span>nextflow/my_project.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>run<span class="w"> </span>nextflow/megflow.nf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-profile<span class="w"> </span>slurm,singularity,lenient<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-resume
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="../tutorial/tutorial_cluster.html"><span class="doc">Cluster</span></a> for filesystem, SIF, scheduler, and
+environment-variable requirements.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="qc_metrics.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Quality Control Metrics</p>
+      </div>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#canonical-templates">Canonical Templates</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#single-dataset-first-meg-pass">Single Dataset: First MEG Pass</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#full-meg-with-existing-anatomy">Full MEG with Existing Anatomy</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#structural-mri-only">Structural MRI Only</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#resting-state-epochs">Resting-State Epochs</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-events-from-bids-events-tsv">Task Events from BIDS <code class="docutils literal notranslate"><span class="pre">events.tsv</span></code></a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-events-from-a-trigger-channel">Task Events from a Trigger Channel</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#raw-or-empty-room-covariance">Raw or Empty-Room Covariance</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-specific-deepreject">Dataset-Specific DeepReject</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-specific-overrides">Recording-Specific Overrides</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-corpus-with-different-dataset-settings">Docker Corpus with Different Dataset Settings</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-three-dataset-source-demo">Runnable Three-Dataset Source Demo</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-execution">Cluster Execution</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By LiaoPan
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, LiaoPan.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -83,7 +83,7 @@ def plot_artifact_mask_heatmap(raw, bad_channels, output_path, max_time_bins=240
     output_path = Path(output_path)
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    picks = mne.pick_types(raw.info, meg=True, eeg=False, eog=False, stim=False, exclude=[])
+    picks = mne.pick_types(raw.info, meg=True, ref_meg=False, eeg=False, eog=False, stim=False, exclude=[])
     if len(picks) == 0:
         picks = mne.pick_types(raw.info, meg=False, eeg=True, eog=False, stim=False, exclude=[])
     if len(picks) == 0:
@@ -211,6 +211,35 @@ def read_bad_channels_file(bad_channels_file):
         return [line.strip() for line in f if line.strip()]
 
 
+def _record_bad_channel_sources(source_map, channels, source):
+    for ch_name in channels or []:
+        ch_name = str(ch_name).strip()
+        if not ch_name:
+            continue
+        source_map.setdefault(ch_name, [])
+        if source not in source_map[ch_name]:
+            source_map[ch_name].append(source)
+
+
+def _bad_channel_description_payload(bad_channels, source_map):
+    rows = []
+    for ch_name in bad_channels or []:
+        sources = list(source_map.get(ch_name, []))
+        if not sources:
+            sources = ["Manual or pre-existing"]
+        rows.append(
+            {
+                "channel": ch_name,
+                "sources": sources,
+                "description": "; ".join(sources),
+            }
+        )
+    return {
+        "schema_version": 1,
+        "bad_channels": rows,
+    }
+
+
 def generate_artifact_mask_heatmap_from_saved_outputs(input_file, bad_channels_file, bad_segments_file, heatmap_output):
     """Generate the artifact mask heatmap from saved bad-channel and bad-segment outputs."""
     bad_channels = read_bad_channels_file(bad_channels_file)
@@ -238,11 +267,12 @@ def ensure_artifact_mask_heatmap(input_file, bad_channels_file, bad_segments_fil
         logger.error(f"Error generating artifact mask heatmap: {e}")
 
 
-def find_bad_channels(raw,config):
+def find_bad_channels(raw, config, *, return_sources=False, source_map=None):
     """Detect bad channels using multiple methods."""
     bad_channels = []
+    source_map = source_map if source_map is not None else {}
     if not config:
-        return bad_channels
+        return (bad_channels, source_map) if return_sources else bad_channels
 
     # PyPrep methods | slow.
     pyprep_config = config.get("pyprep", None)
@@ -252,31 +282,38 @@ def find_bad_channels(raw,config):
         if pyprep_config.get('deviation',None):
             noisy_data.find_bad_by_deviation(**pyprep_config['deviation'])
             print("deviation",noisy_data.get_bads())
+            _record_bad_channel_sources(source_map, noisy_data.bad_by_deviation, "PyPREP deviation")
         if pyprep_config.get('snr', None):
             noisy_data.find_bad_by_SNR()
             print("snr",noisy_data.get_bads())
+            _record_bad_channel_sources(source_map, noisy_data.bad_by_SNR, "PyPREP SNR")
 
         if pyprep_config.get('nan_flat', None):
             noisy_data.find_bad_by_nan_flat()
             print("nan_flat",noisy_data.get_bads())
+            _record_bad_channel_sources(source_map, noisy_data.bad_by_nan, "PyPREP NaN")
+            _record_bad_channel_sources(source_map, noisy_data.bad_by_flat, "PyPREP flat")
 
         if pyprep_config.get('hfnoise', None):
             noisy_data.find_bad_by_hfnoise(**pyprep_config['hfnoise'])
             print("hfnoise", noisy_data.get_bads())
+            _record_bad_channel_sources(source_map, noisy_data.bad_by_hf_noise, "PyPREP high-frequency noise")
 
         ## very slow,and comment.
         # find bad by ransac
         if pyprep_config.get('ransac', None):
             noisy_data.find_bad_by_ransac(**pyprep_config['ransac'])
             print("ransac", noisy_data.get_bads())
+            _record_bad_channel_sources(source_map, noisy_data.bad_by_ransac, "PyPREP RANSAC")
 
         # find bad by corr
         if pyprep_config.get('correlation', None):
             noisy_data.find_bad_by_correlation(**pyprep_config['correlation'])
             print("correlation", noisy_data.get_bads())
+            _record_bad_channel_sources(source_map, noisy_data.bad_by_correlation, "PyPREP correlation")
+            _record_bad_channel_sources(source_map, noisy_data.bad_by_dropout, "PyPREP dropout")
 
-        bad_channels = noisy_data.get_bads()
-        bad_channels.extend(bad_channels)
+        bad_channels.extend(noisy_data.get_bads())
         print("pyprep bad channels: ", bad_channels)
 
 
@@ -289,6 +326,7 @@ def find_bad_channels(raw,config):
         total_mean, total_std = ch_mean_psd.mean(), ch_mean_psd.std()
         bad_psd_channels = [ch_names[i] for i in range(len(ch_mean_psd)) if ch_mean_psd[i] > (total_mean + std_multiplier * total_std)]
         bad_channels.extend(bad_psd_channels)
+        _record_bad_channel_sources(source_map, bad_psd_channels, "PSD outlier")
         print("psd bad channels:", bad_psd_channels)
 
     # OSL methods
@@ -296,9 +334,15 @@ def find_bad_channels(raw,config):
     if osl_config:
         _raw = raw.copy()
         _raw.info["bads"] = []
+        before = set(_raw.info["bads"])
         detect_badchannels(_raw, picks='mag', **osl_config)
+        mag_bads = [ch for ch in _raw.info["bads"] if ch not in before]
+        _record_bad_channel_sources(source_map, mag_bads, "OSL bad-channel detector (mag)")
         try:
+            before = set(_raw.info["bads"])
             detect_badchannels(_raw, picks='grad', **osl_config)
+            grad_bads = [ch for ch in _raw.info["bads"] if ch not in before]
+            _record_bad_channel_sources(source_map, grad_bads, "OSL bad-channel detector (grad)")
         except Exception as e:
             logger.error(e)
         bad_channels.extend(_raw.info["bads"])
@@ -312,17 +356,31 @@ def find_bad_channels(raw,config):
             _raw.info["bads"] = []
             find_bad_channels_lof(_raw, **mne_config.get('find_bad_channels_lof',{}))
             bad_channels.extend(_raw.info["bads"])
+            _record_bad_channel_sources(source_map, _raw.info["bads"], "MNE LOF bad-channel detector")
             logger.info(f'mne bad channels: {_raw.info["bads"]}')
         except Exception as e:
             logger.error(e)
-    return bad_channels
+    bad_channels = list(dict.fromkeys(bad_channels))
+    return (bad_channels, source_map) if return_sources else bad_channels
 
 
 def find_bad_segments(raw, config):
     """Detect bad segments using OSL and MNE."""
+    config = config or {}
+    existing_annots = raw.annotations.copy()
+    keep_existing = _config_bool(config.get("keep_existing_annotations"), False)
+    empty_annots = mne.Annotations([], [], [], orig_time=existing_annots.orig_time)
+    if keep_existing:
+        annots = existing_annots
+    else:
+        if len(existing_annots):
+            logger.info("Clearing %d existing raw annotations before bad-segment detection.", len(existing_annots))
+        annots = empty_annots
+    raw.set_annotations(empty_annots)
+
     if not config:
+        raw.set_annotations(annots)
         return raw
-    annots = raw.annotations
     if config.get("osl",None):
         segment_len = config["osl"].get("segment_len",1000)
         try:
@@ -347,9 +405,9 @@ def find_bad_segments(raw, config):
             if mne_config.get("annotate_amplitude"):
                 annot_amplitude, _ = annotate_amplitude(raw,**mne_config.get("annotate_amplitude"))
                 annots = annots + annot_amplitude
-            raw.set_annotations(annots)
         except Exception as e:
             logger.error(e)
+    raw.set_annotations(annots)
     return raw
 
 
@@ -405,6 +463,162 @@ def _parse_deepreject_folds(value):
     return [int(item.strip()) for item in text.split(",") if item.strip()]
 
 
+DEEPREJECT_MODE_PRESETS = {
+    "default": {},
+    "strict": {
+        "badsegnet_hysteresis_high": 0.85,
+        "badsegnet_hysteresis_low": 0.15,
+        "badsegnet_merge_gap_sec": 10.0,
+        "badsegnet_min_duration_sec": 0.0,
+        "badsegnet_short_keep_threshold": 0.95,
+    },
+    "lenient": {
+        "badsegnet_hysteresis_high": 0.99,
+        "badsegnet_hysteresis_low": 0.95,
+        "badsegnet_merge_gap_sec": 0.0,
+        "badsegnet_min_duration_sec": 0.0,
+        "badsegnet_short_keep_threshold": 1.0,
+    },
+}
+
+DEEPREJECT_RECOMMENDED_INPUT = {
+    "highpass_hz": 1.0,
+    "lowpass_hz": 100.0,
+    "sfreq_hz": 250.0,
+}
+
+
+def _resolve_deepreject_mode_config(deep_config):
+    mode_value = deep_config.get("mode", deep_config.get("profile", "default"))
+    mode = "default" if mode_value is None else str(mode_value).strip().lower()
+    if mode in {"", "none", "null"}:
+        mode = "default"
+    if mode not in DEEPREJECT_MODE_PRESETS:
+        supported = ", ".join(sorted(DEEPREJECT_MODE_PRESETS))
+        raise ValueError(f"Unsupported DeepReject mode '{mode_value}'. Supported modes: {supported}")
+
+    resolved = dict(DEEPREJECT_MODE_PRESETS[mode])
+    resolved.update(deep_config)
+    resolved["mode"] = mode
+    return mode, resolved, dict(DEEPREJECT_MODE_PRESETS[mode])
+
+
+def _deepreject_input_preprocessing_summary(raw, deep_config):
+    actual_highpass = float(raw.info.get("highpass", 0.0) or 0.0)
+    actual_lowpass = float(raw.info.get("lowpass", 0.0) or 0.0)
+    actual_sfreq = float(raw.info.get("sfreq", 0.0) or 0.0)
+    requested_highpass = _optional_float(deep_config.get("filter_l_freq"))
+    requested_lowpass = _optional_float(deep_config.get("filter_h_freq"))
+    requested_sfreq = _optional_float(deep_config.get("resample_sfreq"))
+
+    effective_highpass = (
+        max(actual_highpass, requested_highpass)
+        if requested_highpass is not None
+        else actual_highpass
+    )
+    effective_lowpass = (
+        min(actual_lowpass, requested_lowpass)
+        if requested_lowpass is not None
+        else actual_lowpass
+    )
+    effective_sfreq = requested_sfreq if requested_sfreq is not None else actual_sfreq
+    recommended = DEEPREJECT_RECOMMENDED_INPUT
+    matches = (
+        np.isclose(effective_highpass, recommended["highpass_hz"], atol=0.05, rtol=0.0)
+        and np.isclose(effective_lowpass, recommended["lowpass_hz"], atol=0.05, rtol=0.0)
+        and np.isclose(effective_sfreq, recommended["sfreq_hz"], atol=0.1, rtol=0.0)
+    )
+
+    irreversible = []
+    if actual_highpass > recommended["highpass_hz"] + 0.05:
+        irreversible.append("input high-pass is above 1 Hz")
+    if actual_lowpass < recommended["lowpass_hz"] - 0.05:
+        irreversible.append("input low-pass is below 100 Hz")
+    if actual_sfreq < recommended["sfreq_hz"] - 0.1:
+        irreversible.append("input sampling rate is below 250 Hz")
+
+    summary = {
+        "actual": {
+            "highpass_hz": actual_highpass,
+            "lowpass_hz": actual_lowpass,
+            "sfreq_hz": actual_sfreq,
+        },
+        "requested_internal_preproc": {
+            "highpass_hz": requested_highpass,
+            "lowpass_hz": requested_lowpass,
+            "sfreq_hz": requested_sfreq,
+        },
+        "effective": {
+            "highpass_hz": effective_highpass,
+            "lowpass_hz": effective_lowpass,
+            "sfreq_hz": effective_sfreq,
+        },
+        "recommended": dict(recommended),
+        "recommended_input_match": bool(matches),
+        "irreversible_mismatches": irreversible,
+    }
+    if matches:
+        logger.info(
+            "DeepReject input preprocessing matches the recommended 1-100 Hz at 250 Hz."
+        )
+    else:
+        details = f" Irreversible mismatch: {'; '.join(irreversible)}." if irreversible else ""
+        logger.warning(
+            "DeepReject input preprocessing differs from the recommended 1-100 Hz at 250 Hz: "
+            "effective highpass=%.3g Hz, lowpass=%.3g Hz, sfreq=%.3g Hz.%s",
+            effective_highpass,
+            effective_lowpass,
+            effective_sfreq,
+            details,
+        )
+    return summary
+
+
+def _select_deepreject_channels(raw, *, exclude_marked_bads=False):
+    exclude = "bads" if exclude_marked_bads else []
+    picks = mne.pick_types(
+        raw.info,
+        meg=True,
+        ref_meg=False,
+        eeg=False,
+        eog=False,
+        ecg=False,
+        emg=False,
+        stim=False,
+        misc=False,
+        exclude=exclude,
+    )
+    if len(picks) == 0:
+        raise RuntimeError("DeepReject requested data-MEG-only input, but no usable MEG channels were found.")
+    return [raw.ch_names[pick] for pick in picks]
+
+
+def _prepare_deepreject_input(raw, input_path, output_dir, deep_config):
+    pick_meg_only = _config_bool(deep_config.get("pick_meg_only"), True)
+    if not pick_meg_only:
+        return Path(input_path), None, {
+            "pick_meg_only": False,
+            "input_path": str(input_path),
+            "prediction_input_path": str(input_path),
+            "input_channel_count": len(raw.ch_names),
+            "prediction_channel_count": len(raw.ch_names),
+        }
+
+    exclude_marked_bads = _config_bool(deep_config.get("pick_exclude_marked_bads"), False)
+    channel_names = _select_deepreject_channels(raw, exclude_marked_bads=exclude_marked_bads)
+    tmp_path = Path(output_dir) / f"{Path(input_path).stem}_deepreject_meg_only_raw.fif"
+    raw.copy().pick(channel_names).save(tmp_path, overwrite=True)
+    return tmp_path, tmp_path, {
+        "pick_meg_only": True,
+        "pick_exclude_marked_bads": exclude_marked_bads,
+        "input_path": str(input_path),
+        "prediction_input_path": str(tmp_path),
+        "input_channel_count": len(raw.ch_names),
+        "prediction_channel_count": len(channel_names),
+        "prediction_channels": channel_names,
+    }
+
+
 def _merge_annotations(base_annotations, extra_annotations):
     if len(extra_annotations) == 0:
         return base_annotations
@@ -418,9 +632,11 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
     deep_config = config.get("deepreject") or {}
     if not deep_config or not deep_config.get("enabled", False):
         return [], mne.Annotations([], [], []), None
+    deepreject_mode, deep_config, deepreject_mode_preset = _resolve_deepreject_mode_config(deep_config)
+    input_preprocessing_summary = _deepreject_input_preprocessing_summary(raw, deep_config)
 
     if DeepRejectPredictor is None:
-        raise RuntimeError("DeepReject runtime is not importable. Install its dependencies or disable artifact_config.deepreject.enabled.")
+        raise RuntimeError("DeepReject runtime is not importable. Install its dependencies or disable artifacts.deepreject.enabled.")
 
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -471,9 +687,16 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
     if deep_config.get("cache_models") is not None:
         predictor_kwargs["cache_models"] = _config_bool(deep_config.get("cache_models"), True)
 
+    prediction_input_path, temporary_input_path, input_summary = _prepare_deepreject_input(
+        raw=raw,
+        input_path=input_path,
+        output_dir=output_dir,
+        deep_config=deep_config,
+    )
+
     predictor = DeepRejectPredictor(**predictor_kwargs)
     pred = predictor.predict_fif(
-        Path(input_path),
+        Path(prediction_input_path),
         category=category,
         dataset=dataset,
         pick_exclude_marked_bads=_config_bool(deep_config.get("pick_exclude_marked_bads"), False),
@@ -509,8 +732,11 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
         "cache_models": getattr(predictor, "cache_models", None),
         "cpu_threads": getattr(predictor, "cpu_threads", None),
         "cpu_interop_threads": getattr(predictor, "cpu_interop_threads", None),
+        "mode": deepreject_mode,
+        "mode_preset_parameters": deepreject_mode_preset,
         "category": category,
         "dataset": dataset,
+        "input_preprocessing": input_preprocessing_summary,
         "artifact_window_count": int(np.asarray(pred.artifact_probs).size),
         "badsegnet_hysteresis_high": getattr(predictor, "badsegnet_hysteresis_high", None),
         "badsegnet_hysteresis_low": getattr(predictor, "badsegnet_hysteresis_low", None),
@@ -527,6 +753,7 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
         "bad_channel_count": len(bad_channels),
         "bad_channels": bad_channels,
     }
+    summary.update(input_summary)
     if pred.bad_channel_probs is not None and pred.ch_names:
         summary["bad_channel_probs"] = {
             ch_name: float(prob)
@@ -541,6 +768,11 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
         len(pred.bad_intervals),
         pred.backend,
     )
+    if temporary_input_path is not None and not _config_bool(deep_config.get("keep_meg_only_input"), False):
+        try:
+            temporary_input_path.unlink(missing_ok=True)
+        except Exception as exc:
+            logger.warning("Could not remove temporary DeepReject MEG-only file %s: %s", temporary_input_path, exc)
     return bad_channels, annots, summary
     
 def main(args):
@@ -552,6 +784,7 @@ def main(args):
     base_name = Path(args.input).stem
     output_bad_segments_file = f"{args.output}/{base_name}_bad_segments.txt"
     output_bad_channels_file = f"{args.output}/{base_name}_bad_channels.txt"
+    output_bad_channel_description_file = f"{args.output}/{base_name}_bad_channels_description.json"
     check_imgs_output_dir = Path(output_bad_channels_file).parent / "check_imgs"
     heatmap_img_out = check_imgs_output_dir / "artifact_mask_heatmap.jpg"
     artifact_images_enabled = _config_bool(config.get('artifact_images_enabled'), False)
@@ -560,14 +793,13 @@ def main(args):
 
     if os.path.exists(output_bad_segments_file) and os.path.exists(output_bad_channels_file):
         logger.info(f"The file {output_bad_segments_file}/{output_bad_channels_file} already exists, and the data will not be overwritten.")
-        if artifact_images_enabled:
-            ensure_artifact_mask_heatmap(
-                input_file=args.input,
-                bad_channels_file=output_bad_channels_file,
-                bad_segments_file=output_bad_segments_file,
-                heatmap_output=heatmap_img_out,
-                force=True,
-            )
+        ensure_artifact_mask_heatmap(
+            input_file=args.input,
+            bad_channels_file=output_bad_channels_file,
+            bad_segments_file=output_bad_segments_file,
+            heatmap_output=heatmap_img_out,
+            force=True,
+        )
     else:
         raw = mne.io.read_raw(args.input, preload=True)
         artifact_vendor = infer_artifact_vendor(raw, config.get('meg_vendor', 'auto'))
@@ -576,11 +808,19 @@ def main(args):
         else:
             logger.warning("Could not infer MEG artifact vendor; using generic MNE scaling for plots.")
 
+        bad_channel_sources = {}
+        _record_bad_channel_sources(bad_channel_sources, raw.info.get("bads", []), "Pre-existing raw.info['bads']")
+
         # Detect bad channels
-        bad_channels = find_bad_channels(raw, config.get('find_bad_channels', {}))
+        bad_channels, bad_channel_sources = find_bad_channels(
+            raw,
+            config.get('find_bad_channels', {}),
+            return_sources=True,
+            source_map=bad_channel_sources,
+        )
         raw.info['bads'].extend(bad_channels)
         current_bad_channels = set(raw.info['bads'])
-        raw.info['bads'] = list(current_bad_channels)
+        raw.info['bads'] = sorted(current_bad_channels)
         logger.info(f"raw.info['bads']:{raw.info['bads']}")
 
         # Detect bad segments
@@ -595,6 +835,7 @@ def main(args):
                     config=config,
                     output_dir=args.output,
                 )
+                _record_bad_channel_sources(bad_channel_sources, deep_bad_channels, "DeepReject BadChnNet")
                 raw.info["bads"] = sorted(set(list(raw.info.get("bads", [])) + list(deep_bad_channels)))
                 raw.set_annotations(_merge_annotations(raw.annotations, deep_annots))
             except Exception as exc:
@@ -621,6 +862,13 @@ def main(args):
         with open(output_bad_channels_file, 'w') as f:
             for bad_channel in bad_channels:
                 f.write(f"{bad_channel}\n")
+        with open(output_bad_channel_description_file, "w", encoding="utf-8") as f:
+            json.dump(
+                _bad_channel_description_payload(bad_channels, bad_channel_sources),
+                f,
+                ensure_ascii=False,
+                indent=2,
+            )
 
         try:
             if (args.annot and (raw.info['bads'] or raw.annotations)) or interpolated_bads:
@@ -629,15 +877,15 @@ def main(args):
         except Exception as e:
             logger.error(f"Error overwriting:{args.input}...,\n {e}")
 
-        if artifact_images_enabled:
-            ensure_artifact_mask_heatmap(
-                input_file=args.input,
-                bad_channels_file=output_bad_channels_file,
-                bad_segments_file=output_bad_segments_file,
-                heatmap_output=heatmap_img_out,
-                force=True,
-            )
+        ensure_artifact_mask_heatmap(
+            input_file=args.input,
+            bad_channels_file=output_bad_channels_file,
+            bad_segments_file=output_bad_segments_file,
+            heatmap_output=heatmap_img_out,
+            force=True,
+        )
 
+        if artifact_images_enabled:
             # Generate detailed artifacts check images.
             device_type = artifact_vendor
             seg_fname_img_out = Path(f"{check_imgs_output_dir}/waveform/chn.#/seg_$.jpg")

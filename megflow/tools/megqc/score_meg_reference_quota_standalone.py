@@ -1,12 +1,10 @@
 #!/usr/bin/env python3
 # coding: utf-8
-"""Standalone scorer for the selected MEG QC reference-quota metrics.
+"""Standalone scorer for the selected NormMEG-QC reference metrics.
 
-The metric names keep the training/report namespace (for example
-``tsfel.max_abs_diff``), but this script does not import tsfel or msqms.  The
-selected tsfel-like metrics are implemented directly with NumPy, and the
-msqms-derived frequency/fractal formulas are ported from the local msqms source
-so that deployment cannot drift because of package-version differences.
+Temporal metrics are implemented directly with NumPy. The frequency and
+fractal formulas are ported from the local reference implementation so that
+deployment cannot drift because of package-version differences.
 """
 
 from __future__ import annotations
@@ -151,7 +149,7 @@ def _fallback_preproc_steps(text: str) -> list[dict[str, object]]:
             if cfg:
                 steps.append({"notch_filter": cfg})
     if not steps:
-        raise ValueError("Could not parse MEG QC preprocessing config without PyYAML.")
+        raise ValueError("Could not parse NormMEG-QC preprocessing config without PyYAML.")
     return steps
 
 
@@ -168,7 +166,7 @@ def load_preproc_steps(config_text: str | None) -> list[dict[str, object]]:
     parsed = yaml.safe_load(text) or {}
     steps = parsed.get("preproc", parsed if isinstance(parsed, list) else [])
     if not isinstance(steps, list):
-        raise ValueError("MEG QC preprocessing config must contain a 'preproc' list.")
+        raise ValueError("NormMEG-QC preprocessing config must contain a 'preproc' list.")
     return [step for step in steps if isinstance(step, dict)]
 
 
@@ -439,8 +437,8 @@ def compute_metric_values(raw, args: argparse.Namespace) -> dict[str, float]:
         channel_ptp = channel_max - channel_min
         abs_diff = np.abs(np.diff(data, axis=1))
         channel_max_abs_diff = np.nanmax(abs_diff, axis=1)
-        summarize_vector(channel_max_abs_diff, f"tsfel.max_abs_diff.{meg_type}", out)
-        summarize_vector(channel_ptp, f"tsfel.ptp_amp.{meg_type}", out)
+        summarize_vector(channel_max_abs_diff, f"max_abs_diff.{meg_type}", out)
+        summarize_vector(channel_ptp, f"ptp_amp.{meg_type}", out)
 
         sampled = uniformly_subsample_time(data, int(args.freq_max_samples))
         freq_acc: dict[str, list[float]] = {}
@@ -545,6 +543,15 @@ def direction_label(mode: str) -> str:
     return "near q50 is better"
 
 
+def metric_component_type(metric: str) -> str:
+    metric = str(metric)
+    if ".mag." in metric or metric.endswith(".mag"):
+        return "MAG"
+    if ".grad." in metric or metric.endswith(".grad"):
+        return "GRAD"
+    return ""
+
+
 def score_metrics(
     metrics: dict[str, float],
     config: dict,
@@ -560,8 +567,11 @@ def score_metrics(
     family_details = []
     for family in config["families"]:
         comp_scores = []
+        component_types = []
+        display_label = str(family.get("display_label", family["family"]))
         for metric in family["metrics"]:
             raw = float(metrics.get(metric, np.nan))
+            component_type = metric_component_type(metric)
             ref = get_reference_row(lookup, metric, device_type, category, reference_scope, min_reference_n)
             mode = str(family.get("mode_by_metric", {}).get(metric, family.get("mode", "lower_is_better")))
             if ref is None:
@@ -578,11 +588,15 @@ def score_metrics(
                 status = component_status(raw, q05, q95)
             if np.isfinite(score):
                 comp_scores.append(float(score))
+                if component_type and component_type not in component_types:
+                    component_types.append(component_type)
             rows.append(
                 {
                     "family": family["family"],
+                    "family_display_label": display_label,
                     "domain": family["domain"],
                     "metric": metric,
+                    "component_type": component_type,
                     "raw_value": raw,
                     "mode": mode,
                     "direction": direction_label(mode),
@@ -601,7 +615,17 @@ def score_metrics(
         family_score = float(np.mean(comp_scores)) if comp_scores else np.nan
         if np.isfinite(family_score):
             family_scores.append(family_score)
-        family_details.append({"family": family["family"], "domain": family["domain"], "score_0_100": family_score * 100.0 if np.isfinite(family_score) else np.nan, "n_components": len(comp_scores)})
+        family_details.append(
+            {
+                "rank": int(family.get("rank", len(family_details) + 1)),
+                "family": family["family"],
+                "display_label": display_label,
+                "domain": family["domain"],
+                "score_0_100": family_score * 100.0 if np.isfinite(family_score) else np.nan,
+                "n_components": len(comp_scores),
+                "components": component_types,
+            }
+        )
     final_score = float(np.mean(family_scores) * 100.0) if family_scores else np.nan
     summary = {
         "model": config["model"],
@@ -616,74 +640,21 @@ def score_metrics(
     return summary, pd.DataFrame(rows)
 
 
-STATUS_STYLES = {
-    "within_q05_q95": {"color": "#059669", "label": "Within reference"},
-    "above_q95": {"color": "#dc2626", "label": "Worse (above q95)"},
-    "below_q05": {"color": "#2563eb", "label": "Better (below q05)"},
-    "missing": {"color": "#94a3b8", "label": "Not computed"},
-}
-
-
-PLOTTED_STATUSES = {"within_q05_q95", "above_q95", "below_q05"}
-
 DOMAIN_STYLES = {
     "Temporal": {"color": "#2563EB", "fill": "#EFF6FF"},
-    "Statistic": {"color": "#7C3AED", "fill": "#F5F3FF"},
+    "Statistical": {"color": "#7C3AED", "fill": "#F5F3FF"},
     "Spectral": {"color": "#D97706", "fill": "#FFFBEB"},
     "Fractal": {"color": "#059669", "fill": "#ECFDF5"},
 }
 DEFAULT_DOMAIN_STYLE = {"color": "#475569", "fill": "#F8FAFC"}
-
-
-def _computed_plot_rows(detail: pd.DataFrame) -> pd.DataFrame:
-    rows = detail.copy()
-    rows["pos_plot"] = pd.to_numeric(rows["reference_position_q05_0_q95_1"], errors="coerce")
-    rows["component_pct"] = pd.to_numeric(rows["component_score_0_1"], errors="coerce") * 100.0
-    rows["status"] = rows["status"].astype(str)
-    rows = rows[
-        rows["status"].isin(PLOTTED_STATUSES)
-        & np.isfinite(rows["pos_plot"])
-        & np.isfinite(rows["component_pct"])
-    ].copy()
-    return rows.sort_values(["domain", "family", "metric"]).reset_index(drop=True)
+DOMAIN_ORDER = {"Temporal": 0, "Statistical": 1, "Spectral": 2, "Fractal": 3}
 
 
 def _domain_style(domain: str) -> dict[str, str]:
     return DOMAIN_STYLES.get(str(domain), DEFAULT_DOMAIN_STYLE)
 
 
-def _metric_row_label(row: pd.Series, *, domain_prefix: str = "") -> str:
-    family = str(row.get("family", ""))
-    family_short = (
-        family.replace("tsfel.", "")
-        .replace("freq_domain.", "freq.")
-        .replace("fractal_domain.", "fractal.")
-    )
-    metric = str(row.get("metric", ""))
-    variant = ""
-    if ".mag." in metric or metric.endswith(".mag"):
-        variant = "mag"
-    elif ".grad." in metric or metric.endswith(".grad"):
-        variant = "grad"
-    body = f"{family_short} · {variant}" if family_short and variant else (family_short or metric)
-    return f"{domain_prefix}{body}"
-
-
-def _status_label(status: str, mode: str) -> str:
-    status = str(status)
-    lower_better = "lower" in str(mode or "").lower()
-    if status == "within_q05_q95":
-        return "Within reference"
-    if status == "above_q95":
-        return "Worse (above q95)" if lower_better else "Above q95"
-    if status == "below_q05":
-        return "Better (below q05)" if lower_better else "Worse (below q05)"
-    if status == "missing":
-        return "Not computed"
-    return status.replace("_", " ")
-
-
-def _draw_reference_placeholder_plot(out_png: Path, message: str) -> None:
+def _draw_quality_score_placeholder_plot(out_png: Path, message: str) -> None:
     import matplotlib
 
     matplotlib.use("Agg")
@@ -698,238 +669,223 @@ def _draw_reference_placeholder_plot(out_png: Path, message: str) -> None:
     plt.close(fig)
 
 
-def draw_reference_position_plot(
-    detail: pd.DataFrame,
-    out_png: Path,
-    title: str,
-    *,
-    subtitle: str | None = None,
-) -> None:
+def _family_score_plot_rows(summary: dict[str, object]) -> list[dict[str, object]]:
+    rows = []
+    for index, item in enumerate(summary.get("family_scores", [])):
+        if not isinstance(item, dict):
+            continue
+        domain = str(item.get("domain", ""))
+        try:
+            rank = int(item.get("rank", index + 1))
+        except (TypeError, ValueError):
+            rank = index + 1
+        try:
+            score = float(item.get("score_0_100", np.nan))
+        except (TypeError, ValueError):
+            score = np.nan
+        rows.append(
+            {
+                "rank": rank,
+                "family": str(item.get("family", "")),
+                "display_label": str(item.get("display_label") or item.get("family", "")),
+                "domain": domain,
+                "score_0_100": score if np.isfinite(score) else np.nan,
+            }
+        )
+    return sorted(
+        rows,
+        key=lambda item: (
+            DOMAIN_ORDER.get(str(item["domain"]), len(DOMAIN_ORDER)),
+            int(item["rank"]),
+            str(item["family"]),
+        ),
+    )
+
+
+def draw_quality_score_plot(summary: dict[str, object], out_png: Path) -> None:
+    """Draw 0-100 family scores and the overall NMDQ score."""
     import matplotlib
 
     matplotlib.use("Agg")
     import matplotlib.pyplot as plt
-    from matplotlib.patches import Patch, Rectangle
+    from matplotlib.patches import Rectangle
 
-    rows = _computed_plot_rows(detail)
-    if rows.empty:
-        _draw_reference_placeholder_plot(out_png, "No computed reference-relative metrics are available for this recording.")
+    rows = _family_score_plot_rows(summary)
+    if not rows:
+        _draw_quality_score_placeholder_plot(out_png, "No family scores are available for this recording.")
         return
 
-    plot_rows: list[dict[str, object]] = []
-    y = 0.0
-    prev_domain = None
-    for _, row in rows.iterrows():
-        domain = str(row.get("domain", ""))
-        if prev_domain is not None and domain != prev_domain:
-            y += 1.0
-        plot_rows.append({"y": y, "domain": domain, "row": row, "domain_first": domain != prev_domain})
-        y += 1.0
-        prev_domain = domain
-
-    n = max(1, len(plot_rows))
-    fig_h = max(8.0, 2.0 + 0.62 * n)
-    fig_w = 16.5
-    fig, ax = plt.subplots(figsize=(fig_w, fig_h), dpi=160)
-    fig.patch.set_facecolor("white")
-    ax.set_facecolor("#FAFAFA")
-
-    pos_values = pd.to_numeric(rows["reference_position_q05_0_q95_1"], errors="coerce")
-    pos_max = float(pos_values.max()) if pos_values.notna().any() else 1.0
-    pos_min = float(pos_values.min()) if pos_values.notna().any() else 0.0
-    x_right = max(1.12, min(pos_max + 0.15, 3.0))
-    x_left = min(-0.12, max(pos_min - 0.08, -0.35))
-
-    domain_ranges: list[tuple[str, float, float]] = []
+    plot_rows = []
+    domain_ranges = []
+    y_pos = 0.0
     current_domain = None
-    start_y = 0.0
-    last_y = 0.0
-    for item in plot_rows:
-        domain = str(item["domain"])
-        y_pos = float(item["y"])
-        if current_domain is None:
-            current_domain = domain
-            start_y = y_pos
-        elif domain != current_domain:
-            domain_ranges.append((current_domain, start_y, last_y))
-            current_domain = domain
-            start_y = y_pos
-        last_y = y_pos
+    domain_start = 0.0
+    domain_end = 0.0
+    for row in rows:
+        domain = str(row["domain"])
+        if current_domain is not None and domain != current_domain:
+            domain_ranges.append((current_domain, domain_start, domain_end))
+            y_pos += 0.55
+            domain_start = y_pos
+        elif current_domain is None:
+            domain_start = y_pos
+        current_domain = domain
+        domain_end = y_pos
+        plot_rows.append({"row": row, "y": y_pos})
+        y_pos += 1.0
     if current_domain is not None:
-        domain_ranges.append((current_domain, start_y, last_y))
+        domain_ranges.append((current_domain, domain_start, domain_end))
 
+    overall_y = y_pos + 0.55
+    try:
+        overall_score = float(summary.get("score_0_100", np.nan))
+    except (TypeError, ValueError):
+        overall_score = np.nan
+
+    n_domains = len(domain_ranges)
+    fig_height = max(7.5, 2.0 + 0.62 * (len(plot_rows) + 1) + 0.22 * n_domains)
+    fig, ax = plt.subplots(figsize=(16.0, fig_height), dpi=160)
+    fig.patch.set_facecolor("white")
+    ax.set_facecolor("white")
+
+    left_extent = -22.0
+    right_label_x = 104.5
     for domain, start, end in domain_ranges:
         style = _domain_style(domain)
-        ax.axhspan(start - 0.44, end + 0.44, color=style["fill"], zorder=0)
-        ax.vlines(x_left + 0.01, start - 0.36, end + 0.36, color=style["color"], linewidth=5.0, zorder=1)
-
-    ax.axvspan(0.0, 1.0, color="#D1FAE5", alpha=0.46, zorder=0)
-    ax.axvline(0.5, color="#6B7280", linewidth=1.4, linestyle="--", alpha=0.85, zorder=1)
-    for tick in (0.0, 0.5, 1.0):
-        ax.axvline(tick, color="#D1D5DB", linewidth=1.0, zorder=0)
-
-    for item in plot_rows:
-        row = item["row"]
-        y_pos = item["y"]
-        status = str(row.get("status", "missing"))
-        style = STATUS_STYLES.get(status, STATUS_STYLES["missing"])
-        pos = row["pos_plot"]
-        ax.hlines(y_pos, 0.0, 1.0, colors="#CBD5E1", linewidth=5.0, zorder=2)
-        if np.isfinite(pos):
-            pos_f = float(pos)
-            marker_x = float(np.clip(pos_f, x_left + 0.02, x_right - 0.02))
-            ax.scatter(
-                [marker_x],
-                [y_pos],
-                s=170,
-                color=style["color"],
-                edgecolors="white",
-                linewidths=1.8,
-                zorder=4,
-            )
-            if pos_f > x_right - 0.02:
-                ax.annotate(
-                    ">",
-                    xy=(marker_x, y_pos),
-                    xytext=(4, 0),
-                    textcoords="offset points",
-                    va="center",
-                    ha="left",
-                    fontsize=12,
-                    color=style["color"],
-                    fontweight="bold",
-                    clip_on=False,
-                )
-            elif pos_f < x_left + 0.02:
-                ax.annotate(
-                    "<",
-                    xy=(marker_x, y_pos),
-                    xytext=(-4, 0),
-                    textcoords="offset points",
-                    va="center",
-                    ha="right",
-                    fontsize=12,
-                    color=style["color"],
-                    fontweight="bold",
-                    clip_on=False,
-                )
-
-    yticks = [item["y"] for item in plot_rows]
-    fixed_labels = []
-    for item in plot_rows:
-        fixed_labels.append(_metric_row_label(item["row"]))
-
-    ax.set_yticks(yticks)
-    ax.set_yticklabels(fixed_labels, fontsize=12)
-    ax.set_xlim(x_left, x_right)
-    ax.set_ylim(-0.8, max(yticks) + 0.8)
-    ax.set_xticks([0.0, 0.5, 1.0])
-    ax.set_xticklabels(["q05\n(5th pct)", "q50\n(median)", "q95\n(95th pct)"], fontsize=12)
-    ax.set_xlabel(
-        "Position relative to normative reference  (0 = q05,  0.5 = median,  1 = q95)"
-        + ("  ·  values beyond 1 are above the 95th percentile" if x_right > 1.2 else ""),
-        fontsize=12,
-        labelpad=14,
-    )
-    ax.tick_params(axis="x", pad=8)
-    ax.grid(axis="x", color="#E5E7EB", linewidth=0.8, alpha=0.8)
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_color("#D1D5DB")
-    ax.spines["bottom"].set_color("#D1D5DB")
-
-    bottom_margin = 0.22
-    fig.subplots_adjust(left=0.34, right=0.76, top=0.86 if subtitle else 0.90, bottom=bottom_margin)
-
-    title_y = 0.97
-    fig.suptitle(title, fontsize=20, fontweight="bold", color="#111827", y=title_y)
-    if subtitle:
-        fig.text(0.08, 0.925, subtitle, ha="left", va="top", fontsize=12.5, color="#4B5563")
-
-    legend_handles = [
-        Patch(facecolor=style["color"], edgecolor="white", label=style["label"])
-        for key, style in STATUS_STYLES.items()
-        if key in PLOTTED_STATUSES
-    ]
-    fig.legend(
-        handles=legend_handles,
-        loc="lower left",
-        bbox_to_anchor=(0.08, 0.07),
-        ncol=4,
-        frameon=False,
-        fontsize=10.5,
-        handlelength=1.2,
-        columnspacing=1.2,
-        labelspacing=0.6,
-    )
-    fig.text(
-        0.08,
-        0.032,
-        "Shaded band = typical reference range (q05–q95).  Component scores are 0–100; higher is better.",
-        ha="left",
-        va="bottom",
-        fontsize=10.5,
-        color="#6B7280",
-    )
-
-    fig.canvas.draw()
-    ax_pos = ax.get_position()
-    y_min, y_max = ax.get_ylim()
-
-    def _data_y_to_fig_y(y_data: float) -> float:
-        frac = (y_data - y_min) / (y_max - y_min)
-        return ax_pos.y0 + frac * ax_pos.height
-
-    domain_label_x = 0.055
-    domain_bar_x = 0.045
-    domain_bar_w = 0.006
-    for domain, start, end in domain_ranges:
-        style = _domain_style(domain)
-        fig_y0 = _data_y_to_fig_y(start - 0.36)
-        fig_y1 = _data_y_to_fig_y(end + 0.36)
-        fig_y0, fig_y1 = sorted((fig_y0, fig_y1))
-        fig.patches.append(
+        height = end - start + 0.88
+        ax.add_patch(
             Rectangle(
-                (domain_bar_x, fig_y0),
-                domain_bar_w,
-                fig_y1 - fig_y0,
-                transform=fig.transFigure,
-                facecolor=style["color"],
+                (left_extent, start - 0.44),
+                100.0 - left_extent,
+                height,
+                facecolor=style["fill"],
                 edgecolor="none",
-                zorder=5,
+                clip_on=False,
+                zorder=0,
             )
         )
-        fig.text(
-            domain_label_x,
-            (fig_y0 + fig_y1) / 2.0,
+        ax.vlines(
+            left_extent,
+            start - 0.44,
+            end + 0.44,
+            color=style["color"],
+            linewidth=6.0,
+            clip_on=False,
+            zorder=2,
+        )
+        ax.text(
+            left_extent + 3.0,
+            0.5 * (start + end),
             domain,
             ha="left",
             va="center",
-            fontsize=11.5,
+            fontsize=13,
             fontweight="bold",
             color=style["color"],
+            clip_on=False,
         )
 
-    status_x = min(ax_pos.x1 + 0.012, 0.97)
+    for x_pos, line_style in ((0.0, "-"), (50.0, "--"), (100.0, "-")):
+        ax.axvline(
+            x_pos,
+            color="#D7DEE9",
+            linewidth=1.0,
+            linestyle=line_style,
+            alpha=0.9,
+            zorder=1,
+        )
+
     for item in plot_rows:
         row = item["row"]
-        y_pos = float(item["y"])
-        status = str(row.get("status", "missing"))
-        score_pct = row["component_pct"]
-        score_text = f"{score_pct:.0f}/100" if np.isfinite(score_pct) else "—"
-        status_text = _status_label(status, str(row.get("mode", "")))
-        fig.text(
-            status_x,
-            _data_y_to_fig_y(y_pos),
-            f"{status_text}    {score_text}",
+        y_value = float(item["y"])
+        domain = str(row["domain"])
+        style = _domain_style(domain)
+        ax.hlines(y_value, 0.0, 100.0, color="#CBD5E1", linewidth=4.0, zorder=2)
+        score = float(row["score_0_100"])
+        if np.isfinite(score):
+            ax.scatter(
+                [float(np.clip(score, 0.0, 100.0))],
+                [y_value],
+                s=190,
+                color=style["color"],
+                edgecolors="white",
+                linewidths=2.0,
+                clip_on=False,
+                zorder=4,
+            )
+        label = str(row["display_label"])
+        if not np.isfinite(score):
+            label = f"{label} (not available)"
+        ax.text(
+            right_label_x,
+            y_value,
+            label,
             ha="left",
             va="center",
-            fontsize=11,
-            color="#374151",
+            fontsize=12.5,
+            color="#94A3B8" if not np.isfinite(score) else "#1F2937",
+            clip_on=False,
         )
 
+    overall_height = 0.88
+    ax.add_patch(
+        Rectangle(
+            (left_extent, overall_y - overall_height / 2.0),
+            100.0 - left_extent,
+            overall_height,
+            facecolor="#F8FAFC",
+            edgecolor="none",
+            clip_on=False,
+            zorder=0,
+        )
+    )
+    ax.vlines(
+        left_extent,
+        overall_y - overall_height / 2.0,
+        overall_y + overall_height / 2.0,
+        color="#111111",
+        linewidth=6.0,
+        clip_on=False,
+        zorder=2,
+    )
+    ax.text(
+        left_extent + 3.0,
+        overall_y,
+        "Overall",
+        ha="left",
+        va="center",
+        fontsize=13,
+        fontweight="bold",
+        color="#111111",
+        clip_on=False,
+    )
+    ax.hlines(overall_y, 0.0, 100.0, color="#CBD5E1", linewidth=4.0, zorder=2)
+    if np.isfinite(overall_score):
+        ax.scatter(
+            [float(np.clip(overall_score, 0.0, 100.0))],
+            [overall_y],
+            s=210,
+            color="#111111",
+            edgecolors="white",
+            linewidths=2.0,
+            clip_on=False,
+            zorder=4,
+        )
+
+    ax.set_xlim(0.0, 100.0)
+    ax.set_ylim(overall_y + 0.7, -0.7)
+    ax.set_xticks([0.0, 50.0, 100.0])
+    ax.set_xticklabels(["0", "50", "100"], fontsize=12)
+    ax.set_yticks([])
+    ax.set_xlabel("NMDQ score", fontsize=15, fontweight="bold", labelpad=14)
+    ax.tick_params(axis="x", length=0, pad=8)
+    for spine in ("top", "right", "left"):
+        ax.spines[spine].set_visible(False)
+    ax.spines["bottom"].set_color("#D1D5DB")
+
+    fig.subplots_adjust(left=0.18, right=0.66, top=0.97, bottom=0.14)
     out_png.parent.mkdir(parents=True, exist_ok=True)
-    fig.savefig(out_png, facecolor="white", bbox_inches="tight", pad_inches=0.35)
+    fig.savefig(out_png, facecolor="white", bbox_inches="tight", pad_inches=0.25)
     plt.close(fig)
 
 
@@ -963,7 +919,7 @@ def self_test(config: dict, ref_df: pd.DataFrame) -> None:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Score one FIF file with the selected MEG QC reference-quota model.")
+    parser = argparse.ArgumentParser(description="Score one FIF file with the selected NormMEG-QC reference profile.")
     parser.add_argument("--fif", type=Path, default=None, help="Input FIF file.")
     parser.add_argument("--meg-vendor", dest="meg_vendor", default="all", help="Case-insensitive MEG vendor/reference device used for lookup, e.g. elekta, ctf, kit, 4d.")
     parser.add_argument("--category", default="rest", help="Recording category, usually rest or task.")
@@ -1046,15 +1002,12 @@ def main() -> None:
             stem = stem[: -len(suffix)]
             break
     out_prefix = args.output_dir / f"{stem}.{args.model}"
+    quality_score_plot = out_prefix.with_suffix(".normative_quality_score.png")
+    summary["quality_score_plot"] = str(quality_score_plot)
     detail.to_csv(out_prefix.with_suffix(".component_scores.csv"), index=False)
     summary_path = out_prefix.with_suffix(".summary.json")
     summary_path.write_text(json.dumps(json_ready(summary), ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
-    draw_reference_position_plot(
-        detail,
-        out_prefix.with_suffix(".reference_position.png"),
-        title=f"Normative Reference MEG QC score: {fnum(summary['score_0_100'], 1)} / 100",
-        subtitle=f"Model {args.model}  ·  Reference scope: {args.reference_scope}  ·  Category: {args.category}",
-    )
+    draw_quality_score_plot(summary, quality_score_plot)
     print(json.dumps(json_ready({"score_0_100": summary["score_0_100"], "n_families_available": summary["n_families_available"], "summary": str(summary_path)}), ensure_ascii=False, allow_nan=False))
 
 
