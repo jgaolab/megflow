@@ -238,9 +238,7 @@ nextflow run nextflow/megflow.nf \
   -resume
 
 # Complete WAND + SMN4Lang + MEG-MASC example with per-dataset settings
-nextflow run nextflow/megflow.nf \
-  -c nextflow/nextflow_multi_dataset_demo.config \
-  -resume
+bash run_MultiDatasets_sourcecode.sh
 
 # To change the stage, set params.megflow.defaults.steps in the config:
 #   params.megflow.defaults.steps = "all"

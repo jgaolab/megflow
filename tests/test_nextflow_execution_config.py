@@ -9,6 +9,7 @@ SOURCE_CONFIG = REPO_ROOT / "nextflow" / "nextflow.config"
 DOCKER_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_docker.config"
 DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
 MULTI_DATASET_DEMO = REPO_ROOT / "nextflow" / "nextflow_multi_dataset_demo.config"
+MULTI_DATASET_SOURCE_RUNNER = REPO_ROOT / "run_MultiDatasets_sourcecode.sh"
 OPM_COG_RUNNER = REPO_ROOT / "run_OPM_COG.sh"
 MEGQC_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_megqc.config"
 DATASET_CONFIGS = (
@@ -101,6 +102,17 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn('deepreject: [', text)
         self.assertIn('mode: "lenient"', text)
         self.assertNotIn("params.dataset_dir", text)
+
+    def test_multi_dataset_source_runner_uses_demo_config_without_docker(self):
+        self.assertTrue(MULTI_DATASET_SOURCE_RUNNER.is_file())
+        text = MULTI_DATASET_SOURCE_RUNNER.read_text(encoding="utf-8")
+        self.assertIn("nextflow/nextflow_multi_dataset_demo.config", text)
+        self.assertIn('-C "$CONFIG"', text)
+        self.assertIn('-profile "$PROFILE"', text)
+        self.assertIn('-log "$LOG_FILE"', text)
+        self.assertIn("Do not pass --steps to source Nextflow runs.", text)
+        self.assertNotIn("docker run", text)
+        self.assertNotIn("--cohort", text)
 
     def test_dataset_configs_inherit_common_execution_policy(self):
         available = tuple(config for config in DATASET_CONFIGS if config.is_file())

@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import tempfile
 import unittest
@@ -86,6 +87,34 @@ class CorpusDatasetStepsTests(unittest.TestCase):
         self.assertIn('class="step-count">7/8</span>', rendered)
         self.assertIn("78/80 subject-stage outputs", rendered)
         self.assertIn("Source localization N/A", rendered)
+
+
+class CorpusBundledNavigationTests(unittest.TestCase):
+    def test_subject_navigation_returns_to_dataset_overview(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            corpus_dir = Path(tmpdir) / "corpus_report"
+            static_dir = corpus_dir / "datasets" / "StudyA" / "static_html_report"
+            subject_page = static_dir / "subjects" / "sub-01.html"
+            dataset_page = static_dir / "index.html"
+            corpus_page = corpus_dir / "index.html"
+            subject_page.parent.mkdir(parents=True)
+            corpus_page.parent.mkdir(parents=True, exist_ok=True)
+            subject_page.write_text("<html><body>subject</body></html>", encoding="utf-8")
+            dataset_page.write_text("<html><body>dataset</body></html>", encoding="utf-8")
+            corpus_page.write_text("<html><body>corpus</body></html>", encoding="utf-8")
+
+            corpus_report.inject_corpus_back_links(static_dir, corpus_page, "StudyA")
+
+            subject_html = subject_page.read_text(encoding="utf-8")
+            dataset_html = dataset_page.read_text(encoding="utf-8")
+            self.assertIn('&larr; Dataset overview', subject_html)
+            self.assertIn('href="../index.html"', subject_html)
+            self.assertNotIn('&larr; Corpus overview', subject_html)
+            self.assertIn('&larr; Corpus overview', dataset_html)
+            self.assertIn(
+                f'href="{os.path.relpath(corpus_page, dataset_page.parent)}"',
+                dataset_html,
+            )
 
 
 class StaticQualityScoreTests(unittest.TestCase):

@@ -625,7 +625,13 @@ def write_assets(output_dir: Path) -> None:
 
 
 def inject_corpus_back_links(static_report_dir: Path, corpus_index: Path, dataset_name: str) -> None:
+    """Inject hierarchy-aware navigation into a bundled dataset report.
+
+    Dataset-level pages return to the corpus overview. Subject pages return to
+    their dataset overview so routine subject review does not jump two levels.
+    """
     marker = "<!-- megflow-corpus-back-link -->"
+    subjects_dir = static_report_dir / "subjects"
     for html_path in sorted(static_report_dir.rglob("*.html")):
         try:
             content = html_path.read_text(encoding="utf-8")
@@ -634,11 +640,14 @@ def inject_corpus_back_links(static_report_dir: Path, corpus_index: Path, datase
         if marker in content or "<body" not in content:
             continue
 
-        rel_corpus_index = os.path.relpath(corpus_index, html_path.parent)
+        is_subject_page = subjects_dir in html_path.parents
+        navigation_target = static_report_dir / "index.html" if is_subject_page else corpus_index
+        navigation_label = "Dataset overview" if is_subject_page else "Corpus overview"
+        rel_navigation_target = os.path.relpath(navigation_target, html_path.parent)
         link_html = f"""
 {marker}
 <div style="position:sticky;top:12px;z-index:9999;width:min(1500px,calc(100% - 48px));margin:12px auto 0;display:flex;align-items:center;gap:10px;padding:10px 14px;border:1px solid #dbe4ee;border-radius:14px;background:rgba(255,255,255,.94);box-shadow:0 10px 28px rgba(15,23,42,.08);font-family:Segoe UI,PingFang SC,Microsoft YaHei,sans-serif;font-size:14px;backdrop-filter:blur(8px);">
-  <a href="{html.escape(rel_corpus_index)}" style="color:#1f4acc;text-decoration:none;font-weight:800;">&larr; Corpus overview</a>
+  <a href="{html.escape(rel_navigation_target)}" style="color:#1f4acc;text-decoration:none;font-weight:800;">&larr; {navigation_label}</a>
   <span style="color:#667085;">{html.escape(dataset_name)}</span>
 </div>
 """
