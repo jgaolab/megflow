@@ -1,0 +1,67 @@
+name: MEGFlow validation
+
+on:
+  pull_request:
+  push:
+    branches: [main, master]
+
+jobs:
+  nextflow-routing:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Nextflow 24.10.3
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/megflow-bin"
+          cd "$RUNNER_TEMP/megflow-bin"
+          NXF_VER=24.10.3 bash -c 'curl -fsSL https://get.nextflow.io | bash'
+          ./nextflow -version
+
+      - name: Run routing and configuration tests
+        env:
+          MEGFLOW_NEXTFLOW: ${{ runner.temp }}/megflow-bin/nextflow
+          NXF_ANSI_LOG: "false"
+          NXF_VER: 24.10.3
+          PYTHONPATH: tests
+        run: |
+          python -m unittest test_nextflow_execution_config -v
+          python -m unittest test_nextflow_profile_integration -v
+
+      - name: Parse shipped Nextflow configs
+        env:
+          NEXTFLOW: ${{ runner.temp }}/megflow-bin/nextflow
+          NXF_ANSI_LOG: "false"
+          NXF_VER: 24.10.3
+        shell: bash
+        run: |
+          for config in nextflow/*.config; do
+            "$NEXTFLOW" -C "$config" config nextflow/megflow.nf -o flat >/dev/null
+          done
+
+  documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install documentation dependencies
+        run: python -m pip install -r requirements_doc.txt
+
+      - name: Build documentation with warnings as errors
+        run: sphinx-build -W --keep-going -b html docs/source docs/build/html

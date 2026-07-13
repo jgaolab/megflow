@@ -44,7 +44,7 @@ dataset- or recording-level ``steps`` overrides:
 High-Level Flow
 ---------------
 
-The complete ``meg_all`` or ``all`` execution order is:
+The complete ``meg_all`` or ``all`` dependency graph is:
 
 .. code-block:: text
 
@@ -55,11 +55,16 @@ The complete ``meg_all`` or ``all`` execution order is:
      -> ICA labeling
      -> ICA application
      -> epoching
-     -> covariance estimation
-     -> MEG-MRI coregistration
-     -> forward solution
-     -> source reconstruction
+          |-> epoch-based covariance -----------|
+          |                                     |-> source reconstruction
+          |-> forward solution <- coregistration|
      -> static HTML report
+
+Covariance and coregistration may execute concurrently after their own inputs
+are ready. Forward modeling waits for both the recording's epoch file and its
+coregistration transform. Source reconstruction is a strict keyed join of that
+recording's exact forward file and exact covariance file; an unmatched or
+duplicate key is an error rather than a silently skipped source result.
 
 When anatomy is enabled, structural processing runs before the downstream
 coregistration and source reconstruction steps:
@@ -129,6 +134,14 @@ reports. MEGFlow includes content hashes of those files in the relevant
 Nextflow task inputs so ``-resume`` can invalidate only the affected downstream
 tasks:
 
+* Adding or removing a raw input invalidates dataset import. Existing unchanged
+  recordings remain cacheable, while newly discovered recordings create new
+  task branches.
+* Changing one raw recording invalidates QC and all processing for that
+  recording without invalidating other recordings.
+* Changing a BIDS ``events.tsv`` sidecar invalidates epoching, epoch-based
+  covariance, forward modeling, and source reconstruction for that recording;
+  continuous preprocessing and ICA remain cacheable.
 * Editing ``artifact_report/*/*_bad_channels.txt`` or
   ``artifact_report/*/*_bad_segments.txt`` invalidates ICA fitting and later
   steps for that recording.
@@ -136,6 +149,11 @@ tasks:
   and later steps for that recording.
 * Editing ``trans/*/coreg-trans.fif`` invalidates forward modelling and source
   reconstruction for that recording.
+* Changing a T1 input or reconstructed anatomy invalidates the relevant
+  structural/BEM lineage and downstream coregistration or forward tasks.
+* Changing the MEGFlow processing implementation invalidates cached tasks
+  through an implementation fingerprint; Python cache files are deliberately
+  excluded.
 
 This downstream hash mechanism is separate from published-output deletion.
 Normal Nextflow ``-resume`` reuses the work cache for unchanged tasks and
@@ -229,7 +247,15 @@ baseline recording by replacing the BIDS ``task-...`` part of the filename with
 empty-room or empty-room-like recordings. For example, if
 ``covariance.raw_covariance_task_id = "emptyroom"``, an experimental file with
 ``task-aef`` is paired with a file whose matching name contains
-``task-emptyroom`` when that file exists.
+``task-emptyroom`` while every other filename entity remains unchanged.
+
+The pairing is performed between current-run clean-recording channels. It waits
+for the noise branch instead of checking whether a predicted output path happens
+to exist, and its clean-file fingerprint participates in the covariance cache
+lineage. A single noise recording may feed multiple experimental recordings.
+Reference recordings complete continuous preprocessing and ICA, then skip their
+own epoch/source branches. If a requested pair is absent, the strict downstream
+join fails the run instead of producing an incomplete source set.
 
 Coregistration, Forward Model, and Source Reconstruction
 --------------------------------------------------------
@@ -239,13 +265,17 @@ subject anatomy. The process uses fiducial fitting, ICP, and a fine-tuned ICP
 stage controlled by the effective ``coreg`` block. It writes ``coreg-trans.fif``,
 coregistration figures, and distance summaries.
 
-``forward_solution`` builds the forward model using the epoch file, transform,
-FreeSurfer subject directory, and the effective ``forward`` block.
+``forward_solution`` builds the forward model using the keyed epoch file,
+transform, anatomy fingerprint, FreeSurfer subject directory, and the effective
+``forward`` block. The emitted tuple carries the exact generated forward FIF
+path rather than reconstructing that path later from directory names.
 
 ``source_imaging`` consumes either epochs or raw data according to
 ``source.type``.
-It loads the forward model and noise covariance and then applies the configured
-source methods in the effective ``source`` block.
+It receives and loads the exact forward model and noise covariance selected by
+the workflow, then applies the configured source methods in the effective
+``source`` block. Source-processing exceptions propagate to Nextflow and mark
+the task failed rather than being logged as a successful task.
 
 Static Processing and QC Report
 -------------------------------

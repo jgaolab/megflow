@@ -1,10 +1,21 @@
 import tempfile
 import unittest
+import sys
+import types
 from pathlib import Path
 from unittest import mock
 
 import mne
 import numpy as np
+
+MEGFLOW_DIR = Path(__file__).resolve().parents[1] / "megflow"
+if str(MEGFLOW_DIR) not in sys.path:
+    sys.path.insert(0, str(MEGFLOW_DIR))
+
+autoreject = types.ModuleType("autoreject")
+autoreject.AutoReject = object
+autoreject.get_rejection_threshold = lambda epochs: {}
+sys.modules.setdefault("autoreject", autoreject)
 
 import epochs_preproc
 import compute_covariance

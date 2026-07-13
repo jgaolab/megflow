@@ -1,4 +1,7 @@
 *.sif
+__pycache__/
+*.py[cod]
+.pytest_cache/
 *.tar
 *.nii.gz
 *.nii

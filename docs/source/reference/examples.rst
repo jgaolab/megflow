@@ -259,7 +259,29 @@ configured task id to locate the paired continuous recording.
 For example, ``sub-01_task-aef_run-01_meg.fif`` is paired with
 ``sub-01_task-emptyroom_run-01_meg.fif``. Other entities still need to match.
 If the noise file uses a different naming relationship, rename or organize it
-to satisfy this mechanism before running raw covariance.
+to satisfy this mechanism before running raw covariance. MEGFlow waits for the
+paired recording's ICA-clean output and does not probe a predicted filename, so
+parallel scheduling cannot select a stale covariance input. The empty-room
+record is cleaned but does not continue into its own epochs or source model.
+Several experimental tasks may reuse the same paired noise recording; a missing
+pair stops the full source run with an error.
+
+The covariance override may also be recording specific. In this example only
+the experimental task requests raw covariance; the noise task can keep the
+dataset's default covariance configuration and is still recognized as the
+requested reference:
+
+.. code-block:: groovy
+
+   params.megflow.datasets.docker_input.recordings = [
+     experiment: [
+       match: [task: ["aef", "vef"]],
+       covariance: [type: "raw", raw_covariance_task_id: "emptyroom"]
+     ],
+     empty_room: [
+       match: [task: "emptyroom"]
+     ]
+   ]
 
 Dataset-Specific DeepReject
 ---------------------------

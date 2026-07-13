@@ -155,6 +155,42 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn('params.megflow.defaults.steps = "meg_artifacts"', text)
         self.assertIn("params.megflow.datasets = [:]", text)
 
+    def test_recording_identity_and_source_inputs_are_routed_explicitly(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("List recordingKey(String datasetName, def rawPathValue)", text)
+        self.assertIn("--forward_file \"${fwd_file}\"", text)
+        self.assertIn("--noise_covariance_file \"${bl_cov_file}\"", text)
+        self.assertNotIn("new File(raw_data_file).exists()", text)
+        self.assertIn("failOnMismatch: true", text)
+        self.assertIn("Source routing clean lineage mismatch", text)
+
+    def test_raw_covariance_pairing_is_channel_backed_and_many_to_one(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("native_raw_cov_reference_keys_v", text)
+        self.assertIn(
+            ".combine(native_cov_raw_candidates_ch, by: 0)",
+            text,
+        )
+        self.assertIn("isRawCovarianceReferenceKey", text)
+        self.assertIn("raw_covariance_task_id must contain only", text)
+
+    def test_external_inputs_are_explicit_cache_lineage_values(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("val(raw_inventory_hash)", text)
+        self.assertIn("val(t1_inventory_hash)", text)
+        self.assertIn("raw_input_fingerprint", text)
+        self.assertIn("val(events_hash)", text)
+        self.assertIn("val(epoch_hash)", text)
+        self.assertIn("val(anatomy_hash)", text)
+        self.assertIn("_implementation_fingerprint", text)
+
+    def test_profile_validation_guards_ambiguous_and_colliding_outputs(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("Unknown match fields", text)
+        self.assertIn("Multiple recording profiles matched", text)
+        self.assertIn("share output identifiers", text)
+        self.assertIn("overlapping ${field} paths", text)
+
 
 if __name__ == "__main__":
     unittest.main()

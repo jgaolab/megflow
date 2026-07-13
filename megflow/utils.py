@@ -9,15 +9,11 @@ import subprocess
 import random
 import socket
 from collections import Counter
-import redis
 import mne
-import cloudpickle
-import joblib as jl
 import matplotlib
 import numpy as np
 import logging
 import argparse
-import pyvista as pv
 from pathlib import Path
 from typing import Literal
 from matplotlib import pyplot as plt
@@ -359,6 +355,8 @@ def find_free_display(max_attempts=200):
 
 def start_xvfb(interactive=False):
     """Start Xvfb on a private display and set the DISPLAY environment variable."""
+    import pyvista as pv
+
     proc = None
     for _ in range(20):
         free_display = find_free_display()
@@ -438,6 +436,8 @@ def stop_xvfb(display_number, delay=3):
 class RedisGlobalVariableManager:
     def __init__(self, host='localhost', port=6379, db=0):
         """Initialize the Redis connection."""
+        import redis
+
         self.r = redis.StrictRedis(host=host, port=port, db=db, decode_responses=True)
 
     def set_global_variable(self, key, value):
@@ -605,6 +605,9 @@ def plot_snippets(
     ... )
 
     """
+
+    import cloudpickle
+    import joblib as jl
 
     def find_argmin(arr):
         n = len(arr)

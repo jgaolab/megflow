@@ -1,10 +1,27 @@
 import tempfile
 import unittest
+import sys
+import types
 from argparse import Namespace
 from pathlib import Path
 
 import mne
 import numpy as np
+
+MEGFLOW_DIR = Path(__file__).resolve().parents[1] / "megflow"
+if str(MEGFLOW_DIR) not in sys.path:
+    sys.path.insert(0, str(MEGFLOW_DIR))
+
+osl_wrappers = types.ModuleType("osl_ephys.preprocessing.osl_wrappers")
+osl_wrappers.detect_badchannels = lambda *args, **kwargs: None
+osl_wrappers.detect_badsegments = lambda *args, **kwargs: None
+osl_preprocessing = types.ModuleType("osl_ephys.preprocessing")
+osl_preprocessing.osl_wrappers = osl_wrappers
+osl_ephys = types.ModuleType("osl_ephys")
+osl_ephys.preprocessing = osl_preprocessing
+sys.modules.setdefault("osl_ephys", osl_ephys)
+sys.modules.setdefault("osl_ephys.preprocessing", osl_preprocessing)
+sys.modules.setdefault("osl_ephys.preprocessing.osl_wrappers", osl_wrappers)
 
 from meg_detect_artifacts import _deepreject_input_preprocessing_summary, main as detect_artifacts_main
 

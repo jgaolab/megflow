@@ -700,108 +700,163 @@ def compute_LCMV(evoked, fwd, data_cov, noise_cov, subj_src_path, subject_id, su
         visualize_source_estimate(stc, subject_id, subjects_dir, subj_src_path, epoch_label, "LCMV", spacing, config, block=False)
 
 
-def process_subject(epoch_file, fs_subjects_dir, noise_cov_path, fwd_dir, output_dir, config, visualize):
-    """
-    Process a single subject's data for source localization.
+def resolve_source_input_files(
+    data_file,
+    epoch_label,
+    spacing,
+    *,
+    noise_covariance_file=None,
+    forward_file=None,
+    noise_covariance_dir=None,
+    forward_dir=None,
+):
+    """Resolve exact routed files, retaining directory lookup for old callers."""
+    recording_id = Path(data_file).parent.name
 
-    Parameters
-    ----------
-    epoch_file : str
-        Path to the epochs file.
-    fs_subjects_dir : str
-        Path to the FreeSurfer subjects directory.
-    noise_cov_path : str
-        Path to the noise covariance file.
-    fwd_dir: str
-        forward solution directory.
-    output_dir : str
-        The directory to save the results.
-    config : dict
-        The configuration dictionary with parameters for processing.
+    if noise_covariance_file:
+        resolved_covariance = Path(noise_covariance_file)
+    elif noise_covariance_dir:
+        resolved_covariance = Path(noise_covariance_dir) / recording_id / "bl-cov.fif"
+    else:
+        raise ValueError(
+            "Provide --noise_covariance_file (preferred) or --noise_covariance_dir."
+        )
 
-    Returns
-    -------
-    None
-    """
-    subject_id = Path(epoch_file).stem.split('_')[0]  # mri and meg file have the same subject id.
+    if forward_file:
+        resolved_forward = Path(forward_file)
+    elif forward_dir:
+        resolved_forward = (
+            Path(forward_dir)
+            / recording_id
+            / f"{epoch_label}_{spacing}-fwd.fif"
+        )
+    else:
+        raise ValueError("Provide --forward_file (preferred) or --forward_dir.")
+
+    return resolved_covariance, resolved_forward
+
+
+def process_subject(
+    epoch_file,
+    fs_subjects_dir,
+    noise_cov_path,
+    fwd_dir,
+    output_dir,
+    config,
+    visualize,
+    noise_covariance_file=None,
+    forward_file=None,
+):
+    """Process one epoched recording for source localization."""
+    subject_id = Path(epoch_file).stem.split('_')[0]
     epoch_label = config.get("epoch_label", "")
-    try:
-        spacing = config.get('spacing')
+    spacing = config.get('spacing')
+    noise_cov_file, resolved_forward_file = resolve_source_input_files(
+        epoch_file,
+        epoch_label,
+        spacing,
+        noise_covariance_file=noise_covariance_file,
+        forward_file=forward_file,
+        noise_covariance_dir=noise_cov_path,
+        forward_dir=fwd_dir,
+    )
 
-        # Load noise covariance
-        meg_subject_id = Path(epoch_file).parent.name
-        noise_cov_file = os.path.join(noise_cov_path, meg_subject_id, 'bl-cov.fif')
-        noise_cov = mne.read_cov(noise_cov_file)
+    noise_cov = mne.read_cov(noise_cov_file)
+    epochs = mne.read_epochs(epoch_file)
+    evoked = epochs.average().pick(config.get('data_type'))
+    fwd = mne.read_forward_solution(resolved_forward_file)
 
-        # Read epochs and evoked data for "meg"
-        epochs = mne.read_epochs(epoch_file)
-        evoked = epochs.average().pick(config.get('data_type'))
+    for method in config.get("source_methods"):
+        if method in ["MNE", "dSPM", "sLORETA", "eLORETA"]:
+            compute_minimum_norm(
+                method, evoked, fwd, noise_cov, output_dir, subject_id,
+                fs_subjects_dir, epoch_label, spacing, config, visualize,
+            )
 
-        # Load forward solution
-        fwd = mne.read_forward_solution(os.path.join(fwd_dir, meg_subject_id, f"{epoch_label}_{spacing}-fwd.fif"))
-
-        for method in config.get("source_methods"):
-            # Compute minimum-norm inverse
-            if method in ["MNE","dSPM","sLORETA","eLORETA"]:
-                compute_minimum_norm(method, evoked, fwd, noise_cov, output_dir, subject_id, fs_subjects_dir, epoch_label, spacing, config, visualize)
-
-        if 'LCMV' in config.get("source_methods"):
-            n_rank = config.get('LCMV')['n_rank']
-            cov_tmin = config.get('LCMV')['cov_tmin']
-            cov_tmax = config.get('LCMV')['cov_tmax']
-
-            # Compute data covariance for LCMV
-            data_cov = compute_data_covariance(epochs, cov_tmin, cov_tmax, output_dir, epoch_label, n_rank)
-
-            # Compute LCMV
-            compute_LCMV(evoked, fwd, data_cov, noise_cov, output_dir, subject_id, fs_subjects_dir, epoch_label,
-                         spacing, config, visualize)
-
-    except Exception as e:
-        print(f"Error processing subject {subject_id}: {e}")
+    if 'LCMV' in config.get("source_methods"):
+        n_rank = config.get('LCMV')['n_rank']
+        cov_tmin = config.get('LCMV')['cov_tmin']
+        cov_tmax = config.get('LCMV')['cov_tmax']
+        data_cov = compute_data_covariance(
+            epochs, cov_tmin, cov_tmax, output_dir, epoch_label, n_rank
+        )
+        compute_LCMV(
+            evoked, fwd, data_cov, noise_cov, output_dir, subject_id,
+            fs_subjects_dir, epoch_label, spacing, config, visualize,
+        )
 
 
-def process_raw(raw_file, fs_subjects_dir, noise_cov_path, fwd_dir, output_dir, config, visualize):
-    """
-    Process continuous (raw) data for source localization.
-    """
+def process_raw(
+    raw_file,
+    fs_subjects_dir,
+    noise_cov_path,
+    fwd_dir,
+    output_dir,
+    config,
+    visualize,
+    noise_covariance_file=None,
+    forward_file=None,
+):
+    """Process one continuous recording for source localization."""
     subject_id = Path(raw_file).stem.split('_')[0]
     spacing = config.get('spacing')
     epoch_label = config.get("epoch_label", "")
+    noise_cov_file, resolved_forward_file = resolve_source_input_files(
+        raw_file,
+        epoch_label,
+        spacing,
+        noise_covariance_file=noise_covariance_file,
+        forward_file=forward_file,
+        noise_covariance_dir=noise_cov_path,
+        forward_dir=fwd_dir,
+    )
 
-    try:
-        meg_subject_id = Path(raw_file).parent.name
-        noise_cov_file = os.path.join(noise_cov_path, meg_subject_id, 'bl-cov.fif')
-        noise_cov = mne.read_cov(noise_cov_file)
+    noise_cov = mne.read_cov(noise_cov_file)
+    raw = mne.io.read_raw_fif(raw_file, preload=True)
+    fwd = mne.read_forward_solution(resolved_forward_file)
 
-        raw = mne.io.read_raw_fif(raw_file, preload=True)
-        fwd = mne.read_forward_solution(os.path.join(fwd_dir, meg_subject_id, f"{epoch_label}_{spacing}-fwd.fif"))
-
-        # minimum_norm algorithms
-        # “MNE” | “dSPM” | “sLORETA” | “eLORETA”
-        for method in config.get("source_methods"):
-            # Compute minimum-norm inverse
-            if method in ["MNE", "dSPM", "sLORETA", "eLORETA"]:
-                inverse_operator = make_inverse_operator(info=raw.info, forward=fwd, noise_cov=noise_cov,
-                                                         **config.get(method)['inverse_operator'])
-                stc = apply_inverse_raw(raw, inverse_operator,
-                                        **config.get(method)['apply_inverse'])
-                stc.save(os.path.join(output_dir, f"{epoch_label}_raw_{method}-{spacing}"), overwrite=True)
-                if visualize:
-                    visualize_source_estimate(stc, subject_id, fs_subjects_dir, output_dir, epoch_label, method, spacing, config, block=False)
-
-        if 'LCMV' in config.get("source_methods"):
-            n_rank = config.get('LCMV')['n_rank']
-            cov_tmin = config.get('LCMV')['cov_tmin']
-            cov_tmax = config.get('LCMV')['cov_tmax']
-            data_cov = mne.compute_raw_covariance(raw, tmin=cov_tmin, tmax=cov_tmax, method="auto", rank=n_rank)
-            filters = make_lcmv(raw.info, fwd, data_cov, noise_cov=noise_cov, **config.get('LCMV')['make_lcmv'])
-            stc = apply_lcmv_raw(raw, filters)
-            stc.save(os.path.join(output_dir, f"{epoch_label}_raw_LCMV-{spacing}"), overwrite=True)
+    for method in config.get("source_methods"):
+        if method in ["MNE", "dSPM", "sLORETA", "eLORETA"]:
+            inverse_operator = make_inverse_operator(
+                info=raw.info,
+                forward=fwd,
+                noise_cov=noise_cov,
+                **config.get(method)['inverse_operator'],
+            )
+            stc = apply_inverse_raw(
+                raw, inverse_operator, **config.get(method)['apply_inverse']
+            )
+            stc.save(
+                os.path.join(output_dir, f"{epoch_label}_raw_{method}-{spacing}"),
+                overwrite=True,
+            )
             if visualize:
-                visualize_source_estimate(stc, subject_id, fs_subjects_dir, output_dir, epoch_label, "LCMV", spacing, config, block=False)
-    except Exception as e:
-        logger.error(f"Error processing raw data for subject {subject_id}: {e}")
+                visualize_source_estimate(
+                    stc, subject_id, fs_subjects_dir, output_dir, epoch_label,
+                    method, spacing, config, block=False,
+                )
+
+    if 'LCMV' in config.get("source_methods"):
+        n_rank = config.get('LCMV')['n_rank']
+        cov_tmin = config.get('LCMV')['cov_tmin']
+        cov_tmax = config.get('LCMV')['cov_tmax']
+        data_cov = mne.compute_raw_covariance(
+            raw, tmin=cov_tmin, tmax=cov_tmax, method="auto", rank=n_rank
+        )
+        filters = make_lcmv(
+            raw.info, fwd, data_cov, noise_cov=noise_cov,
+            **config.get('LCMV')['make_lcmv'],
+        )
+        stc = apply_lcmv_raw(raw, filters)
+        stc.save(
+            os.path.join(output_dir, f"{epoch_label}_raw_LCMV-{spacing}"),
+            overwrite=True,
+        )
+        if visualize:
+            visualize_source_estimate(
+                stc, subject_id, fs_subjects_dir, output_dir, epoch_label,
+                "LCMV", spacing, config, block=False,
+            )
 
 
 def parse_arguments():
@@ -819,9 +874,14 @@ def parse_arguments():
     parser.add_argument('--data_file', type=str, required=True, help="Path to the epochs or raw file.")
     parser.add_argument('--fs_subjects_dir', type=str, required=True,
                         help="Path to the MRI subject directory (Freesurfer subjects dir).")
-    parser.add_argument('--noise_covariance_dir', type=str, required=True,
-                        help="Directory to the noise covariance file.")
-    parser.add_argument('--forward_dir', type=str, required=True, help="Directory to the forward solution.")
+    parser.add_argument('--noise_covariance_file', type=str,
+                        help="Exact routed noise covariance file (preferred).")
+    parser.add_argument('--forward_file', type=str,
+                        help="Exact routed forward solution file (preferred).")
+    parser.add_argument('--noise_covariance_dir', type=str,
+                        help="Legacy directory lookup for the noise covariance file.")
+    parser.add_argument('--forward_dir', type=str,
+                        help="Legacy directory lookup for the forward solution.")
     parser.add_argument('--output_dir', type=str, required=True, help="Subject output directory.")
     parser.add_argument('--config', type=str, help="Configuration parameters.")
     parser.add_argument('--visualize', type=str2bool, nargs='?', const=True, default=True, help="Whether to visualize the source imaging (default: True)")
@@ -881,7 +941,9 @@ def main():
                     args.forward_dir,
                     args.output_dir,
                     config,
-                    args.visualize)
+                    args.visualize,
+                    noise_covariance_file=args.noise_covariance_file,
+                    forward_file=args.forward_file)
     elif args.data_mode == "epochs":
         process_subject(args.data_file,
                         args.fs_subjects_dir,
@@ -889,7 +951,9 @@ def main():
                         args.forward_dir,
                         args.output_dir,
                         config,
-                        args.visualize)
+                        args.visualize,
+                        noise_covariance_file=args.noise_covariance_file,
+                        forward_file=args.forward_file)
     else:
         raise ValueError("Unspported data mode: {}".format(args.data_mode))
     print("Finished source recon processing...")

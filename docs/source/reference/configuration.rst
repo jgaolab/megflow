@@ -212,12 +212,14 @@ Not every field is meaningful at every scope:
        ``source``, and MEG-stage reduction
      - Applied only after MEG import. It cannot change which files were
        discovered, create a missing anatomy plan, or change dataset-level report
-       thresholds.
+       thresholds or BEM construction.
 
-Keep ``meg_import``, ``mri_import``, ``anatomy``, dataset paths, and the primary
-dataset stage in the dataset profile. A recording-level ``steps`` override can
-reduce or specialize an already enabled MEG path, but it should not be used to
-turn an anatomy-only or report-only dataset into a full MEG run.
+Keep ``meg_import``, ``mri_import``, ``anatomy``, ``bem``, dataset paths, and
+the primary dataset stage in the dataset profile. MEGFlow rejects these fields
+inside a recording profile because they are resolved before recordings are
+matched. A recording-level ``steps`` override can reduce or specialize an
+already enabled MEG path, but it cannot exceed the dataset MEG stage or turn an
+anatomy-only or report-only dataset into a full MEG run.
 
 Recording Matching
 ~~~~~~~~~~~~~~~~~~
@@ -257,7 +259,9 @@ Entity comparisons are case-insensitive. Multiple values within one field use
 OR logic, while different fields use AND logic. An omitted field is not a
 constraint. An empty or missing ``match`` block never matches. If two recording
 profiles match the same file, MEGFlow stops with an error instead of applying
-an ambiguous merge.
+an ambiguous merge. Unknown match keys are also errors; the accepted keys are
+exactly ``subject``, ``session``, ``task``, ``run``, ``suffix``, and
+``filename_contains``.
 
 .. code-block:: groovy
 
@@ -312,6 +316,13 @@ An explicit profile that contains ``dataset_dir`` is also a candidate, even
 when ``corpus_root`` is set. In a container corpus run, profiles intended to
 customize children under ``/input`` should normally omit ``dataset_dir`` so the
 discovered container path is retained.
+
+Resolved dataset names must be unique after normalization. MEGFlow also rejects
+duplicate or nested ``output_dir`` and ``preproc_dir`` trees across datasets,
+including a preprocessed tree placed inside another dataset's output tree.
+Within one dataset, imported raw files must produce unique recording basenames;
+two files that would write to the same ``preprocessed/<recording>/`` directory
+are rejected before preprocessing starts.
 
 Stage Selection
 ---------------
@@ -1035,9 +1046,20 @@ Covariance
 
 For ``type: raw``, MEGFlow replaces ``task-<experimental>`` in the ICA-clean
 continuous filename with ``task-<raw_covariance_task_id>``. The paired task must
-have been imported and processed through ICA. When ``epochs.preproc`` is not
-empty, the same operations are applied in memory to the paired noise recording
-before raw covariance is computed.
+have been imported and processed through ICA. The task id may contain letters,
+numbers, and hyphens. Pairing retains all other filename entities, so subject,
+session, run, acquisition, and suffix must already describe the intended pair.
+
+The paired clean file is a channel dependency, not a path guessed from an
+output directory. Covariance therefore waits for the current run's noise record
+even when task scheduling finishes the experiment first. A missing pair fails
+the full source run instead of silently omitting it, and one noise recording may
+serve multiple experimental tasks when their other entities match. A recording
+identified as a raw-covariance reference is cleaned through ICA but is excluded
+from its own epoch, covariance, forward, and source branches, even when its own
+recording profile otherwise inherits epoch covariance. When ``epochs.preproc``
+is not empty, the same operations are applied in memory to the paired noise
+recording before raw covariance is computed.
 
 BEM, Coregistration, Forward, and Source
 ----------------------------------------

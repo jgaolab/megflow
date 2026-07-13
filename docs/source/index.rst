@@ -181,3 +181,4 @@ Where to Go Next
    reference/deepreject.rst
    reference/qc_metrics.rst
    reference/examples.rst
+   reference/validation.rst
