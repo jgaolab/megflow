@@ -1985,7 +1985,20 @@ Map buildAnatomyProcessPlan(List datasetProfiles) {
 workflow {
     def datasetProfiles = resolveDatasetProfiles(params.megflow)
     def anatomyPlan = buildAnatomyProcessPlan(datasetProfiles)
-    def corpusMode = datasetProfiles.size() > 1 || cfgText(asMap(params.megflow), ['corpus_root'], '')
+    def megflowParams = asMap(params.megflow)
+    def corpusMode = datasetProfiles.size() > 1 || cfgText(megflowParams, ['corpus_root'], '')
+    def expectedReportScope = corpusMode ? 'corpus' : 'dataset'
+    def reportScopeConfigured = megflowParams.containsKey('report_scope')
+    def reportScope = cfgText(megflowParams, ['report_scope'], expectedReportScope).trim().toLowerCase()
+    if (!(reportScope in ['dataset', 'corpus'])) {
+        throw new IllegalArgumentException("params.megflow.report_scope must be dataset or corpus")
+    }
+    if (reportScopeConfigured && reportScope != expectedReportScope) {
+        throw new IllegalArgumentException(
+            "params.megflow.report_scope=${reportScope} does not match the resolved ${expectedReportScope} run. " +
+            "Use report_scope=corpus for corpus_root or multi-dataset runs."
+        )
+    }
     def implementationFingerprints = [:]
     log.info "MEGFlow profile datasets: ${datasetProfiles.collect { it.dataset_name }.join(', ')}"
     log.info "Corpus mode: ${corpusMode}"

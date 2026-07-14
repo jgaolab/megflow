@@ -22,6 +22,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any
 
+try:
+    from .report_layout import NEXTFLOW_DIRNAME, prepare_report_output
+except ImportError:
+    from report_layout import NEXTFLOW_DIRNAME, prepare_report_output
+
 
 NMDQ_FULL_NAME = "Normative MEG Data Quality Score"
 NMDQ_SHORT_NAME = "NMDQ Score"
@@ -40,6 +45,7 @@ STEP_DEFS = [
 
 STATIC_DIR = Path(__file__).resolve().parent / "_static"
 FAVICON_PATH = STATIC_DIR / "favicon.png"
+MANAGED_REPORT_DIRECTORIES = ("assets", "data", "datasets")
 
 
 REPORT_CSS = """
@@ -611,7 +617,11 @@ def bundle_dataset_reports(reports: list[DatasetReport], output_dir: Path) -> di
         if dest_static_dir.exists():
             shutil.rmtree(dest_static_dir)
         ensure_dir(dest_static_dir.parent)
-        shutil.copytree(report.static_report_dir, dest_static_dir)
+        shutil.copytree(
+            report.static_report_dir,
+            dest_static_dir,
+            ignore=shutil.ignore_patterns(NEXTFLOW_DIRNAME),
+        )
         inject_corpus_back_links(dest_static_dir, output_dir / "index.html", report.name)
         bundled_links[report.summary_path] = os.path.relpath(dest_static_dir / "index.html", output_dir)
 
@@ -805,6 +815,22 @@ def write_data_files(summary: dict[str, Any], output_dir: Path) -> None:
             )
 
 
+def render_nextflow_artifact_links(output_dir: Path) -> str:
+    nextflow_dir = output_dir / NEXTFLOW_DIRNAME
+    if not nextflow_dir.is_dir():
+        return ""
+
+    links = [
+        '<a href="nextflow/report.html" target="_blank" rel="noopener">Nextflow resource report</a>',
+        '<a href="nextflow/timeline.html" target="_blank" rel="noopener">Nextflow timeline</a>',
+    ]
+    if (nextflow_dir / "trace.txt").is_file():
+        links.append('<a href="nextflow/trace.txt" target="_blank" rel="noopener">Nextflow trace</a>')
+    if (nextflow_dir / "nextflow.log").is_file():
+        links.append('<a href="nextflow/nextflow.log" target="_blank" rel="noopener">Nextflow log</a>')
+    return "".join(links)
+
+
 def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
     status_rank = {"PASS": 0, "WARN": 1, "FAIL": 2}
     rows = []
@@ -891,6 +917,7 @@ def build_index_html(summary: dict[str, Any], output_dir: Path) -> None:
         </select>
         <a href="data/corpus_summary.json" target="_blank">Corpus JSON</a>
         <a href="data/datasets.csv" target="_blank">Datasets CSV</a>
+        {render_nextflow_artifact_links(output_dir)}
       </div>
     </section>
 
@@ -970,9 +997,7 @@ def main() -> None:
     if output_dir == corpus_root:
         raise ValueError("--output_dir must be separate from --corpus_root so source dataset reports are not overwritten.")
     reports = discover_dataset_reports(corpus_root, output_dir)
-    if output_dir.exists():
-        shutil.rmtree(output_dir)
-    ensure_dir(output_dir)
+    prepare_report_output(output_dir, MANAGED_REPORT_DIRECTORIES)
     write_assets(output_dir)
     bundled_links = bundle_dataset_reports(reports, output_dir)
     summary = build_corpus_summary(reports, corpus_root, output_dir, bundled_links)

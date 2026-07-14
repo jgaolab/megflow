@@ -8,7 +8,6 @@ A Streamlit application for editing Nextflow configuration files with syntax hig
 
 import streamlit as st
 from streamlit_ace import st_ace
-from reports.utils import in_docker
 from pathlib import Path
 
 
@@ -110,11 +109,8 @@ def main():
     st.markdown("---")
     
     # Determine default configuration file path
-    if in_docker():
-        default_config_path = Path("/output") / "nextflow.config"
-    else:
-        dataset_path = st.session_state.get("dataset_report_path", ".")
-        default_config_path = Path(dataset_path) / "nextflow.config"
+    run_report_root = st.session_state.get("run_report_root", "/output")
+    default_config_path = Path(run_report_root) / "nextflow.config"
     
     # Sidebar - File Selection
     with st.sidebar:

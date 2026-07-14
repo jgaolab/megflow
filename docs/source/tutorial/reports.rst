@@ -48,6 +48,10 @@ The static report can also be regenerated without rerunning the pipeline:
 
 The report directory is self-contained and includes copied figures, sidecar
 files, JSON summaries, CSV summaries, and a config snapshot when available.
+Its ``nextflow/`` directory is owned by Nextflow and contains the execution
+report, timeline, trace, and launcher log when available. MEGFlow regenerates
+its own report assets without deleting this directory, and the dashboard links
+directly to these run-level files.
 Subject pages also include a collapsed ``Task Details`` table derived from the
 Nextflow trace file when one is available. If a task failed or was ignored, the
 page adds ``Task Failure Details`` with the error summary and packaged command

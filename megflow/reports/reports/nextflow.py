@@ -3,9 +3,10 @@
 # -*- coding: utf-8 -*-
 import streamlit as st
 from streamlit.components.v1 import html
-from reports.utils import in_docker
 from pathlib import Path
 import re
+
+from report_layout import CORPUS_SCOPE, resolve_nextflow_artifacts
 
 # Set page configuration
 st.set_page_config(
@@ -14,19 +15,22 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Determine default directory
-if in_docker():
-    DEFAULT_NX_REPORT_DIR = Path("/output")
-else:
-    dataset_path = st.session_state.get("dataset_report_path", "./output")
-    DEFAULT_NX_REPORT_DIR = Path(dataset_path) if dataset_path else Path("./output")
+# Nextflow files describe the complete run, not the currently selected dataset.
+run_report_root = Path(st.session_state.get("run_report_root", "/output"))
+report_scope = st.session_state.get("report_scope")
+default_artifacts = resolve_nextflow_artifacts(run_report_root, report_scope)
 
 # Sidebar input for report directory
 nx_file_path = Path(st.sidebar.text_input(
     "Nextflow Resource Report Directory:",
-    value=str(DEFAULT_NX_REPORT_DIR),
+    value=str(default_artifacts.directory),
     help="Enter the path to the directory containing Nextflow report files"
 ))
+artifacts = (
+    default_artifacts
+    if nx_file_path == default_artifacts.directory
+    else resolve_nextflow_artifacts(nx_file_path)
+)
 
 # Validate directory exists
 if not nx_file_path.exists():
@@ -91,21 +95,22 @@ def render_report_iframe(report_file, height=4500):
 reports = [
     {
         "name": "Resource Report",
-        "file": nx_file_path / "report.html",
+        "file": artifacts.report,
         "description": "CPU, memory, and I/O usage statistics",
         "height": 4500
     },
     {
         "name": "Timeline Report",
-        "file": nx_file_path / "timeline.html",
+        "file": artifacts.timeline,
         "description": "Process execution timeline and dependencies",
         "height": 4500
     }
 ]
 
 # Display reports
-st.title("Nextflow Execution Reports")
-st.markdown(f"**Report Directory:** `{nx_file_path}`")
+page_title = "Corpus-Level Nextflow Execution Reports" if report_scope == CORPUS_SCOPE else "Nextflow Execution Reports"
+st.title(page_title)
+st.markdown(f"**Report Directory:** `{artifacts.directory}`")
 st.markdown("---")
 
 # Sidebar options

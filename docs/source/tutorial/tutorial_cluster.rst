@@ -27,7 +27,7 @@ configuration:
    export MEGFLOW_SIF=/lustre/project/containers/cmrlab_megflow_1.0.0.sif
    export MEGFLOW_SINGULARITY_CACHE=/lustre/project/.singularity
    export MEGFLOW_SINGULARITY_RUN_OPTIONS='-B /lustre:/lustre'
-   export MEGFLOW_DRIVER_LOG=/lustre/project/megflow/logs/nextflow.log
+   export MEGFLOW_DRIVER_LOG=/lustre/project/megflow/static_html_report/nextflow/nextflow.log
    mkdir -p "$(dirname "$MEGFLOW_DRIVER_LOG")"
 
 Launch the workflow directly from the login node or from a small Slurm driver

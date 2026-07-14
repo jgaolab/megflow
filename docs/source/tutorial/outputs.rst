@@ -19,13 +19,15 @@ Top-Level Output Layout
      - Description
    * - ``<output_dir>/work/``
      - Nextflow work directory.
-   * - ``<output_dir>/report.html``
-     - Nextflow execution report when run through the Docker entrypoint.
-   * - ``<output_dir>/timeline.html``
-     - Nextflow timeline when run through the Docker entrypoint.
-   * - ``<output_dir>/trace.txt``
+   * - ``<output_dir>/static_html_report/nextflow/report.html``
+     - Nextflow execution report for a single-dataset run.
+   * - ``<output_dir>/static_html_report/nextflow/timeline.html``
+     - Nextflow timeline for a single-dataset run.
+   * - ``<output_dir>/static_html_report/nextflow/trace.txt``
      - Nextflow process trace. The static report uses it to populate per-subject
        ``Task Details`` when available.
+   * - ``<output_dir>/static_html_report/nextflow/nextflow.log``
+     - Nextflow driver log when the launcher supplies the documented ``-log`` path.
    * - ``<output_dir>/nextflow.config``
      - Effective config copied from the Docker run config.
    * - ``<output_dir>/static_html_report/``
@@ -52,16 +54,20 @@ directory names, while the corpus report retains the configured display name.
    |       |-- preprocessed/
    |       `-- static_html_report/
    |-- corpus_static_html_report/
-   |-- corpus_report.html
-   |-- corpus_timeline.html
-   |-- corpus_trace.txt
+   |   |-- index.html
+   |   `-- nextflow/
+   |       |-- nextflow.log
+   |       |-- report.html
+   |       |-- timeline.html
+   |       `-- trace.txt
    `-- nextflow.config
 
 ``corpus_static_html_report/index.html`` is the cross-dataset entry point. It
 links the dataset reports and provides sortable recording and dataset summaries
-for comparison, outlier discovery, and prioritizing manual review. The
-``corpus_report.html``, ``corpus_timeline.html``, and ``corpus_trace.txt`` files
-describe Nextflow execution rather than signal quality.
+for comparison, outlier discovery, and prioritizing manual review. The files
+under ``corpus_static_html_report/nextflow/`` describe the complete
+Nextflow invocation rather than one dataset. They are stored once and linked
+from the corpus report instead of being copied into every dataset report.
 
 Preprocessed Directory
 ----------------------

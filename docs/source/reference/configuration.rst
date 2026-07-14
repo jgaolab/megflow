@@ -16,6 +16,7 @@ corpus-level, and mixed-task runs:
      megflow = [
        code_dir: "/data/liaopan/megprep/megflow",
        output_dir: "/data/project/megflow_run",
+       report_scope: "dataset",
        corpus_root: "",
        dataset_include: [],
        dataset_exclude: [],
@@ -49,7 +50,9 @@ Execution and Resource Profiles
 -------------------------------
 
 The main configuration also defines the Nextflow execution layer. Runtime
-observability files are written beneath ``params.megflow.output_dir``:
+observability files are stored inside the final report package. Single-dataset
+runs use ``static_html_report/nextflow/`` and corpus runs use
+``corpus_static_html_report/nextflow/``:
 
 .. list-table::
    :header-rows: 1
@@ -59,16 +62,16 @@ observability files are written beneath ``params.megflow.output_dir``:
      - Default path
      - Purpose
    * - Nextflow log
-     - ``logs/nextflow.log``
+     - ``<report_package>/nextflow/nextflow.log``
      - Driver messages, task submissions, retries, and failures.
    * - Execution report
-     - ``report.html``
+     - ``<report_package>/nextflow/report.html``
      - CPU, memory, duration, and task-level resource utilization.
    * - Timeline
-     - ``timeline.html``
+     - ``<report_package>/nextflow/timeline.html``
      - Chronological task scheduling and concurrency.
    * - Trace
-     - ``trace.txt``
+     - ``<report_package>/nextflow/trace.txt``
      - Machine-readable task status and resource accounting.
 
 Nextflow initializes its main launcher log before it loads pipeline
@@ -78,8 +81,8 @@ same:
 
 .. code-block:: bash
 
-   mkdir -p /data/project/megflow_run/logs
-   nextflow -log /data/project/megflow_run/logs/nextflow.log \
+   mkdir -p /data/project/megflow_run/static_html_report/nextflow
+   nextflow -log /data/project/megflow_run/static_html_report/nextflow/nextflow.log \
      -C nextflow/my_project.config \
      run nextflow/megflow.nf \
      -resume
@@ -155,7 +158,7 @@ Example:
    export MEGFLOW_SIF=/shared/containers/cmrlab_megflow_1.0.0.sif
    export MEGFLOW_SINGULARITY_RUN_OPTIONS='-B /data:/data'
 
-   nextflow -log /data/project/megflow_run/logs/nextflow.log \
+   nextflow -log /data/project/megflow_run/static_html_report/nextflow/nextflow.log \
      -C nextflow/nextflow_for_smn4lang.config \
      run nextflow/megflow.nf \
      -profile slurm,singularity,lenient \
@@ -383,6 +386,12 @@ Input and Output Fields
      - ``/output``
      - Output root. In corpus mode, dataset outputs default to
        ``<output_dir>/datasets/<dataset_name>``.
+   * - ``report_scope``
+     - ``params.megflow``
+     - ``dataset``
+     - Run-level report layout. Use ``dataset`` for one dataset and ``corpus``
+       for ``corpus_root`` or multi-dataset runs. Supplied launchers and example
+       configs set this automatically.
    * - ``error_mode``
      - ``params.megflow``
      - ``lenient``

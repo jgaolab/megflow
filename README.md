@@ -339,6 +339,7 @@ Outputs are organized as:
 - `/output/datasets/<dataset_name>/static_html_report/index.html` for the existing dataset-level report.
 - `/output/smri/<dataset_name>/` for default dataset-isolated FreeSurfer/DeepPrep outputs when anatomy processing is enabled, or `<fs_subjects_root>/<dataset_name>/` when `params.megflow.fs_subjects_root` is set.
 - `/output/corpus_static_html_report/index.html` for the cross-dataset corpus dashboard.
+- `/output/corpus_static_html_report/nextflow/` for the corpus-level Nextflow report, timeline, trace, and driver log.
 
 Use a milestone such as `meg_artifacts` or `meg_ica` for a quick first pass
 across many public datasets, then resume selected datasets with a deeper step
@@ -351,9 +352,10 @@ scheduling in one DAG. Tune process-level `maxForks`, CPU, and memory settings
 in the Nextflow config according to available compute and I/O capacity.
 
 The main config includes `local`, `slurm`, `singularity`, `lenient`, `strict`,
-and `debug` execution profiles. It writes `report.html`, `timeline.html`, and
-`trace.txt` under the selected output directory; MEGFlow launch wrappers pass
-`logs/nextflow.log` through Nextflow's top-level `-log` option. Slurm
+and `debug` execution profiles. Single-dataset runs write Nextflow observability
+files under `static_html_report/nextflow/`; corpus runs use
+`corpus_static_html_report/nextflow/`. MEGFlow launch wrappers pass the matching
+`nextflow/nextflow.log` path through Nextflow's top-level `-log` option. Slurm
 partition, account, QoS, work directory, queue size, and SIF settings are read
 from `MEGFLOW_SLURM_*`, `MEGFLOW_SIF`, and `MEGFLOW_SINGULARITY_*` environment
 variables; see the configuration and cluster documentation for the complete

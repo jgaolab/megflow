@@ -88,9 +88,9 @@ The most useful output locations are:
        produced by the selected ``--steps`` mode.
    * - ``output/static_html_report/index.html``
      - Main quality-control report.
-   * - ``output/report.html``
+   * - ``output/static_html_report/nextflow/report.html``
      - Nextflow execution report.
-   * - ``output/timeline.html``
+   * - ``output/static_html_report/nextflow/timeline.html``
      - Nextflow runtime timeline.
 
 What Do I Need to Change?

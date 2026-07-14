@@ -4,10 +4,12 @@ import os
 from pathlib import Path
 import streamlit as st
 
+from report_layout import infer_report_scope
+
 st.set_page_config(page_title="MEGFlow Reports", layout="wide", page_icon="_static/favicon.png",)
 
 
-def _discover_cohort_datasets(root: Path):
+def _discover_corpus_datasets(root: Path):
     datasets_root = root / "datasets"
     if not datasets_root.is_dir():
         return []
@@ -20,12 +22,14 @@ def _discover_cohort_datasets(root: Path):
 
 base_report_path = Path(os.getenv("DATASET_REPORT_PATH", "/output")).resolve()
 subjects_root = Path(os.getenv("SUBJECTS_DIR", "/smri")).resolve()
-cohort_datasets = _discover_cohort_datasets(base_report_path)
+corpus_datasets = _discover_corpus_datasets(base_report_path)
+st.session_state.run_report_root = str(base_report_path)
+st.session_state.report_scope = infer_report_scope(base_report_path)
 
-if cohort_datasets:
-    dataset_names = [path.name for path in cohort_datasets]
+if corpus_datasets:
+    dataset_names = [path.name for path in corpus_datasets]
     selected_name = st.sidebar.selectbox("Corpus dataset", dataset_names)
-    selected_path = cohort_datasets[dataset_names.index(selected_name)]
+    selected_path = corpus_datasets[dataset_names.index(selected_name)]
     st.session_state.dataset_report_path = str(selected_path)
     dataset_subjects_dir = base_report_path / "smri" / selected_name
     st.session_state.subjects_dir = str(dataset_subjects_dir if dataset_subjects_dir.is_dir() else subjects_root)

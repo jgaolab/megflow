@@ -26,6 +26,11 @@ from typing import Any
 import mne
 import pandas as pd
 
+try:
+    from .report_layout import NEXTFLOW_DIRNAME, candidate_nextflow_dirs, prepare_report_output
+except ImportError:
+    from report_layout import NEXTFLOW_DIRNAME, candidate_nextflow_dirs, prepare_report_output
+
 from workflow_diagram import (
     build_workflow_nodes,
     expect_coregistration_outputs_for_qc,
@@ -113,6 +118,7 @@ COREG_STAGE_DETAILS = {
 }
 STATIC_DIR = Path(__file__).resolve().parent / "_static"
 FAVICON_PATH = STATIC_DIR / "favicon.png"
+MANAGED_REPORT_DIRECTORIES = ("assets", "data", "files", "subjects")
 
 REPORT_CSS = """
 :root {
@@ -2797,10 +2803,18 @@ def match_task_subject(tag: str | None, subjects: list[str], dataset_name: str |
 def find_trace_files(report_root: Path, preprocessed_dir: Path, manifest: dict[str, Any] | None = None) -> list[Path]:
     candidates: list[Path] = []
     launch_candidates: list[Path] = []
-    for base in [report_root, report_root.parent, preprocessed_dir / "logs"]:
+
+    def add_candidates(base: Path) -> None:
         if base.exists():
             candidates.extend(base.glob("trace*.txt"))
             candidates.extend(base.glob("trace*.tsv"))
+        for nextflow_dir in candidate_nextflow_dirs(base):
+            if nextflow_dir.exists():
+                candidates.extend(nextflow_dir.glob("trace*.txt"))
+                candidates.extend(nextflow_dir.glob("trace*.tsv"))
+
+    for base in [report_root, report_root.parent, preprocessed_dir / "logs"]:
+        add_candidates(base)
     params_snapshot = manifest.get("params_snapshot") if isinstance(manifest, dict) else None
     if isinstance(params_snapshot, dict) and params_snapshot.get("output_dir"):
         output_dir = Path(str(params_snapshot["output_dir"]))
@@ -2809,9 +2823,8 @@ def find_trace_files(report_root: Path, preprocessed_dir: Path, manifest: dict[s
             output_dir.parent,
             output_dir.parent.parent,
         ]:
+            add_candidates(base)
             if base.exists():
-                candidates.extend(base.glob("trace*.txt"))
-                candidates.extend(base.glob("trace*.tsv"))
                 candidates.extend(base.glob("*trace*.txt"))
                 candidates.extend(base.glob("*trace*.tsv"))
     workflow_meta = manifest.get("workflow_meta") if isinstance(manifest, dict) else None
@@ -5645,6 +5658,22 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
         f.write(content)
 
 
+def render_nextflow_artifact_links(output_root: Path) -> str:
+    nextflow_dir = output_root / NEXTFLOW_DIRNAME
+    if not nextflow_dir.is_dir():
+        return ""
+
+    links = [
+        '<a href="nextflow/report.html" target="_blank" rel="noopener">Nextflow resource report</a>',
+        '<a href="nextflow/timeline.html" target="_blank" rel="noopener">Nextflow timeline</a>',
+    ]
+    if (nextflow_dir / "trace.txt").is_file():
+        links.append('<a href="nextflow/trace.txt" target="_blank" rel="noopener">Nextflow trace</a>')
+    if (nextflow_dir / "nextflow.log").is_file():
+        links.append('<a href="nextflow/nextflow.log" target="_blank" rel="noopener">Nextflow log</a>')
+    return "".join(links)
+
+
 def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[dict[str, Any]], output_root: Path) -> None:
     sorted_subjects = sorted(subject_summaries, key=lambda item: (str(item["subject"]).lower(), str(item["subject"])))
     threshold_counts = {
@@ -5930,6 +5959,7 @@ def build_index_html(dataset_summary: dict[str, Any], subject_summaries: list[di
         <a href="data/dataset_summary.json" target="_blank">Dataset summary JSON</a>
         <a href="data/subjects.csv" target="_blank">Subjects CSV</a>
         <a href="alarms.html">QC alert board</a>
+        {render_nextflow_artifact_links(output_root)}
       </div>
     </div>
 {dataset_summary.get("workflow_html") or ""}
@@ -6196,9 +6226,7 @@ def generate_static_report(args: argparse.Namespace) -> Path:
         "megqc_alarm_score": args.megqc_alarm_score,
     }
 
-    if output_root.exists():
-        shutil.rmtree(output_root)
-    ensure_dir(output_root)
+    prepare_report_output(output_root, MANAGED_REPORT_DIRECTORIES)
     write_assets(output_root)
 
     subjects = find_subjects(preprocessed_dir)

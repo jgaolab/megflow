@@ -8,6 +8,9 @@ PIPELINE = REPO_ROOT / "nextflow" / "megflow.nf"
 SOURCE_CONFIG = REPO_ROOT / "nextflow" / "nextflow.config"
 DOCKER_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_docker.config"
 DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
+INTERACTIVE_APP = REPO_ROOT / "megflow" / "reports" / "reports.py"
+INTERACTIVE_NEXTFLOW = REPO_ROOT / "megflow" / "reports" / "reports" / "nextflow.py"
+INTERACTIVE_CONFIG = REPO_ROOT / "megflow" / "reports" / "reports" / "nx_config_online.py"
 MULTI_DATASET_DEMO = REPO_ROOT / "nextflow" / "nextflow_multi_dataset_demo.config"
 MULTI_DATASET_SOURCE_RUNNER = REPO_ROOT / "run_MultiDatasets_sourcecode.sh"
 OPM_COG_RUNNER = REPO_ROOT / "run_OPM_COG.sh"
@@ -57,10 +60,12 @@ class NextflowExecutionConfigTests(unittest.TestCase):
     def test_observability_outputs_are_enabled_and_scoped_to_output_dir(self):
         for config in available_configs():
             text = config.read_text(encoding="utf-8")
-            self.assertIn('file = "${params.megflow.output_dir}/logs/nextflow.log"', text)
-            self.assertIn('file = "${params.megflow.output_dir}/report.html"', text)
-            self.assertIn('file = "${params.megflow.output_dir}/timeline.html"', text)
-            self.assertIn('file = "${params.megflow.output_dir}/trace.txt"', text)
+            self.assertIn('report_scope: "dataset"', text)
+            self.assertIn('def megflowNextflowDir = "${params.megflow.output_dir}/${megflowReportPackage}/nextflow"', text)
+            self.assertIn('file = "${megflowNextflowDir}/nextflow.log"', text)
+            self.assertIn('file = "${megflowNextflowDir}/report.html"', text)
+            self.assertIn('file = "${megflowNextflowDir}/timeline.html"', text)
+            self.assertIn('file = "${megflowNextflowDir}/trace.txt"', text)
             self.assertGreaterEqual(text.count("enabled = true"), 3)
 
     def test_source_config_has_portable_execution_profiles(self):
@@ -78,8 +83,10 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
     def test_docker_runner_uses_effective_nextflow_log_option(self):
         text = packaged_docker_runner().read_text(encoding="utf-8")
-        self.assertIn('nextflow -log "${run_output_dir}/logs/nextflow.log" run', text)
-        self.assertIn('nextflow -log "${OUTPUT_DIR}/logs/nextflow.log" run', text)
+        self.assertIn('nextflow -log "${nextflow_report_dir}/nextflow.log" run', text)
+        self.assertIn('nextflow -log "${corpus_nextflow_dir}/nextflow.log" run', text)
+        self.assertIn('${run_output_dir}/static_html_report/nextflow', text)
+        self.assertIn('${OUTPUT_DIR}/corpus_static_html_report/nextflow', text)
 
     def test_docker_runner_preserves_v2_profiles_and_uses_corpus_cli(self):
         text = packaged_docker_runner().read_text(encoding="utf-8")
@@ -93,10 +100,22 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("megflowRuntimeAnatomy.fs_license_file", text)
         self.assertIn('cp "$RUN_CONFIG_FILE" "${OUTPUT_DIR}/nextflow.config"', text)
 
+    def test_interactive_reports_keep_run_root_separate_from_selected_dataset(self):
+        app_text = INTERACTIVE_APP.read_text(encoding="utf-8")
+        nextflow_text = INTERACTIVE_NEXTFLOW.read_text(encoding="utf-8")
+        config_text = INTERACTIVE_CONFIG.read_text(encoding="utf-8")
+
+        self.assertIn("st.session_state.run_report_root = str(base_report_path)", app_text)
+        self.assertIn("st.session_state.dataset_report_path = str(selected_path)", app_text)
+        self.assertIn('st.session_state.get("run_report_root", "/output")', nextflow_text)
+        self.assertNotIn('st.session_state.get("dataset_report_path"', nextflow_text)
+        self.assertIn('st.session_state.get("run_report_root", "/output")', config_text)
+
     def test_multi_dataset_demo_uses_v2_dataset_profiles(self):
         self.assertTrue(MULTI_DATASET_DEMO.is_file())
         text = MULTI_DATASET_DEMO.read_text(encoding="utf-8")
         self.assertIn('includeConfig "nextflow.config"', text)
+        self.assertIn('report_scope: "corpus"', text)
         for profile in ("WAND_visual", "SMN4Lang_RDR", "MEG_MASC_word"):
             self.assertRegex(text, rf"(?m)^\s{{12}}{profile}:\s*\[")
         self.assertIn('deepreject: [', text)
@@ -126,10 +145,11 @@ class NextflowExecutionConfigTests(unittest.TestCase):
             self.assertNotIn("error_mode:", text, config.name)
             self.assertNotIn("code_dir:", text, config.name)
             self.assertIn('workDir = "${params.megflow.output_dir}/work"', text, config.name)
-            self.assertIn('log.file = "${params.megflow.output_dir}/logs/nextflow.log"', text, config.name)
-            self.assertIn('report.file = "${params.megflow.output_dir}/report.html"', text, config.name)
-            self.assertIn('timeline.file = "${params.megflow.output_dir}/timeline.html"', text, config.name)
-            self.assertIn('trace.file = "${params.megflow.output_dir}/trace.txt"', text, config.name)
+            package = "corpus_static_html_report" if config == MEGQC_CONFIG else "static_html_report"
+            self.assertIn(f'log.file = "${{params.megflow.output_dir}}/{package}/nextflow/nextflow.log"', text, config.name)
+            self.assertIn(f'report.file = "${{params.megflow.output_dir}}/{package}/nextflow/report.html"', text, config.name)
+            self.assertIn(f'timeline.file = "${{params.megflow.output_dir}}/{package}/nextflow/timeline.html"', text, config.name)
+            self.assertIn(f'trace.file = "${{params.megflow.output_dir}}/{package}/nextflow/trace.txt"', text, config.name)
             self.assertIn("-profile local,lenient -resume", text, config.name)
 
         for legacy_config in LEGACY_DATASET_CONFIGS:
@@ -151,6 +171,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
         text = MEGQC_CONFIG.read_text(encoding="utf-8")
         self.assertIn('params.megflow.corpus_root = "/data/liaopan/datasets/MEGQC"', text)
+        self.assertIn('params.megflow.report_scope = "corpus"', text)
         self.assertIn('params.megflow.dataset_exclude = ["Z_BACK"]', text)
         self.assertIn('params.megflow.defaults.steps = "meg_artifacts"', text)
         self.assertIn("params.megflow.datasets = [:]", text)

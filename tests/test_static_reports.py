@@ -15,7 +15,92 @@ if str(REPORTS_DIR) not in sys.path:
     sys.path.insert(0, str(REPORTS_DIR))
 
 import corpus_static_html_report as corpus_report
+import report_layout
 import static_html_report as static_report
+
+
+class ReportDirectoryLifecycleTests(unittest.TestCase):
+    def test_static_and_corpus_pages_link_to_canonical_nextflow_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_root = Path(tmpdir)
+            nextflow_dir = output_root / "nextflow"
+            nextflow_dir.mkdir()
+            (nextflow_dir / "trace.txt").write_text("trace", encoding="utf-8")
+            (nextflow_dir / "nextflow.log").write_text("log", encoding="utf-8")
+
+            for rendered in (
+                static_report.render_nextflow_artifact_links(output_root),
+                corpus_report.render_nextflow_artifact_links(output_root),
+            ):
+                self.assertIn('href="nextflow/report.html"', rendered)
+                self.assertIn('href="nextflow/timeline.html"', rendered)
+                self.assertIn('href="nextflow/trace.txt"', rendered)
+                self.assertIn('href="nextflow/nextflow.log"', rendered)
+
+    def test_selective_rebuild_preserves_nextflow_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_root = Path(tmpdir) / "static_html_report"
+            trace_file = output_root / "nextflow" / "trace.txt"
+            stale_subject = output_root / "subjects" / "sub-removed.html"
+            stale_asset = output_root / "assets" / "old.css"
+            trace_file.parent.mkdir(parents=True)
+            stale_subject.parent.mkdir(parents=True)
+            stale_asset.parent.mkdir(parents=True)
+            trace_file.write_text("live trace\n", encoding="utf-8")
+            stale_subject.write_text("old subject", encoding="utf-8")
+            stale_asset.write_text("old css", encoding="utf-8")
+
+            report_layout.prepare_report_output(
+                output_root,
+                static_report.MANAGED_REPORT_DIRECTORIES,
+            )
+
+            self.assertEqual(trace_file.read_text(encoding="utf-8"), "live trace\n")
+            self.assertFalse(stale_subject.exists())
+            self.assertFalse(stale_asset.exists())
+            for directory in static_report.MANAGED_REPORT_DIRECTORIES:
+                self.assertTrue((output_root / directory).is_dir())
+
+    def test_nextflow_directory_cannot_be_managed_by_report_generator(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaisesRegex(ValueError, "owned by Nextflow"):
+                report_layout.prepare_report_output(Path(tmpdir), ["nextflow"])
+
+    def test_run_level_resolver_prefers_corpus_layout_and_supports_legacy(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_root = Path(tmpdir)
+            corpus_nextflow = run_root / "corpus_static_html_report" / "nextflow"
+            corpus_nextflow.mkdir(parents=True)
+            (corpus_nextflow / "trace.txt").write_text("trace", encoding="utf-8")
+
+            resolved = report_layout.resolve_nextflow_artifacts(run_root)
+            self.assertEqual(resolved.directory, corpus_nextflow)
+            self.assertEqual(resolved.report, corpus_nextflow / "report.html")
+            self.assertFalse(resolved.legacy)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_root = Path(tmpdir)
+            (run_root / "corpus_report.html").write_text("report", encoding="utf-8")
+            (run_root / "datasets").mkdir()
+
+            resolved = report_layout.resolve_nextflow_artifacts(run_root)
+            self.assertEqual(resolved.report, run_root / "corpus_report.html")
+            self.assertTrue(resolved.legacy)
+
+    def test_explicit_report_scope_does_not_cross_into_other_new_layout(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            run_root = Path(tmpdir)
+            (run_root / "static_html_report" / "nextflow").mkdir(parents=True)
+
+            resolved = report_layout.resolve_nextflow_artifacts(
+                run_root,
+                report_layout.CORPUS_SCOPE,
+            )
+
+            self.assertEqual(
+                resolved.directory,
+                run_root / "corpus_static_html_report" / "nextflow",
+            )
 
 
 class StaticIcaAlertConfigurationTests(unittest.TestCase):
@@ -90,6 +175,38 @@ class CorpusDatasetStepsTests(unittest.TestCase):
 
 
 class CorpusBundledNavigationTests(unittest.TestCase):
+    def test_corpus_bundle_keeps_one_run_level_nextflow_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            source_output = root / "source" / "StudyA"
+            source_static = source_output / "static_html_report"
+            source_summary = source_static / "data" / "dataset_summary.json"
+            source_summary.parent.mkdir(parents=True)
+            (source_static / "index.html").write_text("<html><body>dataset</body></html>", encoding="utf-8")
+            source_summary.write_text("{}", encoding="utf-8")
+            source_nextflow = source_static / "nextflow"
+            source_nextflow.mkdir()
+            (source_nextflow / "report.html").write_text("dataset copy", encoding="utf-8")
+
+            corpus_output = root / "corpus_static_html_report"
+            corpus_trace = corpus_output / "nextflow" / "trace.txt"
+            corpus_trace.parent.mkdir(parents=True)
+            corpus_trace.write_text("run trace", encoding="utf-8")
+            report = corpus_report.DatasetReport(
+                name="StudyA",
+                output_root=source_output,
+                static_report_dir=source_static,
+                summary_path=source_summary,
+                report_index=source_static / "index.html",
+                summary={},
+            )
+
+            corpus_report.bundle_dataset_reports([report], corpus_output)
+
+            bundled_static = corpus_output / "datasets" / "StudyA" / "static_html_report"
+            self.assertFalse((bundled_static / "nextflow").exists())
+            self.assertEqual(corpus_trace.read_text(encoding="utf-8"), "run trace")
+
     def test_subject_navigation_returns_to_dataset_overview(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             corpus_dir = Path(tmpdir) / "corpus_report"
@@ -317,6 +434,30 @@ class StaticArtifactOverviewTests(unittest.TestCase):
 
 
 class StaticTraceParsingTests(unittest.TestCase):
+    def test_trace_is_discovered_in_static_report_nextflow_directory(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            report_root = Path(tmpdir)
+            preprocessed_dir = report_root / "preprocessed"
+            output_root = report_root / "static_html_report"
+            trace_file = output_root / "nextflow" / "trace.txt"
+            preprocessed_dir.mkdir()
+            trace_file.parent.mkdir(parents=True)
+            trace_file.write_text(
+                "task_id\thash\tname\tstatus\texit\n"
+                "1\taa/bbcc\tdetect_artifacts (Demo:sub-01)\tCOMPLETED\t0\n",
+                encoding="utf-8",
+            )
+
+            tasks = static_report.collect_nextflow_task_details(
+                report_root=report_root,
+                preprocessed_dir=preprocessed_dir,
+                output_root=output_root,
+                subjects=["sub-01"],
+                manifest=None,
+            )
+
+            self.assertEqual(tasks["sub-01"][0]["process"], "detect_artifacts")
+
     def test_nul_bytes_in_nextflow_trace_do_not_break_report_generation(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             report_root = Path(tmpdir)
