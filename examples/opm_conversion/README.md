@@ -33,7 +33,7 @@ Download `opm-examples.7z` from that OSF project and extract it in this folder
 so that the `examples/` directory sits next to the Python scripts:
 
 ```text
-opm-demos/
+opm_conversion/
   standard_opm_matrix_to_fif.py
   test_hr80_s02_standard_conversion.py
   test_rier2024_standard_conversion.py
@@ -47,7 +47,7 @@ opm-demos/
 Install the Python dependencies with:
 
 ```bash
-cd opm-demos
+cd opm_conversion
 python3 -m pip install -r requirements.txt
 ```
 
@@ -332,7 +332,7 @@ face.ply      Optical scan point cloud
 Run the full test:
 
 ```bash
-cd opm-demos
+cd opm_conversion
 python3 test_hr80_s02_standard_conversion.py
 ```
 
@@ -399,7 +399,7 @@ events.tsv   Standardized event table
 Run the full test:
 
 ```bash
-cd opm-demos
+cd opm_conversion
 python3 test_rier2024_standard_conversion.py
 ```
 
