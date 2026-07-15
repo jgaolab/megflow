@@ -899,7 +899,8 @@ configured bad-segment detectors.
        for mixed corpora.
    * - ``deepreject``
      - enabled, ``mode: default``
-     - Neural BadChnNet and BadSegNet branch. See :doc:`deepreject`.
+     - Deep-learning-based BadChnNet and BadSegNet branch. See
+       :doc:`deepreject`.
 
 ICA and Component Labeling
 --------------------------

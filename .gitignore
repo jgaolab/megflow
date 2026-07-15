@@ -38,6 +38,7 @@ megflow/tools/deepreject/__pycache__/
 megflow/tools/deepreject/model/__pycache__/
 run_*.sh
 !run_MultiDatasets.sh
+!run_MultiDatasets_sourcecode.sh
 start_vpn.sh
 license.txt
 _misc

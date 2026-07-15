@@ -1,0 +1,6 @@
+mne
+numpy
+pandas
+scipy
+matplotlib
+pyvista

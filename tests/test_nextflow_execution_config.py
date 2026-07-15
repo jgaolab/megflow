@@ -12,6 +12,7 @@ INTERACTIVE_APP = REPO_ROOT / "megflow" / "reports" / "reports.py"
 INTERACTIVE_NEXTFLOW = REPO_ROOT / "megflow" / "reports" / "reports" / "nextflow.py"
 INTERACTIVE_CONFIG = REPO_ROOT / "megflow" / "reports" / "reports" / "nx_config_online.py"
 MULTI_DATASET_DEMO = REPO_ROOT / "nextflow" / "nextflow_multi_dataset_demo.config"
+OPM_COG_TASK_OVERRIDE_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_opm_cog_task_overrides_example.config"
 MULTI_DATASET_SOURCE_RUNNER = REPO_ROOT / "run_MultiDatasets_sourcecode.sh"
 OPM_COG_RUNNER = REPO_ROOT / "run_OPM_COG.sh"
 MEGQC_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_megqc.config"
@@ -121,6 +122,19 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn('deepreject: [', text)
         self.assertIn('mode: "lenient"', text)
         self.assertNotIn("params.dataset_dir", text)
+
+    def test_opm_cog_example_covers_all_three_profile_levels(self):
+        self.assertTrue(OPM_COG_TASK_OVERRIDE_EXAMPLE.is_file())
+        text = OPM_COG_TASK_OVERRIDE_EXAMPLE.read_text(encoding="utf-8")
+        self.assertIn('includeConfig "nextflow.config"', text)
+        self.assertIn("defaults: inheritedDefaults + [", text)
+        self.assertRegex(text, r"(?m)^\s{8}OPM_COG:\s*\[")
+        self.assertRegex(text, r"(?m)^\s{12}recordings:\s*\[")
+        for task in ("aef", "vef", "tap", "ssvef"):
+            self.assertIn(f'match: [task: "{task}"]', text)
+        self.assertIn('task: ["aef", "vef", "tap", "ssvef"]', text)
+        self.assertGreaterEqual(text.count("forward: [epoch_label:"), 4)
+        self.assertGreaterEqual(text.count("visualization: ["), 4)
 
     def test_multi_dataset_source_runner_uses_demo_config_without_docker(self):
         self.assertTrue(MULTI_DATASET_SOURCE_RUNNER.is_file())

@@ -398,6 +398,24 @@ excluded by ``meg_import``, create an anatomy plan, alter dataset paths, or
 change dataset-level report thresholds. Put those settings in the dataset
 profile. See :ref:`configuration-profile-resolution` for every match field.
 
+Three-Level OPM-COG Task Example
+--------------------------------
+
+:download:`nextflow_opm_cog_task_overrides_example.config
+<../../../nextflow/nextflow_opm_cog_task_overrides_example.config>`
+demonstrates all three configuration levels in one runnable source-mode file:
+
+* ``defaults`` defines shared epoch, covariance, forward, and source policies.
+* ``datasets.OPM_COG`` defines OPM vendor settings, import selectors, and the
+  event convention shared by the dataset.
+* ``datasets.OPM_COG.recordings`` matches AEF, VEF, TAP, and SSVEF tasks and
+  gives each task its own epoch window, covariance baseline, output label, and
+  source visualization target.
+
+All task names must also be present in ``meg_import.task`` because recording
+profiles are applied after discovery. Edit the example paths and selectors,
+then run the command shown at the top of the config file.
+
 Docker Corpus with Different Dataset Settings
 ---------------------------------------------
 

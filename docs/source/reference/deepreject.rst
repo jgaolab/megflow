@@ -4,10 +4,11 @@ DeepReject Artifact Detection
 Overview
 --------
 
-DeepReject is the neural artifact-detection branch used by MEGFlow. The public
-configuration path is ``artifacts.deepreject``. The compatibility class is
-still named ``DeepRejectPredictor``, but current inference uses two independent
-final models rather than the earlier shared two-head network:
+DeepReject is the deep-learning-based artifact-detection branch used by
+MEGFlow. The public configuration path is ``artifacts.deepreject``. The
+compatibility class is still named ``DeepRejectPredictor``, but current
+inference uses two independent final models rather than the earlier shared
+two-head network:
 
 * **BadChnNet** predicts bad channels for the whole recording.
 * **BadSegNet** predicts bad time windows and converts them into MNE bad
