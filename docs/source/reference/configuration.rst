@@ -23,6 +23,7 @@ corpus-level, and mixed-task runs:
 
        defaults: [
          steps: "meg_all",
+         rank_policy: "auto",
          meg_import: [:],
          preproc: [:],
          artifacts: [:],
@@ -98,7 +99,9 @@ Two failure policies are available:
 
 ``lenient``
    Retry resource-related exits up to the process-specific ``maxRetries`` and
-   then ignore a failed recording so the remaining dataset can continue.
+   then ignore an eligible failed recording so the remaining dataset can
+   continue. Deterministic configuration, rank, channel-contract, and missing
+   covariance/source-output errors terminate immediately.
 
 ``strict``
    Terminate on the first process failure and set ``workflow.failOnIgnore``.
@@ -203,14 +206,14 @@ Not every field is meaningful at every scope:
        ``fs_subjects_root``, ``error_mode``
      - Controls discovery and roots for the complete run.
    * - ``defaults``
-     - Shared ``steps`` and all processing module blocks
+     - Shared ``steps``, ``rank_policy``, and all processing module blocks
      - Applied before each dataset profile.
    * - Dataset profile
      - Paths, import filters, anatomy, ``steps``, and any processing module
      - This is the correct scope for discovery, MRI processing, report
        thresholds, and the broadest stage that the dataset should run.
    * - Recording profile
-     - ``megqc``, ``preproc``, ``digitization``, ``artifacts``, ``ica``,
+     - ``rank_policy``, ``megqc``, ``preproc``, ``digitization``, ``artifacts``, ``ica``,
        ``ic_label``, ``epochs``, ``covariance``, ``coreg``, ``forward``,
        ``source``, and MEG-stage reduction
      - Applied only after MEG import. It cannot change which files were
@@ -395,8 +398,10 @@ Input and Output Fields
    * - ``error_mode``
      - ``params.megflow``
      - ``lenient``
-     - ``lenient`` ignores configured recoverable process failures after
-       retries; ``strict`` terminates and sets ``workflow.failOnIgnore``.
+     - ``lenient`` ignores eligible recoverable process failures after retries;
+       deterministic configuration and data-contract errors still terminate.
+       ``strict`` terminates on every process failure and sets
+       ``workflow.failOnIgnore``.
    * - ``fs_subjects_root``
      - ``params.megflow``
      - unset; optional
@@ -464,6 +469,11 @@ Input and Output Fields
      - defaults or dataset
      - ``true``
      - Shared visualization fallback; module-level values take precedence.
+   * - ``rank_policy``
+     - defaults, dataset, or recording
+     - ``auto``
+     - Shared default rank policy for covariance and source imaging. Allowed:
+       ``auto``, ``info``, ``full``, an MNE rank dictionary, or null.
    * - ``seeds.osl`` / ``seeds.ica``
      - defaults or dataset
      - ``2025`` / ``2025``
@@ -1012,6 +1022,24 @@ The default task epoch block is only a template. Event source, event ids,
 timing, baseline, and rejection thresholds must be validated for each dataset
 before ``meg_epochs``, ``meg_all``, or ``all`` is expected to complete.
 
+Rank Policy
+-----------
+
+``rank_policy`` is a processing-level field and defaults to ``"auto"``. It is
+resolved on the exact final experimental Raw or saved Epochs after bad-channel
+exclusion and restriction to channels shared with the noise input. The resolved
+rank dictionary is then the default for covariance estimation and source
+reconstruction. It is written to ``resolved-rank.json`` and routed to source
+imaging so all default consumers use the same explicit dictionary rather than
+estimating rank again.
+
+Allowed values are ``"auto"`` (empirical target-data rank), ``"info"``,
+``"full"``, an MNE rank dictionary such as ``[meg: 60]``, or ``null`` as an
+alias for the default automatic policy. Function-level MNE ``rank`` keys and
+the legacy ``source.LCMV.n_rank`` remain supported as explicit overrides. See
+:doc:`rank_covariance` for precedence, LCMV's two covariance matrices,
+empty-room compatibility checks, and examples.
+
 Covariance
 ----------
 
@@ -1040,7 +1068,7 @@ Covariance
      - Event correction for epoch-based covariance; normally matches epochs.
    * - ``compute_raw_covariance``
      - tmin 0, tmax null, method auto, mag reject 4e-12,
-       reject annotations, rank info
+       reject annotations
      - MNE keyword arguments passed to ``mne.compute_raw_covariance``.
    * - ``events``
      - stim auto, shortest 1, minimum duration 0
@@ -1050,8 +1078,16 @@ Covariance
      - event 1, -0.2 to 0.0 s, mag picks
      - MNE Epochs arguments that define baseline epochs.
    * - ``covariance``
-     - tmin null, tmax null, rank null
+     - tmin null, tmax null
      - MNE keyword arguments passed to ``mne.compute_covariance``.
+
+``bl-cov.fif`` is always produced for a full source run. The same covariance
+process also writes ``lcmv-data-cov.fif`` only when the effective
+``source.source_methods`` contains ``LCMV``. That data covariance is computed
+from the exact final source Raw or saved Epochs, not from newly reconstructed
+epochs. Minimum-norm-only runs do not compute it. ``resolved-rank.json`` is
+always written and records the target rank and ordered common channels consumed
+by source imaging.
 
 For ``type: raw``, MEGFlow replaces ``task-<experimental>`` in the ICA-clean
 continuous filename with ``task-<raw_covariance_task_id>``. The paired task must
@@ -1069,6 +1105,12 @@ from its own epoch, covariance, forward, and source branches, even when its own
 recording profile otherwise inherits epoch covariance. When ``epochs.preproc``
 is not empty, the same operations are applied in memory to the paired noise
 recording before raw covariance is computed.
+
+Target and noise inputs are restricted to common good channels in target order.
+With the default rank policy, rank is resolved from the target experimental
+input. For raw noise, MEGFlow also checks that the empirical noise-input rank
+can support that target rank. See :doc:`rank_covariance` for the complete
+contract and the limitation of independently applied ICA projections.
 
 BEM, Coregistration, Forward, and Source
 ----------------------------------------
@@ -1132,14 +1174,22 @@ BEM, Coregistration, Forward, and Source
      - ``ico4`` / ``wdonset``
      - Source-space spacing and output label.
    * - ``source.dSPM.inverse_operator``
-     - loose auto, depth 0.8, fixed auto, rank info
+     - loose auto, depth 0.8, fixed auto
      - Passed to MNE inverse-operator construction.
    * - ``source.dSPM.apply_inverse``
      - method dSPM, normal orientation
      - Passed to MNE inverse application.
-   * - ``source.LCMV``
-     - rank 50, 0.01-0.4 s covariance, reg 0.05
-     - Beamformer covariance and ``make_lcmv`` kwargs.
+   * - ``source.LCMV.data_covariance``
+     - tmin 0.01, tmax 0.4, method auto
+     - Passed to ``mne.compute_covariance`` for Epochs or
+       ``mne.compute_raw_covariance`` for Raw. Used only when LCMV is selected.
+   * - ``source.LCMV.make_lcmv``
+     - reg 0.05, pick_ori null, unit-noise-gain-invariant normalization
+     - Passed to ``mne.beamformer.make_lcmv``.
+   * - ``source.LCMV.n_rank``
+     - unset
+     - Legacy integer/string/dictionary override used after the corresponding
+       function-level ``rank`` and before ``rank_policy``.
    * - ``source.visualization``
      - peak, both hemispheres, lateral view
      - Peak- or label/time-based visualization selection.
@@ -1150,6 +1200,8 @@ Source kwargs correspond to
 `make_inverse_operator
 <https://mne.tools/stable/generated/mne.minimum_norm.make_inverse_operator.html>`_
 and `make_lcmv <https://mne.tools/stable/generated/mne.beamformer.make_lcmv.html>`_.
+The complete rank precedence and conditional covariance behavior are described
+in :doc:`rank_covariance`.
 
 Report
 ------

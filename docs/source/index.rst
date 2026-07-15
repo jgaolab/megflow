@@ -178,6 +178,7 @@ Where to Go Next
    :caption: Reference
 
    reference/configuration.rst
+   reference/rank_covariance.rst
    reference/deepreject.rst
    reference/qc_metrics.rst
    reference/examples.rst

@@ -57,7 +57,7 @@ class SourceInputRoutingTests(unittest.TestCase):
         config = {
             "spacing": "ico4",
             "epoch_label": "auditory",
-            "source_methods": [],
+            "source_methods": ["dSPM"],
             "data_type": "meg",
         }
         with tempfile.TemporaryDirectory() as tmpdir, mock.patch.object(

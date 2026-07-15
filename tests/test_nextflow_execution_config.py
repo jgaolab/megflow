@@ -185,6 +185,31 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("failOnMismatch: true", text)
         self.assertIn("Source routing clean lineage mismatch", text)
 
+    def test_rank_and_lcmv_covariance_contracts_are_explicit(self):
+        pipeline_text = PIPELINE.read_text(encoding="utf-8")
+        covariance_text = (REPO_ROOT / "megflow" / "compute_covariance.py").read_text(
+            encoding="utf-8"
+        )
+        source_text = (REPO_ROOT / "megflow" / "source_localization.py").read_text(
+            encoding="utf-8"
+        )
+
+        for config in available_configs():
+            text = config.read_text(encoding="utf-8")
+            self.assertIn('rank_policy: "auto"', text, config.name)
+            self.assertIn("data_covariance: [", text, config.name)
+
+        self.assertIn('--source_data_file "${source_data_file}"', pipeline_text)
+        self.assertIn('--data_covariance_file \\"${lcmv_data_cov_file}\\"', pipeline_text)
+        self.assertIn('--resolved_rank_file "${resolved_rank_file}"', pipeline_text)
+        self.assertIn("Covariance/source input lineage mismatch", pipeline_text)
+        self.assertIn("task.exitStatus == 2", SOURCE_CONFIG.read_text(encoding="utf-8"))
+        self.assertIn('output_dir / "lcmv-data-cov.fif"', covariance_text)
+        self.assertIn('output_dir / "resolved-rank.json"', covariance_text)
+        self.assertIn("def load_resolved_rank", source_text)
+        self.assertNotIn("mne.compute_raw_covariance(", source_text)
+        self.assertNotIn("mne.compute_covariance(", source_text)
+
     def test_raw_covariance_pairing_is_channel_backed_and_many_to_one(self):
         text = PIPELINE.read_text(encoding="utf-8")
         self.assertIn("native_raw_cov_reference_keys_v", text)

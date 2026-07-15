@@ -188,7 +188,9 @@ Full Workflow Checklist
    * - Covariance
      - Baseline epochs versus paired raw noise/empty-room recordings. For raw
        covariance, set ``covariance.type = "raw"`` and
-       ``covariance.raw_covariance_task_id``.
+       ``covariance.raw_covariance_task_id``. Confirm ``rank_policy`` and the
+       target/noise common-channel set; LCMV additionally writes a data
+       covariance from the exact source input.
    * - Anatomy matching
      - FreeSurfer/DeepPrep subject ids, ``anatomy.select_tag`` if needed, and
        whether anatomy was generated in this run or reused.
@@ -196,8 +198,9 @@ Full Workflow Checklist
      - Fiducial quality, head-shape quality, HPI availability, and whether the
        default ICP weights are appropriate.
    * - Forward and source reconstruction
-     - Source spacing, source method, ``src_type``, epoch label, inverse or
-       beamformer parameters, and the intended output interpretation.
+     - Source spacing, source method, ``source.type``, epoch label, inverse or
+       beamformer parameters, rank overrides, and the intended output
+       interpretation. See :doc:`../reference/rank_covariance`.
 
 After a Full Run
 ----------------

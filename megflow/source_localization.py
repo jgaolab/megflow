@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+import json
 import os
 import mne
 import logging
@@ -13,7 +14,20 @@ from mne.beamformer import apply_lcmv_raw
 from mne.beamformer import apply_lcmv, make_lcmv
 from mne.viz.ui_events import VertexSelect, publish
 import argparse
-from utils import handle_yaml_scientific_notation,stop_xvfb,start_xvfb,set_random_seed,str2bool
+from utils import (
+    MegflowConfigurationError,
+    RANK_NOT_SET,
+    RankConfigurationError,
+    handle_yaml_scientific_notation,
+    normalize_mne_rank,
+    normalize_source_methods,
+    ranked_mne_kwargs,
+    resolve_rank_policy,
+    stop_xvfb,
+    start_xvfb,
+    set_random_seed,
+    str2bool,
+)
 import yaml
 from pathlib import Path
 import gc
@@ -403,90 +417,119 @@ def _set_time_viewer_vertex(brain, hemi, vertex):
     return True
 
 
-def get_n_rank(subj, sess_id, exclude_ica_file):
-    """
-    Calculate the n_rank for a given subject and session based on excluded ICA components.
+class SourceConfigurationError(MegflowConfigurationError):
+    """Raised for deterministic source configuration or routing errors."""
 
-    Parameters
-    ----------
-    subj : int
-        The subject identifier.
-    sess_id : int
-        The session identifier.
-    exclude_ica_file : str
-        Path to the file containing the ICA components to exclude.
 
-    Returns
-    -------
-    int
-        The n_rank value for the given subject and session.
-    """
+def _mapping(value, config_name):
+    if value is None:
+        return {}
+    if not isinstance(value, dict):
+        raise SourceConfigurationError(f"{config_name} must be a mapping.")
+    return dict(value)
+
+
+def _pick_source_data(inst, data_type):
+    selected = inst.copy().pick(data_type or "meg")
+    bads = set(selected.info.get("bads", []))
+    good_channels = [name for name in selected.ch_names if name not in bads]
+    if not good_channels:
+        raise SourceConfigurationError(
+            f"Source input has no usable {data_type or 'meg'} channels."
+        )
+    selected.pick(good_channels)
+    selected.info["bads"] = []
+    return selected
+
+
+def _covariance_channel_names(covariance):
+    names = getattr(covariance, "ch_names", None)
+    if names is None:
+        names = covariance.get("names", [])
+    return list(names)
+
+
+def _align_source_inputs(inst, fwd, noise_cov, data_cov=None):
+    """Restrict source inputs to the ordered noise-covariance channel contract."""
+    noise_channels = _covariance_channel_names(noise_cov)
+    if not noise_channels:
+        raise SourceConfigurationError("Noise covariance contains no channels.")
+
+    missing_data = [name for name in noise_channels if name not in inst.ch_names]
+    if missing_data:
+        raise SourceConfigurationError(
+            "Noise covariance contains channels absent from the target source input: "
+            + ", ".join(missing_data)
+        )
+    inst.pick(noise_channels)
+    if inst.ch_names != noise_channels:
+        raise SourceConfigurationError(
+            "Target source input could not be ordered like the noise covariance."
+        )
+
+    forward_channels = set(fwd["info"]["ch_names"])
+    missing_forward = [name for name in noise_channels if name not in forward_channels]
+    if missing_forward:
+        raise SourceConfigurationError(
+            "Noise covariance contains channels absent from the forward solution: "
+            + ", ".join(missing_forward)
+        )
+    fwd = mne.pick_channels_forward(
+        fwd, include=noise_channels, ordered=True, copy=True
+    )
+    noise_cov = mne.pick_channels_cov(
+        noise_cov, include=noise_channels, ordered=True, copy=True
+    )
+
+    if data_cov is not None:
+        data_channels = _covariance_channel_names(data_cov)
+        if data_channels != noise_channels:
+            raise SourceConfigurationError(
+                "LCMV data covariance channels/order do not match the noise covariance. "
+                f"noise={noise_channels}, data={data_channels}"
+            )
+        data_cov = mne.pick_channels_cov(
+            data_cov, include=noise_channels, ordered=True, copy=True
+        )
+    return inst, fwd, noise_cov, data_cov
+
+
+def load_resolved_rank(
+    resolved_rank_file, expected_channels, expected_source_data_mode=None
+):
+    """Load and validate the rank artifact produced by compute_covariance.py."""
     try:
-        subj_name = f"sub-{subj:03d}_ses-{sess_id:03d}"
+        payload = json.loads(Path(resolved_rank_file).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise SourceConfigurationError(
+            f"Could not read resolved rank from {resolved_rank_file}: {error}"
+        ) from error
+    if not isinstance(payload, dict):
+        raise SourceConfigurationError("resolved-rank.json must contain a JSON object.")
 
-        # Read excluded ICA components from the file
-        with open(exclude_ica_file, 'r') as file:
-            excluded_ica = file.readlines()
-
-        # Extract the excluded ICA components for the given subject
-        excluded_ica = [comp.strip() for comp in excluded_ica if subj_name in comp]
-
-        len_exclude_ica = len(excluded_ica)
-        n_rank = 69 - len_exclude_ica - 1
-    except KeyError:
-        print(f"ICA components for {subj} session {sess_id} not found, setting n_rank=50.")
-        n_rank = 50
-    return n_rank
-
-
-def compute_data_covariance(epochs, cov_tmin, cov_tmax, subj_src_path, epoch_label, n_rank):
-    """
-    Compute or read the covariance matrix from epochs within a given time window.
-
-    Parameters
-    ----------
-    epochs : instance of Epochs
-        The MEG epochs data.
-    cov_tmin : float
-        The start time for the covariance calculation.
-    cov_tmax : float
-        The end time for the covariance calculation.
-    subj_src_path : str
-        The directory path to save the covariance matrix.
-    epoch_label : str
-        The label for the epoch.
-    n_rank : int
-        The rank of the covariance matrix.
-    """
-    data_cov_fn = os.path.join(subj_src_path, f"{epoch_label}_tw_{cov_tmin}_{cov_tmax}_epoch-cov.fif")
-    data_cov = mne.compute_covariance(epochs, tmin=cov_tmin, tmax=cov_tmax, method="auto", rank={'meg': n_rank})
-    data_cov.save(data_cov_fn, overwrite=True)
-
-    try:
-        visualize_covariance_and_spectra(data_cov, epochs, subj_src_path)
-    except Exception as e:
-        logger.error(f"error occurred while visualizing:{e}")
-
-def visualize_covariance_and_spectra(data_cov, raw_data, subj_src_path):
-    """
-    Visualize and save the noise covariance matrix and its spectra.
-
-    Parameters
-    ----------
-    data_cov : instance of Covariance
-        The data covariance matrix.
-    raw_data : instance of Raw
-        The raw MEG data.
-    subj_src_path : str
-        The directory path to save the plots.
-    """
-    cov_plot_path = os.path.join(subj_src_path, 'data_cov.png')
-    spectra_plot_path = os.path.join(subj_src_path, 'data_cov_spectra.png')
-    fig_cov, fig_spectra = mne.viz.plot_cov(data_cov, raw_data.info, show=False)
-    fig_cov.savefig(cov_plot_path)
-    fig_spectra.savefig(spectra_plot_path)
-    plt.close('all')
-    print(f"Saved covariance and spectra plots to {subj_src_path}")
+    channels = payload.get("channels")
+    if channels != list(expected_channels):
+        raise SourceConfigurationError(
+            "Resolved-rank channels/order do not match the aligned source inputs. "
+            f"rank={channels}, source={list(expected_channels)}"
+        )
+    source_data_mode = payload.get("source_data_mode")
+    if (
+        expected_source_data_mode is not None
+        and source_data_mode != expected_source_data_mode
+    ):
+        raise SourceConfigurationError(
+            "Resolved-rank source mode does not match the source input. "
+            f"rank={source_data_mode!r}, source={expected_source_data_mode!r}"
+        )
+    resolved_rank = normalize_mne_rank(
+        payload.get("rank"), config_name="resolved-rank.json.rank"
+    )
+    if not isinstance(resolved_rank, dict):
+        raise SourceConfigurationError(
+            "resolved-rank.json.rank must be an explicit rank dictionary."
+        )
+    return resolved_rank
 
 
 def visualize_source_estimate(stc, subject, subjects_dir, subj_src_path, epoch, method, spacing, config, block):
@@ -615,7 +658,20 @@ def visualize_source_estimate(stc, subject, subjects_dir, subj_src_path, epoch, 
     time.sleep(0.5)
     stop_xvfb(display_number)
 
-def compute_minimum_norm(method, evoked, fwd, noise_cov, subj_src_path, subject_id, subjects_dir, epoch_label, spacing, config, visualize):
+def compute_minimum_norm(
+    method,
+    evoked,
+    fwd,
+    noise_cov,
+    subj_src_path,
+    subject_id,
+    subjects_dir,
+    epoch_label,
+    spacing,
+    config,
+    visualize,
+    resolved_rank,
+):
     """
     Compute the minimum-norm inverse solution and save the results.
 
@@ -648,19 +704,40 @@ def compute_minimum_norm(method, evoked, fwd, noise_cov, subj_src_path, subject_
     None
     """
     stc_file = os.path.join(subj_src_path, f"{epoch_label}_evoked_{method}-{spacing}")
-    print(f"**config.get('{method}')['inverse_operator']:",config.get(method)['inverse_operator'])
-    inverse_operator = make_inverse_operator(info=evoked.info, forward=fwd, noise_cov=noise_cov,
-                                             **config.get(method)['inverse_operator'])
-    print(f"**config.get('{method}')['apply_inverse']：",config.get(method)['apply_inverse'])
-    stc = apply_inverse(evoked, inverse_operator, **config.get(method)['apply_inverse'])
+    method_config = _mapping(config.get(method), f"source.{method}")
+    inverse_kwargs = ranked_mne_kwargs(
+        _mapping(method_config.get("inverse_operator"), f"source.{method}.inverse_operator"),
+        resolved_rank,
+        f"source.{method}.inverse_operator",
+    )
+    apply_kwargs = _mapping(
+        method_config.get("apply_inverse"), f"source.{method}.apply_inverse"
+    )
+    logger.info("%s inverse rank argument: %s", method, inverse_kwargs.get("rank"))
+    inverse_operator = make_inverse_operator(
+        info=evoked.info, forward=fwd, noise_cov=noise_cov, **inverse_kwargs
+    )
+    stc = apply_inverse(evoked, inverse_operator, **apply_kwargs)
     stc.save(stc_file, overwrite=True)
 
     if visualize:
         visualize_source_estimate(stc, subject_id, subjects_dir, subj_src_path, epoch_label, method, spacing, config, block=False)
 
 
-def compute_LCMV(evoked, fwd, data_cov, noise_cov, subj_src_path, subject_id, subjects_dir, epoch_label, spacing,
-                 config, visualize):
+def compute_LCMV(
+    evoked,
+    fwd,
+    data_cov,
+    noise_cov,
+    subj_src_path,
+    subject_id,
+    subjects_dir,
+    epoch_label,
+    spacing,
+    config,
+    visualize,
+    resolved_rank,
+):
     """
     Compute the LCMV beamformer solution and save the results.
 
@@ -693,7 +770,23 @@ def compute_LCMV(evoked, fwd, data_cov, noise_cov, subj_src_path, subject_id, su
     None
     """
     stc_file = os.path.join(subj_src_path, f"{epoch_label}_evoked_LCMV-{spacing}")
-    filters = make_lcmv(evoked.info, fwd, data_cov, noise_cov=noise_cov, **config.get('LCMV')['make_lcmv'])
+    lcmv_config = _mapping(config.get("LCMV"), "source.LCMV")
+    legacy_rank = lcmv_config.get("n_rank", RANK_NOT_SET)
+    make_lcmv_kwargs = ranked_mne_kwargs(
+        _mapping(lcmv_config.get("make_lcmv"), "source.LCMV.make_lcmv"),
+        resolved_rank,
+        "source.LCMV.make_lcmv",
+        legacy_rank=legacy_rank,
+        legacy_config_name="source.LCMV.n_rank",
+    )
+    logger.info("LCMV beamformer rank argument: %s", make_lcmv_kwargs.get("rank"))
+    filters = make_lcmv(
+        evoked.info,
+        fwd,
+        data_cov,
+        noise_cov=noise_cov,
+        **make_lcmv_kwargs,
+    )
     stc = apply_lcmv(evoked, filters)
     stc.save(stc_file, overwrite=True)
     if visualize:
@@ -718,7 +811,7 @@ def resolve_source_input_files(
     elif noise_covariance_dir:
         resolved_covariance = Path(noise_covariance_dir) / recording_id / "bl-cov.fif"
     else:
-        raise ValueError(
+        raise SourceConfigurationError(
             "Provide --noise_covariance_file (preferred) or --noise_covariance_dir."
         )
 
@@ -731,7 +824,7 @@ def resolve_source_input_files(
             / f"{epoch_label}_{spacing}-fwd.fif"
         )
     else:
-        raise ValueError("Provide --forward_file (preferred) or --forward_dir.")
+        raise SourceConfigurationError("Provide --forward_file (preferred) or --forward_dir.")
 
     return resolved_covariance, resolved_forward
 
@@ -746,6 +839,8 @@ def process_subject(
     visualize,
     noise_covariance_file=None,
     forward_file=None,
+    data_covariance_file=None,
+    resolved_rank_file=None,
 ):
     """Process one epoched recording for source localization."""
     subject_id = Path(epoch_file).stem.split('_')[0]
@@ -761,28 +856,45 @@ def process_subject(
         forward_dir=fwd_dir,
     )
 
-    noise_cov = mne.read_cov(noise_cov_file)
-    epochs = mne.read_epochs(epoch_file)
-    evoked = epochs.average().pick(config.get('data_type'))
-    fwd = mne.read_forward_solution(resolved_forward_file)
+    methods = normalize_source_methods(config.get("source_methods"))
+    needs_lcmv = "LCMV" in methods
+    if needs_lcmv and not data_covariance_file:
+        raise SourceConfigurationError(
+            "LCMV requires --data_covariance_file from compute_covariance.py."
+        )
 
-    for method in config.get("source_methods"):
+    noise_cov = mne.read_cov(noise_cov_file)
+    data_cov = mne.read_cov(data_covariance_file) if needs_lcmv else None
+    epochs = _pick_source_data(
+        mne.read_epochs(epoch_file, preload=True), config.get("data_type", "meg")
+    )
+    fwd = mne.read_forward_solution(resolved_forward_file)
+    epochs, fwd, noise_cov, data_cov = _align_source_inputs(
+        epochs, fwd, noise_cov, data_cov
+    )
+    resolved_rank = (
+        load_resolved_rank(resolved_rank_file, epochs.ch_names, "epochs")
+        if resolved_rank_file
+        else resolve_rank_policy(
+            epochs, config.get("rank_policy", "auto"), config_name="rank_policy"
+        )
+    )
+    logger.info("Resolved target rank for source imaging: %s", resolved_rank)
+    evoked = epochs.average()
+
+    for method in methods:
         if method in ["MNE", "dSPM", "sLORETA", "eLORETA"]:
             compute_minimum_norm(
                 method, evoked, fwd, noise_cov, output_dir, subject_id,
                 fs_subjects_dir, epoch_label, spacing, config, visualize,
+                resolved_rank,
             )
 
-    if 'LCMV' in config.get("source_methods"):
-        n_rank = config.get('LCMV')['n_rank']
-        cov_tmin = config.get('LCMV')['cov_tmin']
-        cov_tmax = config.get('LCMV')['cov_tmax']
-        data_cov = compute_data_covariance(
-            epochs, cov_tmin, cov_tmax, output_dir, epoch_label, n_rank
-        )
+    if needs_lcmv:
         compute_LCMV(
             evoked, fwd, data_cov, noise_cov, output_dir, subject_id,
             fs_subjects_dir, epoch_label, spacing, config, visualize,
+            resolved_rank,
         )
 
 
@@ -796,6 +908,8 @@ def process_raw(
     visualize,
     noise_covariance_file=None,
     forward_file=None,
+    data_covariance_file=None,
+    resolved_rank_file=None,
 ):
     """Process one continuous recording for source localization."""
     subject_id = Path(raw_file).stem.split('_')[0]
@@ -811,21 +925,54 @@ def process_raw(
         forward_dir=fwd_dir,
     )
 
-    noise_cov = mne.read_cov(noise_cov_file)
-    raw = mne.io.read_raw_fif(raw_file, preload=True)
-    fwd = mne.read_forward_solution(resolved_forward_file)
+    methods = normalize_source_methods(config.get("source_methods"))
+    needs_lcmv = "LCMV" in methods
+    if needs_lcmv and not data_covariance_file:
+        raise SourceConfigurationError(
+            "LCMV requires --data_covariance_file from compute_covariance.py."
+        )
 
-    for method in config.get("source_methods"):
+    noise_cov = mne.read_cov(noise_cov_file)
+    data_cov = mne.read_cov(data_covariance_file) if needs_lcmv else None
+    raw = _pick_source_data(
+        mne.io.read_raw_fif(raw_file, preload=True), config.get("data_type", "meg")
+    )
+    fwd = mne.read_forward_solution(resolved_forward_file)
+    raw, fwd, noise_cov, data_cov = _align_source_inputs(
+        raw, fwd, noise_cov, data_cov
+    )
+    resolved_rank = (
+        load_resolved_rank(resolved_rank_file, raw.ch_names, "raw")
+        if resolved_rank_file
+        else resolve_rank_policy(
+            raw, config.get("rank_policy", "auto"), config_name="rank_policy"
+        )
+    )
+    logger.info("Resolved target rank for source imaging: %s", resolved_rank)
+
+    for method in methods:
         if method in ["MNE", "dSPM", "sLORETA", "eLORETA"]:
+            method_config = _mapping(config.get(method), f"source.{method}")
+            inverse_kwargs = ranked_mne_kwargs(
+                _mapping(
+                    method_config.get("inverse_operator"),
+                    f"source.{method}.inverse_operator",
+                ),
+                resolved_rank,
+                f"source.{method}.inverse_operator",
+            )
+            apply_kwargs = _mapping(
+                method_config.get("apply_inverse"),
+                f"source.{method}.apply_inverse",
+            )
+            logger.info("%s inverse rank argument: %s", method, inverse_kwargs.get("rank"))
             inverse_operator = make_inverse_operator(
                 info=raw.info,
                 forward=fwd,
                 noise_cov=noise_cov,
-                **config.get(method)['inverse_operator'],
+                **inverse_kwargs,
             )
-            stc = apply_inverse_raw(
-                raw, inverse_operator, **config.get(method)['apply_inverse']
-            )
+            stc = apply_inverse_raw(raw, inverse_operator, **apply_kwargs)
             stc.save(
                 os.path.join(output_dir, f"{epoch_label}_raw_{method}-{spacing}"),
                 overwrite=True,
@@ -836,16 +983,20 @@ def process_raw(
                     method, spacing, config, block=False,
                 )
 
-    if 'LCMV' in config.get("source_methods"):
-        n_rank = config.get('LCMV')['n_rank']
-        cov_tmin = config.get('LCMV')['cov_tmin']
-        cov_tmax = config.get('LCMV')['cov_tmax']
-        data_cov = mne.compute_raw_covariance(
-            raw, tmin=cov_tmin, tmax=cov_tmax, method="auto", rank=n_rank
+    if needs_lcmv:
+        lcmv_config = _mapping(config.get("LCMV"), "source.LCMV")
+        legacy_rank = lcmv_config.get("n_rank", RANK_NOT_SET)
+        make_lcmv_kwargs = ranked_mne_kwargs(
+            _mapping(lcmv_config.get("make_lcmv"), "source.LCMV.make_lcmv"),
+            resolved_rank,
+            "source.LCMV.make_lcmv",
+            legacy_rank=legacy_rank,
+            legacy_config_name="source.LCMV.n_rank",
         )
+        logger.info("LCMV beamformer rank argument: %s", make_lcmv_kwargs.get("rank"))
         filters = make_lcmv(
             raw.info, fwd, data_cov, noise_cov=noise_cov,
-            **config.get('LCMV')['make_lcmv'],
+            **make_lcmv_kwargs,
         )
         stc = apply_lcmv_raw(raw, filters)
         stc.save(
@@ -876,6 +1027,10 @@ def parse_arguments():
                         help="Path to the MRI subject directory (Freesurfer subjects dir).")
     parser.add_argument('--noise_covariance_file', type=str,
                         help="Exact routed noise covariance file (preferred).")
+    parser.add_argument('--data_covariance_file', type=str,
+                        help="Exact LCMV data covariance file; required only for LCMV.")
+    parser.add_argument('--resolved_rank_file', type=str,
+                        help="Resolved target-rank JSON produced by covariance.")
     parser.add_argument('--forward_file', type=str,
                         help="Exact routed forward solution file (preferred).")
     parser.add_argument('--noise_covariance_dir', type=str,
@@ -917,23 +1072,24 @@ def main():
 #         loose: auto
 #         depth: 0.8
 #         fixed: auto
-#         rank: null
 #     apply_inverse:
 #         lambda2: 0.111111111111
 #         method: dSPM
 #         pick_ori: normal
 #
 # LCMV:
-#     n_rank: info
-#     cov_tmin: 0.01
-#     cov_tmax: 0.4
+#     data_covariance:
+#         tmin: 0.01
+#         tmax: 0.4
+#         method: auto
 #     make_lcmv:
 #         reg: 0.05
 #         pick_ori: null
-#         rank: info
 #         weight_norm: unit-noise-gain-invariant
 # """
     config = yaml.safe_load(args.config)
+    if not isinstance(config, dict):
+        raise SourceConfigurationError("--config must decode to a mapping.")
     if args.data_mode == "raw":
         process_raw(args.data_file,
                     args.fs_subjects_dir,
@@ -943,7 +1099,9 @@ def main():
                     config,
                     args.visualize,
                     noise_covariance_file=args.noise_covariance_file,
-                    forward_file=args.forward_file)
+                    forward_file=args.forward_file,
+                    data_covariance_file=args.data_covariance_file,
+                    resolved_rank_file=args.resolved_rank_file)
     elif args.data_mode == "epochs":
         process_subject(args.data_file,
                         args.fs_subjects_dir,
@@ -953,10 +1111,22 @@ def main():
                         config,
                         args.visualize,
                         noise_covariance_file=args.noise_covariance_file,
-                        forward_file=args.forward_file)
+                        forward_file=args.forward_file,
+                        data_covariance_file=args.data_covariance_file,
+                        resolved_rank_file=args.resolved_rank_file)
     else:
         raise ValueError("Unspported data mode: {}".format(args.data_mode))
     print("Finished source recon processing...")
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except (
+        MegflowConfigurationError,
+        RankConfigurationError,
+        RuntimeError,
+        TypeError,
+        ValueError,
+    ) as error:
+        logger.error("Source configuration or processing error: %s", error)
+        raise SystemExit(2) from error

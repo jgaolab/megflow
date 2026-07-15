@@ -14,6 +14,7 @@ import matplotlib
 import numpy as np
 import logging
 import argparse
+from numbers import Integral
 from pathlib import Path
 from typing import Literal
 from matplotlib import pyplot as plt
@@ -257,6 +258,129 @@ def str2bool(value):
         return False
     else:
         raise argparse.ArgumentTypeError('Boolean value expected.')
+
+
+RANK_NOT_SET = object()
+
+
+class MegflowConfigurationError(ValueError):
+    """Raised for deterministic MEGFlow configuration errors."""
+
+
+class RankConfigurationError(MegflowConfigurationError):
+    """Raised when a configured rank cannot be passed safely to MNE."""
+
+
+def normalize_mne_rank(value, config_name="rank", allow_legacy_int=False):
+    """Validate and normalize a rank value accepted by MNE."""
+    if value is None:
+        return None
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"info", "full"}:
+            return normalized
+        raise RankConfigurationError(
+            f"{config_name} must be null, 'info', 'full', or a rank dictionary; "
+            f"got {value!r}. Use rank_policy: 'auto' for empirical target-data rank."
+        )
+    if isinstance(value, dict):
+        normalized = {}
+        for channel_type, channel_rank in value.items():
+            if not isinstance(channel_type, str) or not channel_type.strip():
+                raise RankConfigurationError(
+                    f"{config_name} rank dictionary keys must be non-empty channel-type strings."
+                )
+            if isinstance(channel_rank, bool) or not isinstance(channel_rank, Integral) or channel_rank < 0:
+                raise RankConfigurationError(
+                    f"{config_name}.{channel_type} must be a non-negative integer; got {channel_rank!r}."
+                )
+            normalized[channel_type.strip().lower()] = int(channel_rank)
+        if not normalized:
+            raise RankConfigurationError(f"{config_name} rank dictionary cannot be empty.")
+        return normalized
+    if allow_legacy_int and isinstance(value, Integral) and not isinstance(value, bool):
+        if value < 0:
+            raise RankConfigurationError(f"{config_name} must be non-negative; got {value!r}.")
+        return {"meg": int(value)}
+    raise RankConfigurationError(
+        f"{config_name} must be null, 'info', 'full', or a rank dictionary; got {value!r}."
+    )
+
+
+def normalize_rank_policy(value, config_name="rank_policy"):
+    """Normalize MEGFlow's target-data rank policy."""
+    if value is None:
+        return "auto"
+    if isinstance(value, str) and value.strip().lower() == "auto":
+        return "auto"
+    return normalize_mne_rank(value, config_name=config_name)
+
+
+def resolve_rank_policy(inst, policy="auto", config_name="rank_policy"):
+    """Resolve a policy to one explicit rank dictionary on the target data."""
+    normalized = normalize_rank_policy(policy, config_name=config_name)
+    rank_arg = None if normalized == "auto" else normalized
+    resolved = mne.compute_rank(inst, rank=rank_arg)
+    return {str(channel_type): int(value) for channel_type, value in resolved.items()}
+
+
+def ranked_mne_kwargs(
+    kwargs,
+    resolved_rank,
+    config_name,
+    *,
+    legacy_rank=RANK_NOT_SET,
+    legacy_config_name=None,
+):
+    """Return MNE kwargs using explicit rank, legacy rank, or the resolved default."""
+    params = dict(kwargs or {})
+    if "rank" in params:
+        params["rank"] = normalize_mne_rank(
+            params["rank"], config_name=f"{config_name}.rank"
+        )
+    elif legacy_rank is not RANK_NOT_SET:
+        params["rank"] = normalize_mne_rank(
+            legacy_rank,
+            config_name=legacy_config_name or f"{config_name}.legacy_rank",
+            allow_legacy_int=True,
+        )
+    else:
+        params["rank"] = dict(resolved_rank)
+    return params
+
+
+def normalize_source_methods(value, config_name="source.source_methods"):
+    """Return validated source methods with canonical MNE spelling."""
+    if isinstance(value, str):
+        values = [value]
+    elif isinstance(value, (list, tuple)):
+        values = list(value)
+    else:
+        raise MegflowConfigurationError(
+            f"{config_name} must be a method name or a list of method names."
+        )
+
+    aliases = {
+        "mne": "MNE",
+        "dspm": "dSPM",
+        "sloreta": "sLORETA",
+        "eloreta": "eLORETA",
+        "lcmv": "LCMV",
+    }
+    methods = []
+    for value in values:
+        key = str(value).strip().lower()
+        if key not in aliases:
+            raise MegflowConfigurationError(
+                f"Unsupported source method {value!r} in {config_name}. "
+                "Choose MNE, dSPM, sLORETA, eLORETA, or LCMV."
+            )
+        canonical = aliases[key]
+        if canonical not in methods:
+            methods.append(canonical)
+    if not methods:
+        raise MegflowConfigurationError(f"{config_name} cannot be empty.")
+    return methods
 
 
 def set_random_seed(seed=None):

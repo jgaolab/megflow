@@ -1,11 +1,13 @@
 Validation and Regression Testing
 =================================
 
-MEGFlow includes two complementary test layers. Python unit tests exercise
+MEGFlow includes three complementary test layers. Python unit tests exercise
 event handling, analysis preprocessing, DeepReject inputs, NMDQ score/report
-rendering, source-input resolution, and static configuration contracts.
-Nextflow integration tests use ``-stub-run`` to execute the real workflow graph
-without starting FreeSurfer, DeepPrep, or numerical MNE processing.
+rendering, source-input resolution, rank precedence, and static configuration
+contracts. Lightweight MNE tests write synthetic low-rank Raw/Epochs FIF files
+and run real covariance estimation. Nextflow integration tests use
+``-stub-run`` to execute the real workflow graph without starting FreeSurfer,
+DeepPrep, or full source reconstruction.
 
 Run the Test Suite
 ------------------
@@ -53,11 +55,24 @@ The stub suite verifies the following workflow contracts:
    * - Source routing
      - Forward and covariance FIF paths are joined by
        ``[dataset, recording]`` identity. Missing, duplicate, or mismatched
-       lineage fails instead of silently dropping source outputs.
+       lineage fails instead of silently dropping source outputs. dSPM-only
+       routes omit LCMV data covariance, while raw and epoched LCMV routes
+       require it and verify the exact source-input hash.
    * - Raw covariance
      - Delayed noise branches, recording-specific covariance overrides,
        missing pairs, cross-dataset isolation, and several experimental tasks
-       sharing one noise recording are covered.
+       sharing one noise recording are covered. The routed noise recording key
+       is retained for audit. Combined empty-room plus LCMV cases verify that
+       noise covariance comes from the paired recording while data covariance
+       comes from the exact target Epochs or analysis Raw.
+   * - Rank and covariance numerics
+     - Synthetic rank-deficient data distinguish ``auto`` from ``info`` and
+       exercise null, full, and dictionary policies. Tests also cover
+       explicit/legacy/default precedence, reject invalid integer MNE rank
+       fields, enforce common-channel order, remove stale LCMV output, and
+       require raw noise to support the target rank. The persisted rank artifact
+       is checked against source channel order. Real epoch-noise, dSPM-only, raw
+       LCMV, and saved-Epochs LCMV covariance outputs are read back with MNE 1.8.
    * - Validation
      - Unknown match keys, overlapping recording profiles, ineffective
        recording-scope fields, excessive recording stages, duplicate recording
@@ -72,9 +87,11 @@ What Stub Tests Do Not Prove
 ----------------------------
 
 Stub tests validate orchestration, identity, configuration propagation, output
-contracts, and cache invalidation. They do not validate numerical correctness,
-vendor-specific readers, actual FreeSurfer/DeepPrep completion, GPU behavior,
-or scientific suitability of event and inverse-model parameters.
+contracts, and cache invalidation. The synthetic MNE tests validate the local
+rank/covariance contracts but not a complete forward/inverse solution. Neither
+layer validates vendor-specific readers, actual FreeSurfer/DeepPrep completion,
+GPU behavior, identical ICA subspaces between experimental and empty-room
+recordings, or scientific suitability of event and inverse-model parameters.
 
 Before a release, run a small real-data smoke set with at least one supported
 vendor, one task recording with inspected events, one resting recording, one

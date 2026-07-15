@@ -64,6 +64,7 @@ def write_config(path, output_dir, datasets_text):
                         file_suffix: ".fif",
                         is_bids: true,
                         visualize: false,
+                        rank_policy: "auto",
                         seeds: [osl: 2025, ica: 2025],
                         anatomy: [method: "freesurfer", is_bids: true, select_tag: ""],
                         mri_import: [:],
@@ -364,12 +365,25 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             ):
                 dataset_dir = root / dataset
                 create_dataset(dataset_dir, (*experiments, noise))
-                experiment_values = json.dumps(list(experiments))
                 extra = f""",
                     recordings: [
-                        experiment_raw_covariance: [
-                            match: [task: {experiment_values}],
-                            covariance: [type: "raw", raw_covariance_task_id: "{noise}", output_dir: "covariance"]
+                        epochs_source_with_raw_covariance: [
+                            match: [task: "{experiments[0]}"],
+                            covariance: [type: "raw", raw_covariance_task_id: "{noise}", output_dir: "covariance"],
+                            source: [
+                                type: "epochs",
+                                source_methods: ["LCMV"],
+                                LCMV: [data_covariance: [method: "empirical"], make_lcmv: [:]]
+                            ]
+                        ],
+                        raw_source_with_raw_covariance: [
+                            match: [task: "{experiments[1]}"],
+                            covariance: [type: "raw", raw_covariance_task_id: "{noise}", output_dir: "covariance"],
+                            source: [
+                                type: "raw",
+                                source_methods: ["LCMV"],
+                                LCMV: [data_covariance: [method: "empirical"], make_lcmv: [:]]
+                            ]
                         ],
                         delayed_noise: [
                             match: [task: "{noise}"],
@@ -391,11 +405,107 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                     route = preproc / "source_recon" / recording / "routing.json"
                     payload = json.loads(route.read_text(encoding="utf-8"))
                     covariance_text = Path(payload["covariance_file"]).read_text(encoding="utf-8")
+                    data_covariance_text = Path(payload["data_covariance_file"]).read_text(
+                        encoding="utf-8"
+                    )
                     self.assertIn(f"task-{noise}", covariance_text)
                     self.assertNotIn(f"task-{other_noise}", covariance_text)
+                    self.assertIn(f"task-{experiment}", data_covariance_text)
+                    self.assertNotIn(f"task-{noise}", data_covariance_text)
+                    self.assertEqual(
+                        payload["noise_recording_key"],
+                        [dataset, f"sub-01_task-{noise}_run-01_meg"],
+                    )
+                    expected_source_type = (
+                        "epochs" if experiment == experiments[0] else "raw"
+                    )
+                    expected_source_hash = (
+                        payload["epoch_hash"]
+                        if expected_source_type == "epochs"
+                        else payload["analysis_hash"]
+                    )
+                    self.assertEqual(payload["source_type"], expected_source_type)
+                    self.assertTrue(Path(payload["resolved_rank_file"]).is_file())
+                    self.assertRegex(payload["resolved_rank_hash"], r"^[0-9a-f]{64}$")
+                    self.assertEqual(
+                        payload["covariance_source_hash"], expected_source_hash
+                    )
+                    self.assertTrue(payload["lcmv_required"])
+                    self.assertNotEqual(payload["data_covariance_hash"], "not-required")
                 noise_recording = f"sub-01_task-{noise}_run-01_meg"
                 self.assertFalse((preproc / "epochs" / noise_recording).exists())
                 self.assertFalse((preproc / "source_recon" / noise_recording).exists())
+
+    def test_lcmv_data_covariance_is_conditional_and_uses_exact_source_input(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            create_dataset(dataset, ("dspm", "lcmvepochs", "lcmvraw"))
+            extra = """,
+                epochs: [preproc: [[resample: [sfreq: 100]]]],
+                recordings: [
+                    dspm_only: [
+                        match: [task: "dspm"],
+                        source: [source_methods: ["dSPM"]]
+                    ],
+                    epochs_lcmv: [
+                        match: [task: "lcmvepochs"],
+                        source: [
+                            type: "epochs",
+                            source_methods: ["LCMV"],
+                            LCMV: [data_covariance: [method: "empirical"], make_lcmv: [:]]
+                        ]
+                    ],
+                    raw_lcmv: [
+                        match: [task: "lcmvraw"],
+                        source: [
+                            type: "raw",
+                            source_methods: ["LCMV"],
+                            LCMV: [data_covariance: [method: "empirical"], make_lcmv: [:]]
+                        ]
+                    ]
+                ]"""
+            config = root / "lcmv-routing.config"
+            write_config(config, output, dataset_block("dataset", dataset, extra=extra))
+            self.run_pipeline(config, output)
+
+            preproc = output / "preprocessed"
+            expectations = {
+                "dspm": (False, "epochs", "epoch_hash"),
+                "lcmvepochs": (True, "epochs", "epoch_hash"),
+                "lcmvraw": (True, "raw", "analysis_hash"),
+            }
+            for task, (needs_lcmv, source_type, source_hash_field) in expectations.items():
+                recording = f"sub-01_task-{task}_run-01_meg"
+                route = preproc / "source_recon" / recording / "routing.json"
+                payload = json.loads(route.read_text(encoding="utf-8"))
+                data_covariance = preproc / "covariance" / recording / "lcmv-data-cov.fif"
+
+                self.assertEqual(payload["lcmv_required"], needs_lcmv)
+                self.assertEqual(payload["source_type"], source_type)
+                self.assertTrue(Path(payload["resolved_rank_file"]).is_file())
+                self.assertRegex(payload["resolved_rank_hash"], r"^[0-9a-f]{64}$")
+                self.assertEqual(
+                    payload["covariance_source_hash"], payload[source_hash_field]
+                )
+                self.assertEqual(data_covariance.exists(), needs_lcmv)
+                if needs_lcmv:
+                    self.assertEqual(payload["data_covariance_file"], str(data_covariance))
+                    self.assertNotEqual(payload["data_covariance_hash"], "not-required")
+                else:
+                    self.assertEqual(payload["data_covariance_file"], "")
+                    self.assertEqual(payload["data_covariance_hash"], "not-required")
+
+            raw_route = json.loads(
+                (
+                    preproc
+                    / "source_recon"
+                    / "sub-01_task-lcmvraw_run-01_meg"
+                    / "routing.json"
+                ).read_text(encoding="utf-8")
+            )
+            self.assertTrue(raw_route["source_input_file"].endswith("_analysis-raw.fif"))
 
     def test_missing_raw_covariance_pair_fails_instead_of_silently_skipping_source(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -91,7 +91,9 @@ Preprocessed Directory
    * - ``preprocessed/epochs/<recording>/``
      - Epoch FIF files, rejection logs, and epoch-level figures.
    * - ``preprocessed/covariance/<recording>/``
-     - Noise covariance FIF file and covariance visualization figures.
+     - ``bl-cov.fif`` and diagnostics; conditional ``lcmv-data-cov.fif`` and
+       diagnostics when LCMV is selected; and the always-present
+       ``resolved-rank.json`` source contract.
    * - ``preprocessed/trans/<recording>/``
      - MEG-MRI transform, coregistration distance CSV, and staged
        coregistration figures.
@@ -144,6 +146,12 @@ Important Sidecar Files
      - Rejected epoch indices and estimated remaining epoch count.
    * - ``bl-cov.fif``
      - Noise covariance estimate.
+   * - ``lcmv-data-cov.fif``
+     - LCMV data covariance from the exact source Raw/Epochs. This file is not
+       generated for minimum-norm-only runs.
+   * - ``resolved-rank.json``
+     - Resolved target-rank dictionary, ordered common-channel list, and source
+       input mode shared by covariance and source reconstruction.
    * - ``dists.csv``
      - Coregistration distance summary in mm.
    * - ``coreg-trans.fif``

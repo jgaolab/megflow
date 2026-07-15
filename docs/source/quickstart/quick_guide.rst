@@ -130,7 +130,9 @@ Change the config when one of these applies:
      - Edit ``preproc.steps`` and the ``resample.sfreq`` entry.
    * - You have empty-room or noise recordings for covariance.
      - Set ``covariance.type = "raw"`` and
-       ``covariance.raw_covariance_task_id``.
+       ``covariance.raw_covariance_task_id``. The default target-data rank and
+       empty-room checks are described in
+       :doc:`../reference/rank_covariance`.
    * - You only want to rebuild the report.
      - Set ``steps = "report"`` in the relevant profile. Docker users can pass
        ``--steps report`` to the entrypoint.

@@ -113,6 +113,52 @@ source run is rarely dataset independent.
      -i /input -o /output --fs_subjects_dir /smri \
      --steps meg_all --resume
 
+dSPM and LCMV Covariance
+------------------------
+
+The preceding dSPM-only example produces ``bl-cov.fif`` but does not compute an
+LCMV data covariance. To run both methods, add ``LCMV`` and define its data
+window. MEGFlow computes ``lcmv-data-cov.fif`` from the exact saved epochs and
+passes the same default target rank to both covariance roles and both source
+solvers. Both runs write ``resolved-rank.json``; source imaging validates and
+consumes that exact dictionary instead of estimating a second default rank.
+
+.. code-block:: groovy
+
+   params.megflow.datasets.docker_input.rank_policy = "auto"
+   params.megflow.datasets.docker_input.source = [
+     type: "epochs",
+     source_methods: ["dSPM", "LCMV"],
+     data_type: "meg",
+     LCMV: [
+       data_covariance: [tmin: 0.01, tmax: 0.40, method: "auto"],
+       make_lcmv: [
+         reg: 0.05,
+         pick_ori: null,
+         weight_norm: "unit-noise-gain-invariant"
+       ]
+     ]
+   ]
+
+For continuous beamforming, set ``source.type = "raw"``. The data covariance
+and source solver then consume the exact analysis-ready Raw associated with the
+epoch branch; they do not reopen the original imported recording.
+
+Function-level rank values remain available when a validated study-specific
+override is required. Use MNE dictionaries for direct ``rank`` fields:
+
+.. code-block:: groovy
+
+   params.megflow.datasets.docker_input.source.LCMV = [
+     data_covariance: [tmin: 0.01, tmax: 0.40, rank: [meg: 60]],
+     make_lcmv: [reg: 0.05, rank: [meg: 60]]
+   ]
+
+These explicit values override ``rank_policy`` independently. The legacy
+``source.LCMV.n_rank: 60`` remains accepted and is normalized to ``[meg: 60]``,
+but new configurations should prefer ``rank_policy`` or explicit per-function
+rank dictionaries. See :doc:`rank_covariance` for the full precedence table.
+
 Structural MRI Only
 -------------------
 
@@ -251,8 +297,7 @@ configured task id to locate the paired continuous recording.
        tmax: null,
        method: "auto",
        reject: [mag: 4e-12],
-       reject_by_annotation: true,
-       rank: "info"
+       reject_by_annotation: true
      ]
    ]
 
@@ -265,6 +310,12 @@ parallel scheduling cannot select a stale covariance input. The empty-room
 record is cleaned but does not continue into its own epochs or source model.
 Several experimental tasks may reuse the same paired noise recording; a missing
 pair stops the full source run with an error.
+
+The default ``rank_policy: "auto"`` is resolved from the experimental target,
+not from the empty-room covariance. Both inputs are restricted to common good
+channels in target order, and the raw noise input must have enough empirical
+rank to support the target rank. This compatibility check does not establish
+that independently fitted ICA operators are identical.
 
 The covariance override may also be recording specific. In this example only
 the experimental task requests raw covariance; the noise task can keep the
@@ -340,7 +391,7 @@ an error.
    ]
 
 Recording profiles are resolved only after MEG import. They can specialize
-``megqc``, continuous preprocessing, digitization, artifacts, ICA, epochs,
+``rank_policy``, ``megqc``, continuous preprocessing, digitization, artifacts, ICA, epochs,
 covariance, coregistration, forward modeling, source reconstruction, or reduce
 an already enabled MEG stage. They cannot change file discovery, import a file
 excluded by ``meg_import``, create an anatomy plan, alter dataset paths, or
@@ -385,6 +436,7 @@ Example ``corpus.config``:
        ]
      ],
      SMN4Lang: [
+       rank_policy: [meg: 50],
        meg_import: [task: ["RDR"], run_id: ["1"]],
        megqc: [meg_vendor: "elekta"],
        epochs: [
@@ -429,7 +481,8 @@ example. It uses three named profiles with explicit paths:
 * ``WAND_visual`` uses CTF settings, ``UPPT001`` trigger events, and a visual
   source label.
 * ``SMN4Lang_RDR`` uses Elekta settings, BIDS event-file mapping, a measured
-  event-time correction, and a language source label.
+  event-time correction, a dataset-level validated ``[meg: 50]`` rank policy,
+  and a language source label.
 * ``MEG_MASC_word`` uses KIT digitization sidecars, customized fine coregistration,
   word-event filtering, and lenient DeepReject segment post-processing.
 

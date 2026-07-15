@@ -1,6 +1,8 @@
 import json
+import os
 import shutil
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +10,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 REPORTS_DIR = REPO_ROOT / "megflow" / "reports"
+NEXTFLOW = os.environ.get("MEGFLOW_NEXTFLOW") or shutil.which("nextflow")
 
 
 class NextflowReportLayoutIntegrationTests(unittest.TestCase):
@@ -29,7 +32,7 @@ process rebuild_static_report {{
 
     script:
     """
-    python - <<'PY'
+    {json.dumps(sys.executable)} - <<'PY'
 from pathlib import Path
 import sys
 sys.path.insert(0, {json.dumps(str(REPORTS_DIR))})
@@ -74,7 +77,7 @@ trace {{
 
             result = subprocess.run(
                 [
-                    "nextflow",
+                    NEXTFLOW,
                     "-log",
                     str(nextflow_dir / "nextflow.log"),
                     "-C",
@@ -95,7 +98,7 @@ trace {{
             self.assertIn("rebuild_static_report", trace_text)
             self.assertIn("COMPLETED", trace_text)
 
-    @unittest.skipUnless(shutil.which("nextflow"), "Nextflow is not available")
+    @unittest.skipUnless(NEXTFLOW, "set MEGFLOW_NEXTFLOW or install Nextflow")
     def test_live_trace_survives_dataset_and_corpus_report_rebuild(self):
         layouts = (
             ("static_html_report", ["assets", "data", "files", "subjects"]),
