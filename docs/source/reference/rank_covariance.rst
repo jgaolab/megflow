@@ -115,9 +115,7 @@ data-covariance file is a deterministic error before the beamformer runs.
 Every source run consumes ``resolved-rank.json``; it does not estimate a second
 default rank. The source task verifies that its aligned channels exactly match
 the ordered channel list in that file before passing the stored dictionary to
-MNE. Direct legacy invocation of ``source_localization.py`` without this file
-retains an automatic fallback for compatibility, but the Nextflow workflow
-always routes the artifact.
+MNE. The Nextflow workflow always routes this artifact.
 
 ``resolved-rank.json`` is a generated internal derivative, not another user
 setting. Do not edit or route it manually in a normal workflow; change
@@ -148,19 +146,20 @@ The ``data_covariance`` map is passed to ``mne.compute_covariance`` for Epochs
 or ``mne.compute_raw_covariance`` for Raw. ``make_lcmv`` is passed separately
 to ``mne.beamformer.make_lcmv``.
 
-Advanced Rank Overrides
------------------------
+Function-Level Rank Settings
+----------------------------
 
-Function-level settings remain supported for existing projects. Their
-precedence is:
+Each covariance or source-imaging function can use its standard MNE ``rank``
+argument. When set, this function-level value takes precedence over the shared
+``rank_policy``; otherwise, MEGFlow supplies the resolved target rank.
 
 .. list-table::
    :header-rows: 1
    :widths: 34 40 26
 
    * - Consumer
-     - Explicit override
-     - Fallback
+     - Function-level setting
+     - Default
    * - Raw noise covariance
      - ``covariance.compute_raw_covariance.rank``
      - ``rank_policy``
@@ -168,12 +167,10 @@ precedence is:
      - ``covariance.covariance.rank``
      - ``rank_policy``
    * - LCMV data covariance
-     - ``source.LCMV.data_covariance.rank``, then legacy
-       ``source.LCMV.n_rank``
+     - ``source.LCMV.data_covariance.rank``
      - ``rank_policy``
    * - LCMV solver
-     - ``source.LCMV.make_lcmv.rank``, then legacy
-       ``source.LCMV.n_rank``
+     - ``source.LCMV.make_lcmv.rank``
      - ``rank_policy``
    * - Minimum-norm inverse
      - ``source.<method>.inverse_operator.rank``
@@ -181,13 +178,13 @@ precedence is:
 
 An explicit function-level ``rank: null`` is preserved and asks that MNE
 function to perform its own local automatic rank handling. It does not mean
-the same thing as a top-level null policy. A legacy integer ``n_rank: 50`` is
-normalized to ``[meg: 50]``. Integers are rejected in direct MNE ``rank``
-fields; use a dictionary instead.
+the same thing as a top-level null policy. Integers are rejected in direct MNE
+``rank`` fields; use a dictionary instead.
 
-Overrides can intentionally make consumers use different ranks, so they are
-an advanced compatibility feature rather than the recommended default. MNE
-may reject inconsistent data/noise covariance ranks during LCMV construction.
+Function-level settings can intentionally make consumers use different ranks,
+so use them only when that distinction has been validated for the analysis.
+MNE may reject inconsistent data/noise covariance ranks during LCMV
+construction.
 
 Raw and Empty-Room Noise
 ------------------------

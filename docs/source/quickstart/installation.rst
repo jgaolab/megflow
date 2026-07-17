@@ -123,9 +123,9 @@ the output owner explicitly.
      --static_artifact_overview_duration Seconds shown by the artifact overview
      --fs_license_file     Specify the FreeSurfer license file
      --fs_subjects_dir     Specify the FreeSurfer SUBJECTS_DIR directory
-     --t1_dir              Specify the T1 image directory
-     --t1_input_type       Specify the T1 input type
-     --t1_dicom_series_glob Optional relative glob for selecting DICOM series
+     --t1_dir              Single-dataset structural MRI input root (defaults to --input)
+     --t1_input_type       nifti|dicom for non-BIDS FreeSurfer input
+     --t1_dicom_series_glob Quoted relative glob below each non-BIDS T1 DICOM root
      --anatomy_preprocess_method freesurfer|deepprep|pseudomri
      --resume              Resume the previous run
 
@@ -139,3 +139,20 @@ logs. The entrypoint maps ``--fs_license_file`` into the effective
 ``anatomy.fs_license_file`` setting. In ``--corpus`` mode it also preserves
 named dataset profiles from the mounted config, including dataset-specific
 processing blocks and ``dataset_include`` / ``dataset_exclude`` filters.
+
+The structural MRI options have explicit scopes. In single-dataset mode,
+``--t1_dir`` sets ``datasets.docker_input.t1_dir`` and defaults to ``--input``
+when omitted. It is rejected with ``--corpus`` because each corpus dataset can
+have a different MRI root; set ``t1_dir`` in the corresponding named dataset
+profile instead. In corpus mode, ``--t1_input_type``,
+``--t1_dicom_series_glob``, and ``--anatomy_preprocess_method`` become shared
+defaults, while an explicit dataset profile still takes precedence.
+
+``--t1_input_type`` and ``--t1_dicom_series_glob`` apply only to non-BIDS
+FreeSurfer processing (``anatomy.method = "freesurfer"`` and
+``anatomy.is_bids = false``). The input type must be ``nifti`` or ``dicom``.
+The series selector must be relative to each DICOM root; quote the value so the
+host shell does not expand it, for example
+``--t1_dicom_series_glob '*mprage*'``. DeepPrep requires BIDS anatomy and does
+not use these two non-BIDS selectors. See :doc:`../reference/configuration`
+for the complete Docker-to-profile mapping.

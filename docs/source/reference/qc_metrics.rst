@@ -370,7 +370,8 @@ The static report writes a dataset dashboard and machine-readable summaries:
 
 .. list-table::
    :header-rows: 1
-   :widths: 32 68
+   :widths: 24 76
+   :class: qc-dataset-output-table
 
    * - File
      - Contents

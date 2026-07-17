@@ -173,9 +173,9 @@ while [[ "$#" -gt 0 ]]; do
             echo "  --static_artifact_overview_duration seconds"
             echo "  --fs_license_file     Specify the FreeSurfer license file"
             echo "  --fs_subjects_dir     Specify the FreeSurfer SUBJECTS_DIR directory containing processed T1 results"
-            echo "  --t1_dir              Specify the T1 image directory"
-            echo "  --t1_input_type       Specify the T1 input type"
-            echo "  --t1_dicom_series_glob Optional relative glob for selecting DICOM series under each T1 DICOM root"
+            echo "  --t1_dir              Single-dataset structural MRI input root (defaults to --input)"
+            echo "  --t1_input_type       nifti|dicom for non-BIDS FreeSurfer input"
+            echo "  --t1_dicom_series_glob Quoted relative glob below each non-BIDS T1 DICOM root"
             echo "  --anatomy_preprocess_method freesurfer|deepprep|pseudomri"
             echo "  --resume              Resume the previous run(nextflow options)"
             exit 0
@@ -203,6 +203,27 @@ if [ "$VIEW_REPORT" = true ]; then
     fi
     streamlit run "$STREAMLIT_APP_PATH" --server.port=8501 --server.headless=true
     exit 0
+fi
+
+if [ "$CORPUS_MODE" = true ] && [ -n "$T1_DIR" ]; then
+    echo "Error: --t1_dir is only valid for a single-dataset run. In corpus mode, set t1_dir in each named dataset profile."
+    exit 1
+fi
+
+if [ -n "$T1_INPUT_TYPE" ]; then
+    T1_INPUT_TYPE="$(printf '%s' "$T1_INPUT_TYPE" | tr '[:upper:]' '[:lower:]')"
+    case "$T1_INPUT_TYPE" in
+        nifti|dicom) ;;
+        *)
+            echo "Error: invalid --t1_input_type '$T1_INPUT_TYPE' (expected nifti or dicom)"
+            exit 1
+            ;;
+    esac
+fi
+
+if [[ "$T1_DICOM_SERIES_GLOB" = /* ]]; then
+    echo "Error: --t1_dicom_series_glob must be a relative glob beneath each T1 DICOM root."
+    exit 1
 fi
 
 # Check if input and output directories are specified

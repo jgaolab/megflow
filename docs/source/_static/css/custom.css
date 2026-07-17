@@ -26,6 +26,25 @@
   background-color: transparent !important;
 }
 
+.bd-content table.qc-dataset-output-table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.bd-content table.qc-dataset-output-table col:first-child {
+  width: 24% !important;
+}
+
+.bd-content table.qc-dataset-output-table col:last-child {
+  width: 76% !important;
+}
+
+.bd-content table.qc-dataset-output-table td:first-child code.literal,
+.bd-content table.qc-dataset-output-table td:first-child code.literal span.pre {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .megflow-home-links {
   margin: 1.65rem 0 2.2rem;
 }
