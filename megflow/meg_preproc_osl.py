@@ -336,6 +336,16 @@ def _should_apply_external_digitization(
     return not _has_embedded_headshape(preproc_file_path)
 
 
+def _osl_preprocessing_config(config):
+    """Return the complete OSL recipe without MEGFlow-only settings."""
+    if not isinstance(config, dict):
+        return config
+
+    osl_config = deepcopy(config)
+    osl_config.pop('digitization', None)
+    return osl_config
+
+
 def run_meg_preprocessing(file_path, preproc_dir, config, random_seed):
     """
     Run MEG preprocessing pipeline for a single file.
@@ -355,7 +365,7 @@ def run_meg_preprocessing(file_path, preproc_dir, config, random_seed):
     if not file_path.exists():
         raise FileNotFoundError(f"File {file_path} not found.")
 
-    osl_config = {'preproc': config.get('preproc', [])} if isinstance(config, dict) and 'preproc' in config else config
+    osl_config = _osl_preprocessing_config(config)
     preprocessing.run_proc_batch(
         config=osl_config,
         files=[str(file_path)],

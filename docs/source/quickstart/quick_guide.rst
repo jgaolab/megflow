@@ -119,8 +119,9 @@ Change the config when one of these applies:
    * - Your line noise frequency is not 50 Hz.
      - Edit the effective ``preproc.steps`` block. In corpus runs with mixed
        line frequencies, override ``preproc`` only in the relevant dataset
-       profiles. Keep the NormMEG-QC 1-100 Hz band-pass fixed; changing it
-       breaks comparability with the normative reference.
+       profiles. Keep the NormMEG-QC 1-100 Hz band-pass and 250 Hz sampling
+       rate fixed; changing them breaks comparability with the normative
+       reference.
    * - You want low-quality recordings to stop before later MEG analysis.
      - Set ``megqc.enabled = true`` and raise ``megqc.min_score``. For example,
        ``megqc.min_score = 70.0`` only lets recordings with an NMDQ score of

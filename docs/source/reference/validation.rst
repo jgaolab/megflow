@@ -4,8 +4,10 @@ Validation and Regression Testing
 MEGFlow includes three complementary test layers. Python unit tests exercise
 event handling, analysis preprocessing, DeepReject inputs, NMDQ score/report
 rendering, source-input resolution, rank precedence, and static configuration
-contracts. Lightweight MNE tests write synthetic low-rank Raw/Epochs FIF files
-and run real covariance estimation. Nextflow integration tests use
+contracts. Lightweight MNE/OSL tests write synthetic Raw/Epochs FIF files and
+run real OSL filtering/resampling, MNE epoch creation, and covariance
+estimation. Source tests bind representative kwargs against the installed MNE
+signatures and capture the actual inverse/beamformer calls. Nextflow integration tests use
 ``-stub-run`` to execute the real workflow graph without starting FreeSurfer,
 DeepPrep, or full source reconstruction.
 
@@ -52,6 +54,11 @@ The stub suite verifies the following workflow contracts:
      - Multiple datasets and recording profiles use distinct epoch,
        covariance, forward, and source directories and retain their own
        effective configuration.
+   * - MNE/OSL parameter propagation
+     - A three-level defaults/dataset/recording fixture verifies the complete
+       effective OSL preprocessing recipe and nested Epochs, covariance,
+       minimum-norm, and LCMV kwargs. It checks recursive map merging, whole-list
+       replacement, scientific-notation thresholds, and recording isolation.
    * - Source routing
      - Forward and covariance FIF paths are joined by
        ``[dataset, recording]`` identity. Missing, duplicate, or mismatched
@@ -87,8 +94,10 @@ What Stub Tests Do Not Prove
 ----------------------------
 
 Stub tests validate orchestration, identity, configuration propagation, output
-contracts, and cache invalidation. The synthetic MNE tests validate the local
-rank/covariance contracts but not a complete forward/inverse solution. Neither
+contracts, and cache invalidation. The synthetic MNE/OSL tests validate API
+acceptance and local numeric contracts but not whether a parameter is
+scientifically appropriate. Mocked source-call tests do not replace a complete
+forward/inverse solution on real anatomy. Neither
 layer validates vendor-specific readers, actual FreeSurfer/DeepPrep completion,
 GPU behavior, identical ICA subspaces between experimental and empty-room
 recordings, or scientific suitability of event and inverse-model parameters.

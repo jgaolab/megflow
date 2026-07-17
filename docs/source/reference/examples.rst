@@ -18,6 +18,10 @@ Use one of these repository files as the base:
 * :download:`nextflow_multi_dataset_demo.config
   <../../../nextflow/nextflow_multi_dataset_demo.config>` is a complete,
   runnable source-run example for WAND, SMN4Lang, and MEG-MASC.
+* :download:`nextflow_maxwell_tsss_example.config
+  <../../../nextflow/nextflow_maxwell_tsss_example.config>` demonstrates
+  MEGIN/Elekta Maxwell filtering and tSSS at default, dataset, and recording
+  configuration levels without enabling it in the shared defaults.
 
 For Docker, a small project config can include the full config already present
 inside the image:
@@ -31,6 +35,35 @@ inside the image:
 Mount that overlay at ``/program/nextflow/nextflow.config``. For a source run,
 either copy ``nextflow/nextflow.config`` and edit it or include it with a path
 that is valid from the project config's location.
+
+MEGIN/Elekta Maxwell and tSSS
+-----------------------------
+
+Use the OSL stage name ``maxwell_filter`` and MNE parameter names. A positive
+``st_duration`` enables tSSS. Site-specific fine-calibration and cross-talk
+files normally belong in the dataset profile; a recording override must repeat
+the full list because ``preproc.steps`` lists are replaced as a whole.
+
+.. code-block:: groovy
+
+   params.megflow.datasets.MEGIN_SITE_A.preproc = [steps: [
+     [maxwell_filter: [
+       calibration: "/data/site-a/calibration/sss_cal.dat",
+       cross_talk: "/data/site-a/calibration/ct_sparse.fif",
+       st_duration: 10.0,
+       st_correlation: 0.98,
+       origin: "auto",
+       coord_frame: "head"
+     ]],
+     [filter: [l_freq: 1.0, h_freq: 100.0]],
+     [notch_filter: [freqs: [50, 100]]],
+     [resample: [sfreq: 250]]
+   ]]
+
+The input Raw must already contain reliable bad-channel markings before this
+stage. See :ref:`the full configuration contract
+<configuration-maxwell-tsss>` and the downloadable example above before
+applying the settings to a new acquisition system.
 
 Single Dataset: First MEG Pass
 ------------------------------

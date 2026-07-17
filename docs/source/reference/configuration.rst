@@ -116,6 +116,9 @@ The following execution profiles are defined in ``nextflow.config``:
      - Behavior
    * - ``local``
      - Run tasks directly on the current workstation or server.
+   * - ``docker``
+     - Run the complete workflow in ``cmrlab/megflow:1.0.0`` when Nextflow is
+       launched from source. The image already contains DeepPrep.
    * - ``slurm``
      - Submit each task to Slurm using the process-specific CPU, memory, and
        time directives.
@@ -126,8 +129,8 @@ The following execution profiles are defined in ``nextflow.config``:
    * - ``debug``
      - Enable DEBUG logging and serialize tasks with ``maxForks = 1``.
 
-Slurm and Singularity site settings are provided through environment variables
-instead of hard-coded cluster names:
+Docker, Slurm, and Singularity site settings are provided through environment
+variables instead of anatomy-module parameters or hard-coded cluster names:
 
 .. list-table::
    :header-rows: 1
@@ -135,6 +138,11 @@ instead of hard-coded cluster names:
 
    * - Variable
      - Meaning
+   * - ``MEGFLOW_DOCKER_IMAGE``
+     - Complete MEGFlow image used by the source ``docker`` profile; defaults
+       to ``cmrlab/megflow:1.0.0``.
+   * - ``MEGFLOW_DOCKER_RUN_OPTIONS``
+     - Docker bind/runtime options; defaults to ``-v /data:/data``.
    * - ``MEGFLOW_SLURM_PARTITION``
      - Slurm partition or comma-separated partition list.
    * - ``MEGFLOW_SLURM_ACCOUNT`` / ``MEGFLOW_SLURM_QOS``
@@ -171,7 +179,19 @@ The Docker image is a different execution model: Nextflow already runs inside
 the MEGFlow container and therefore uses the local executor there. Do not enable
 Nextflow's per-process Docker scope in ``nextflow_for_docker.config``. The image
 entrypoint prepares output ownership and drops to the mounted data UID/GID before
-starting Nextflow.
+starting Nextflow. When Nextflow itself is launched from a source checkout, use
+``-profile docker,strict`` to containerize the complete workflow instead of
+starting a second container from inside ``run_deepprep``. For example:
+
+.. code-block:: bash
+
+   export MEGFLOW_DOCKER_RUN_OPTIONS='-v /data:/data -v /path/license.txt:/fs_license.txt:ro'
+   nextflow -C nextflow/project.config run nextflow/megflow.nf \
+     -profile docker,strict -resume
+
+The effective ``anatomy.fs_license_file`` must name the container-visible path
+(``/fs_license.txt`` above). A license already located below ``/data`` can use
+its unchanged path through the default ``/data:/data`` bind.
 
 .. _configuration-profile-resolution:
 
@@ -219,6 +239,51 @@ Not every field is meaningful at every scope:
      - Applied only after MEG import. It cannot change which files were
        discovered, create a missing anatomy plan, or change dataset-level report
        thresholds or BEM construction.
+
+Output Directory Contract
+-------------------------
+
+Only the run and dataset roots are public output settings. Change
+``params.megflow.output_dir`` to relocate the complete run, or set the
+top-level ``output_dir`` inside one dataset profile to relocate that dataset.
+Dataset output roots must be unique and non-overlapping. Changing a root starts
+a new output/work tree by default, so an earlier run's ``-resume`` cache is not
+expected to follow it automatically.
+
+Process subdirectories are part of MEGFlow's internal output contract and are
+not user parameters:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 32 28 40
+
+   * - Module
+     - Fixed directory
+     - Reason
+   * - ICA
+     - ``ica_report``
+     - Shared by ICA fitting, labeling, application, and reports.
+   * - Epochs
+     - ``epochs``
+     - Routed to covariance, forward/source processing, and reports.
+   * - Coregistration
+     - ``trans``
+     - Holds transforms and report figures.
+   * - Covariance
+     - ``covariance``
+     - Holds covariance, rank, and diagnostic artifacts.
+   * - Forward solution
+     - ``forward_solution``
+     - Routed directly to source reconstruction and reports.
+   * - Source reconstruction
+     - ``source_recon``
+     - Holds source estimates, routing metadata, and figures.
+
+Do not add ``output_dir`` inside ``ica``, ``epochs``, ``coreg``,
+``covariance``, ``forward``, or ``source``. Legacy configurations that repeat
+the corresponding fixed value remain accepted, but any different value fails
+before processing with an explanation to change the run- or dataset-level
+``output_dir`` instead.
 
 Keep ``meg_import``, ``mri_import``, ``anatomy``, ``bem``, dataset paths, and
 the primary dataset stage in the dataset profile. MEGFlow rejects these fields
@@ -637,27 +702,11 @@ the method with ``anatomy.method``.
      - relative glob or empty
      - empty
      - Limits DICOM conversion to matching series directories.
-   * - ``anatomy.deepprep_backend``
-     - ``local``, ``auto``, ``docker``, ``singularity``
-     - ``local``
-     - How the DeepPrep command is launched. ``auto`` tries the local command
-       first and then Docker.
-   * - ``anatomy.deepprep_command``
-     - executable path
-     - ``/opt/DeepPrep/deepprep/deepprep.sh``
-     - Local DeepPrep entrypoint.
-   * - ``anatomy.deepprep_container``
-     - image name
-     - ``cmrlab/megflow:1.0.0``
-     - Image used by the Docker backend.
-   * - ``anatomy.deepprep_sif``
-     - file path
-     - empty
-     - Required by the Singularity backend.
    * - ``anatomy.fs_license_file``
      - file path
      - ``/fs_license.txt``
-     - FreeSurfer license passed to DeepPrep and nested container backends.
+     - FreeSurfer license visible inside the MEGFlow runtime and passed to
+       DeepPrep.
    * - ``anatomy.deepprep_device``
      - ``cpu`` or backend-supported device
      - ``cpu``
@@ -674,8 +723,14 @@ the method with ``anatomy.method``.
 ``pseudomri`` requires usable digitization/headshape points in the imported MEG
 recording. ``freesurfer`` supports BIDS T1w input and non-BIDS NIfTI or DICOM
 input. ``deepprep`` imports BIDS T1w records and writes reconstructions into the
-dataset ``fs_subjects_dir``. ``bem.ico`` and ``bem.conductivity`` default to
-``4`` and ``[0.3]`` and are passed to MNE BEM model generation.
+dataset ``fs_subjects_dir``. DeepPrep is part of the MEGFlow image and its
+internal entrypoint is not configurable. Do not put container image, command,
+backend, or SIF paths in the anatomy block. Run the outer MEGFlow image, use the
+source ``docker`` profile, or compose ``singularity`` with the appropriate
+executor. A plain host ``local`` profile cannot run the DeepPrep branch unless
+it is already executing inside the MEGFlow image. ``bem.ico`` and
+``bem.conductivity`` default to ``4`` and ``[0.3]`` and are passed to MNE BEM
+model generation.
 
 NormMEG-QC
 ----------
@@ -748,8 +803,28 @@ The ``megqc`` block controls NormMEG-QC and the NMDQ score.
      - Segment length used by the configured score components.
    * - ``preproc``
      - ordered operation list
-     - 1-100 Hz plus 50 Hz notch
-     - QC-only preprocessing. Preserve the reference-aligned band-pass.
+     - 1-100 Hz, 50 Hz notch, then 250 Hz resampling
+     - QC-only preprocessing. Preserve the reference-aligned band-pass and
+       target sampling rate.
+
+The default reference-aligned operation order is:
+
+.. code-block:: groovy
+
+   megqc: [
+     preproc: [
+       [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
+                 iir_params: [order: 5, ftype: "butter"]]],
+       [notch_filter: [freqs: 50]],
+       [resample: [sfreq: 250]]
+     ]
+   ]
+
+The scorer also carries this sequence as its internal fallback. Omitting
+``megqc.preproc`` or setting it to an empty list therefore still applies the
+reference-aligned defaults. Set ``megqc.preproc = false`` only for diagnostic
+runs that intentionally disable reference preprocessing; resulting scores
+are not directly comparable with the bundled normative reference.
 
 See :doc:`qc_metrics` for component definitions, NMDQ score construction,
 threshold interpretation, and output files.
@@ -757,7 +832,8 @@ threshold interpretation, and output files.
 Continuous Preprocessing
 ------------------------
 
-``preproc.steps`` is an ordered list passed to OSL-Ephys. The Docker default is:
+``preproc.steps`` is a convenience spelling for the native OSL-Ephys
+``preproc`` operation list. The Docker default is:
 
 .. code-block:: groovy
 
@@ -770,13 +846,111 @@ Continuous Preprocessing
      ]
    ]
 
-Operations run from top to bottom. A dataset-level ``preproc.steps`` list
-replaces the inherited list, so repeat every operation that the dataset still
-needs. ``filter`` maps to MNE Raw filtering, ``notch_filter`` maps to Raw notch
-filtering, and ``resample`` is MEGFlow's configurable continuous downsampling
-mechanism. OSL-supported operations such as Maxwell/tSSS can be inserted in the
-same ordered list when the required calibration and cross-talk inputs are
-available.
+Operations run from top to bottom. A dataset- or recording-level
+``preproc.steps`` list replaces the inherited list, so repeat every operation
+that the override still needs. Nested maps inside the other modules are deep
+merged instead. ``filter`` resolves to MNE Raw filtering, ``notch_filter``
+resolves through the OSL wrapper to Raw notch filtering, and ``resample``
+resolves through the OSL wrapper to Raw resampling. The bundled notch wrapper
+accepts an MNE-style numeric list, a scalar, or the historical whitespace-
+separated string. OSL-supported operations such as Maxwell/tSSS can be inserted
+in the same ordered list when the required calibration and cross-talk inputs
+are available.
+
+MEGFlow removes only its own ``digitization`` block before invoking
+``osl_ephys.preprocessing.run_proc_batch``. Other native OSL recipe fields are
+retained. For example, the following expanded form is equivalent to using
+``steps`` while also supplying OSL metadata:
+
+.. code-block:: groovy
+
+   preproc: [
+     meta: [event_codes: null],
+     steps: [
+       [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
+                 iir_params: [order: 5, ftype: "butter"], phase: "zero"]],
+       [notch_filter: [freqs: [50, 100]]],
+       [resample: [sfreq: 250, npad: "auto"]]
+     ],
+     group: null
+   ]
+
+OSL resolves each operation by checking its wrappers before falling back to a
+method on the selected MNE object. Consequently, kwargs inside a direct MNE
+operation keep their MNE names. A native ``group`` block is preserved, but each
+MEGFlow preprocessing process normally contains one recording; cohort-level
+group statistics should therefore be implemented outside this per-recording
+hook.
+
+.. _configuration-maxwell-tsss:
+
+Maxwell Filtering and tSSS
+~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+MEGIN/Elekta recordings can run MNE Maxwell filtering as an OSL preprocessing
+stage named ``maxwell_filter``. OSL resolves that name to its
+``run_mne_maxwell_filter`` wrapper and forwards the nested arguments to
+``mne.preprocessing.maxwell_filter``. Setting ``st_duration`` to a positive
+duration in seconds enables temporal signal-space separation (tSSS); setting it
+to ``null`` performs SSS without the temporal extension.
+
+.. code-block:: groovy
+
+   preproc: [
+     steps: [
+       [maxwell_filter: [
+         origin: "auto",
+         int_order: 8,
+         ext_order: 3,
+         calibration: "/data/site-a/calibration/sss_cal.dat",
+         cross_talk: "/data/site-a/calibration/ct_sparse.fif",
+         st_duration: 10.0,
+         st_correlation: 0.98,
+         coord_frame: "head",
+         destination: null,
+         regularize: "in",
+         bad_condition: "warning",
+         st_fixed: true,
+         st_only: false,
+         skip_by_annotation: ["edge", "bad_acq_skip"]
+       ]],
+       [filter: [
+         l_freq: 1.0, h_freq: 100.0, method: "iir",
+         iir_params: [order: 5, ftype: "butter"]
+       ]],
+       [notch_filter: [freqs: [50, 100]]],
+       [resample: [sfreq: 250]]
+     ]
+   ]
+
+This ordering applies Maxwell/tSSS before temporal filtering, notch filtering,
+and resampling. ``calibration`` and ``cross_talk`` are site/system-specific;
+their paths must be readable in the source environment or mounted at the same
+paths inside the container. ``destination`` and head-position inputs should be
+set only when a validated movement-compensation policy is available.
+
+MNE requires bad MEG channels to be marked before Maxwell filtering so that
+their artifacts are not spread during reconstruction. The later MEGFlow
+``detect_artifacts`` process cannot satisfy that precondition: this stage sees
+only bad channels already present in the imported Raw or marked by an earlier,
+validated OSL operation.
+
+Use the MNE argument names shown above. The legacy OSL MaxFilter command-line
+names ``tsss``, ``st``, and ``corr`` belong to a different interface and are not
+valid arguments for this OSL/MNE stage. MEGFlow 1.0.0 pins MNE 1.8.0, so do not
+copy parameters introduced by newer MNE releases without checking the pinned
+signature. See the `MNE Maxwell filter API
+<https://mne.tools/1.8/generated/mne.preprocessing.maxwell_filter.html>`_ for
+the complete supported parameter set.
+
+Maxwell/tSSS is deliberately absent from the shared defaults because it is
+device- and site-specific. For corpus processing, place calibration and
+cross-talk paths in the dataset profile. If a recording profile changes the
+tSSS window or threshold, repeat the complete ordered ``preproc.steps`` list:
+lists replace inherited lists rather than merging item by item. The downloadable
+:download:`three-level Maxwell/tSSS example
+<../../../nextflow/nextflow_maxwell_tsss_example.config>` demonstrates default,
+dataset, and recording scopes.
 
 For task data, MEGFlow finds stimulation-channel events before optional
 ``epochs.preproc`` resampling and remaps samples through MNE. Nevertheless,
@@ -905,7 +1079,7 @@ configured bad-segment detectors.
 ICA and Component Labeling
 --------------------------
 
-``ica.output_dir`` defaults to ``ica_report``;
+ICA derivatives use the fixed internal ``ica_report`` directory.
 ``ica.num_components`` defaults to ``60`` and is passed as MNE ICA
 ``n_components``; ``ica.compute_explained_variance`` defaults to false because
 per-component figure computation is expensive. ICA uses FastICA, the configured
@@ -964,10 +1138,6 @@ Epochs
      - Type / values
      - Default
      - Meaning
-   * - ``output_dir``
-     - relative directory
-     - ``epochs``
-     - Epoch derivative directory.
    * - ``preproc``
      - ordered list
      - empty
@@ -1019,6 +1189,12 @@ Epochs
        ``reject_by_annotation``, ``picks``, ``baseline``, ``reject``,
        ``preload``, and ``detrend``.
 
+Every key inside ``epochs.epochs`` is passed to ``mne.Epochs`` after MEGFlow
+supplies ``raw`` and ``events``. This supports other MNE arguments such as
+``flat``, ``proj``, ``decim``, ``reject_tmin``, ``reject_tmax``, ``on_missing``,
+and ``event_repeated`` without a MEGFlow-specific rename. Do not place ``raw``
+or ``events`` in the configuration because they are routed by the workflow.
+
 The default task epoch block is only a template. Event source, event ids,
 timing, baseline, and rejection thresholds must be validated for each dataset
 before ``meg_epochs``, ``meg_all``, or ``all`` is expected to complete.
@@ -1051,9 +1227,6 @@ Covariance
    * - Field
      - Default
      - Meaning
-   * - ``output_dir``
-     - ``covariance``
-     - Covariance derivative directory.
    * - ``visualize``
      - ``true``
      - Writes covariance matrix and spectrum figures.
@@ -1081,6 +1254,12 @@ Covariance
    * - ``covariance``
      - tmin null, tmax null
      - MNE keyword arguments passed to ``mne.compute_covariance``.
+
+The ``compute_raw_covariance`` and ``covariance`` maps are passed as kwargs to
+their namesake MNE functions. MEGFlow adds the resolved ``rank`` from
+``rank_policy`` unless that function-level map explicitly supplies ``rank``.
+For epoch covariance, ``covariance.epochs`` follows the same direct
+``mne.Epochs`` contract as ``epochs.epochs``.
 
 ``bl-cov.fif`` is always produced for a full source run. The same covariance
 process also writes ``lcmv-data-cov.fif`` only when the effective
@@ -1129,9 +1308,9 @@ BEM, Coregistration, Forward, and Source
    * - ``bem.conductivity``
      - ``[0.3]``
      - Single-layer MEG BEM conductivity.
-   * - ``coreg.output_dir`` / ``coreg.visualize``
-     - ``trans`` / true
-     - Transform output and figures.
+   * - ``coreg.visualize``
+     - ``true``
+     - Generates transform-alignment figures.
    * - ``coreg.omit_head_shape_points``
      - ``1`` mm
      - Distance used to omit headshape points before fitting.
@@ -1147,18 +1326,12 @@ BEM, Coregistration, Forward, and Source
    * - ``coreg.supplied_trans_file``
      - unset
      - Reuses a supplied transform instead of fitting a new one.
-   * - ``forward.output_dir``
-     - ``forward_solution``
-     - Forward derivative directory.
    * - ``forward.epoch_label``
      - ``wdonset``
      - Label used in forward output naming.
    * - ``forward.surface`` / ``forward.spacing``
      - ``white`` / ``ico4``
      - Cortical surface and source-space spacing.
-   * - ``source.output_dir``
-     - ``source_recon``
-     - Source derivative directory.
    * - ``source.type``
      - ``epochs``
      - Source input mode: ``epochs`` or ``raw``.
@@ -1174,12 +1347,18 @@ BEM, Coregistration, Forward, and Source
    * - ``source.spacing`` / ``source.epoch_label``
      - ``ico4`` / ``wdonset``
      - Source-space spacing and output label.
-   * - ``source.dSPM.inverse_operator``
+   * - ``source.<method>.make_inverse_operator``
      - loose auto, depth 0.8, fixed auto
-     - Passed to MNE inverse-operator construction.
-   * - ``source.dSPM.apply_inverse``
-     - method dSPM, normal orientation
-     - Passed to MNE inverse application.
+     - Passed to ``mne.minimum_norm.make_inverse_operator``.
+       ``inverse_operator`` remains a compatible alias.
+   * - ``source.<method>.apply_inverse``
+     - lambda2 1/9, method dSPM, normal orientation
+     - Passed to ``mne.minimum_norm.apply_inverse`` for epoched source data.
+   * - ``source.<method>.apply_inverse_raw``
+     - falls back to ``apply_inverse``; lambda2 defaults to 1/9
+     - Passed to ``mne.minimum_norm.apply_inverse_raw`` for continuous source
+       data. Use it for raw-only arguments such as ``start``, ``stop``, and
+       ``buffer_size``.
    * - ``source.LCMV.data_covariance``
      - tmin 0.01, tmax 0.4, method auto
      - Passed to ``mne.compute_covariance`` for Epochs or
@@ -1187,6 +1366,10 @@ BEM, Coregistration, Forward, and Source
    * - ``source.LCMV.make_lcmv``
      - reg 0.05, pick_ori null, unit-noise-gain-invariant normalization
      - Passed to ``mne.beamformer.make_lcmv``.
+   * - ``source.LCMV.apply_lcmv`` / ``apply_lcmv_raw``
+     - empty
+     - Passed to the matching epoched or continuous MNE LCMV application
+       function.
    * - ``source.LCMV.n_rank``
      - unset
      - Legacy integer/string/dictionary override used after the corresponding
@@ -1203,6 +1386,85 @@ Source kwargs correspond to
 and `make_lcmv <https://mne.tools/stable/generated/mne.beamformer.make_lcmv.html>`_.
 The complete rank precedence and conditional covariance behavior are described
 in :doc:`rank_covariance`.
+
+MNE and OSL Parameter Passthrough Example
+-----------------------------------------
+
+The following representative settings use MNE argument names directly. They
+may be placed in ``defaults``, a dataset profile, or a recording profile. Maps
+are recursively merged across those levels; operation lists such as
+``preproc.steps`` are replaced as a whole.
+
+.. code-block:: groovy
+
+   preproc: [
+     steps: [
+       [filter: [
+         l_freq: 1.0, h_freq: 80.0, method: "iir",
+         iir_params: [order: 4, ftype: "butter"],
+         phase: "zero", pad: "reflect_limited"
+       ]],
+       [notch_filter: [freqs: [50, 100], method: "fir"]],
+       [resample: [sfreq: 250, npad: "auto", window: "boxcar"]]
+     ]
+   ],
+
+   epochs: [
+     event_source: "find_events",
+     find_events: [stim_channel: "STI 014", shortest_event: 1],
+     epochs: [
+       event_id: 1, tmin: -0.2, tmax: 0.8, baseline: [null, 0.0],
+       picks: "meg", preload: true, proj: false, decim: 2,
+       reject: [mag: 4e-12], reject_tmin: -0.1, reject_tmax: 0.6,
+       reject_by_annotation: true, event_repeated: "merge"
+     ]
+   ],
+
+   covariance: [
+     type: "epochs",
+     epochs: [event_id: 1, tmin: -0.2, tmax: 0.0,
+              baseline: null, picks: "meg", preload: true],
+     covariance: [
+       keep_sample_mean: true, tmin: null, tmax: null,
+       method: "empirical", cv: 3, n_jobs: 1
+     ],
+     compute_raw_covariance: [
+       tmin: 0.0, tmax: null, tstep: 0.2,
+       method: "empirical", reject_by_annotation: true, n_jobs: 1
+     ]
+   ],
+
+   source: [
+     type: "epochs",
+     source_methods: ["dSPM", "LCMV"],
+     dSPM: [
+       make_inverse_operator: [
+         loose: "auto", depth: 0.8, fixed: "auto", use_cps: true
+       ],
+       apply_inverse: [
+         lambda2: 0.1111111111111111, method: "dSPM", pick_ori: "normal"
+       ],
+       apply_inverse_raw: [
+         lambda2: 0.1111111111111111, method: "dSPM",
+         start: null, stop: null, buffer_size: 1000
+       ]
+     ],
+     LCMV: [
+       data_covariance: [tmin: 0.01, tmax: 0.4, method: "empirical"],
+       make_lcmv: [
+         reg: 0.05, pick_ori: null,
+         weight_norm: "unit-noise-gain-invariant", inversion: "matrix"
+       ],
+       apply_lcmv: [verbose: "INFO"],
+       apply_lcmv_raw: [start: null, stop: null, verbose: "INFO"]
+     ]
+   ]
+
+These are API passthrough capabilities, not universal scientific defaults.
+Filter bands, epoch windows, rejection limits, covariance intervals, inverse
+orientation, and beamformer regularization must still be selected for the
+dataset and hypothesis. MEGFlow 1.0.0 pins MNE 1.8.0; validate new kwargs against
+that runtime even when consulting newer MNE stable documentation.
 
 Report
 ------

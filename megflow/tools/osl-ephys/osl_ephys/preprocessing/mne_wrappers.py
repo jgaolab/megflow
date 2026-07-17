@@ -99,11 +99,15 @@ def run_mne_notch_filter(dataset, userargs):
     logger.info("MNE Stage - {0}.{1}".format(target, "notch_filter"))
     logger.info("userargs: {0}".format(str(userargs)))
     freqs = userargs.pop("freqs")
-    freqs = [
-        float(freqs)
-        if np.logical_or(type(freqs) == int, type(freqs) == float)
-        else np.array(freqs.split(" ")).astype(float)
-    ]
+    if isinstance(freqs, str):
+        freqs = np.asarray(
+            [item for item in freqs.replace(",", " ").split() if item],
+            dtype=float,
+        )
+    elif np.isscalar(freqs):
+        freqs = np.asarray([freqs], dtype=float)
+    else:
+        freqs = np.asarray(freqs, dtype=float).reshape(-1)
     dataset[target].notch_filter(freqs, **userargs)
     return dataset
 

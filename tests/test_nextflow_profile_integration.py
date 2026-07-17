@@ -46,7 +46,7 @@ def create_dataset(root, tasks=("main",), *, with_t1=True):
         (anat_dir / "sub-01_T1w.nii.gz").write_text("synthetic T1\n", encoding="utf-8")
 
 
-def write_config(path, output_dir, datasets_text):
+def write_config(path, output_dir, datasets_text, *, defaults_override="[:]"):
     path.write_text(
         textwrap.dedent(
             f"""
@@ -58,7 +58,7 @@ def write_config(path, output_dir, datasets_text):
                     dataset_include: [],
                     dataset_exclude: [],
                     error_mode: "strict",
-                    defaults: [
+                    defaults: ([
                         steps: "meg_all",
                         dataset_format: "raw",
                         file_suffix: ".fif",
@@ -73,21 +73,20 @@ def write_config(path, output_dir, datasets_text):
                         preproc: [steps: []],
                         digitization: [enabled: false],
                         artifacts: [:],
-                        ica: [output_dir: "ica_report", num_components: 2],
+                        ica: [num_components: 2],
                         ic_label: [:],
                         epochs: [
-                            output_dir: "epochs",
                             preproc: [],
                             task_type: "rest",
                             resting: [fixed_length_duration: 2.0]
                         ],
                         bem: [ico: 4, conductivity: [0.3]],
-                        coreg: [output_dir: "trans", visualize: false],
-                        covariance: [output_dir: "covariance", type: "epochs", visualize: false],
-                        forward: [output_dir: "forward_solution", epoch_label: "event", surface: "white", spacing: "ico4"],
-                        source: [output_dir: "source_recon", type: "epochs", visualize: false, source_methods: [], data_type: "meg", spacing: "ico4", epoch_label: "event"],
+                        coreg: [visualize: false],
+                        covariance: [type: "epochs", visualize: false],
+                        forward: [epoch_label: "event", surface: "white", spacing: "ico4"],
+                        source: [type: "epochs", visualize: false, source_methods: [], data_type: "meg", spacing: "ico4", epoch_label: "event"],
                         report: [static_task_log_mode: "none"]
-                    ],
+                    ] + {defaults_override}),
                     datasets: [
                         {datasets_text}
                     ]
@@ -107,6 +106,13 @@ def write_config(path, output_dir, datasets_text):
                 executor = "local"
                 errorStrategy = "terminate"
                 maxForks = 8
+
+                // Stub tasks only create tiny fixture files. Override production
+                // process directives so routing tests do not depend on runner RAM.
+                withName: '.*' {{
+                    cpus = 1
+                    memory = "512 MB"
+                }}
             }}
             """
         ).strip()
@@ -214,7 +220,25 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
 
             self.run_pipeline(config, output)
             names = self.trace_names(output)
-            self.assertTrue(any(name.startswith("generate_static_html_report (report_stage)") for name in names))
+            report_datasets = {
+                "report_stage",
+                "artifacts_stage",
+                "ica_stage",
+                "epochs_stage",
+                "skip_ica_stage",
+                "full_stage",
+                "all_stage",
+            }
+            for dataset_name in report_datasets:
+                self.assertTrue(
+                    any(
+                        name.startswith(
+                            f"generate_static_html_report ({dataset_name})"
+                        )
+                        for name in names
+                    ),
+                    dataset_name,
+                )
             self.assertFalse(any("import_meg_dataset (report_stage)" in name for name in names))
 
             smri = output / "smri"
@@ -270,26 +294,26 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                     auditory_profile: [
                         match: [subject: "01", task: "auditory"],
                         preproc: [test_marker: "auditory"],
-                        epochs: [output_dir: "epochs_auditory"],
-                        covariance: [output_dir: "cov_auditory"],
-                        forward: [output_dir: "fwd_auditory", epoch_label: "auditory", spacing: "ico4"],
-                        source: [output_dir: "src_auditory", epoch_label: "auditory"]
+                        epochs: [event_time_shift_sec: 0.01],
+                        covariance: [event_time_shift_sec: 0.01],
+                        forward: [epoch_label: "auditory", spacing: "ico4"],
+                        source: [epoch_label: "auditory"]
                     ],
                     visual_profile: [
                         match: [subject: "01", task: "visual"],
                         preproc: [test_marker: "visual"],
-                        epochs: [output_dir: "epochs_visual"],
-                        covariance: [output_dir: "cov_visual"],
-                        forward: [output_dir: "fwd_visual", epoch_label: "visual", spacing: "ico4"],
-                        source: [output_dir: "src_visual", epoch_label: "visual"]
+                        epochs: [event_time_shift_sec: 0.02],
+                        covariance: [event_time_shift_sec: 0.02],
+                        forward: [epoch_label: "visual", spacing: "ico4"],
+                        source: [epoch_label: "visual"]
                     ]
                 ]"""
             dataset_b_extra = """,
                 preproc: [test_marker: "language"],
-                epochs: [output_dir: "epochs_language"],
-                covariance: [output_dir: "cov_language"],
-                forward: [output_dir: "fwd_language", epoch_label: "language", spacing: "ico4"],
-                source: [output_dir: "src_language", epoch_label: "language"]"""
+                epochs: [event_time_shift_sec: 0.03],
+                covariance: [event_time_shift_sec: 0.03],
+                forward: [epoch_label: "language", spacing: "ico4"],
+                source: [epoch_label: "language"]"""
             blocks = [
                 dataset_block("dataset_a", dataset_a, extra=recordings),
                 dataset_block("dataset_b", dataset_b, extra=dataset_b_extra),
@@ -310,7 +334,7 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                     / "datasets"
                     / dataset
                     / "preprocessed"
-                    / f"src_{task}"
+                    / "source_recon"
                     / recording
                     / "routing.json"
                 )
@@ -318,10 +342,166 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                 self.assertEqual(payload["key"], [dataset, recording])
                 self.assertEqual(payload["recording_profile"], profile)
                 self.assertEqual(payload["config_marker"], task)
-                self.assertIn(f"/epochs_{task}/{recording}/", payload["epoch_file"])
-                self.assertIn(f"/fwd_{task}/{recording}/", payload["forward_file"])
-                self.assertIn(f"/cov_{task}/{recording}/", payload["covariance_file"])
+                self.assertEqual(payload["source_config"]["epoch_label"], task)
+                self.assertIn(f"/epochs/{recording}/", payload["epoch_file"])
+                self.assertIn(
+                    f"/forward_solution/{recording}/{task}_ico4-fwd.fif",
+                    payload["forward_file"],
+                )
+                self.assertIn(f"/covariance/{recording}/", payload["covariance_file"])
                 self.assertNotIn("dataset_a", payload["forward_file"] if dataset == "dataset_b" else "")
+
+    def test_mne_and_osl_kwargs_survive_default_dataset_recording_merges(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            create_dataset(dataset, ("regular", "special"))
+            defaults_override = """[
+                preproc: [
+                    meta: [event_codes: [default_event: 1]],
+                    steps: [[filter: [
+                        l_freq: 1.0, h_freq: 90.0, method: "iir",
+                        iir_params: [order: 4, ftype: "butter"], phase: "zero"
+                    ]]]
+                ],
+                epochs: [
+                    preproc: [], task_type: "resting",
+                    resting: [fixed_length_duration: 2.0],
+                    epochs: [
+                        event_id: 1, tmin: -0.2, tmax: 0.8,
+                        baseline: [null, 0.0], proj: true, decim: 1,
+                        reject: [mag: 4e-12]
+                    ]
+                ],
+                covariance: [
+                    type: "epochs", visualize: false,
+                    covariance: [
+                        keep_sample_mean: true, tmin: null, tmax: 0.0,
+                        method: "empirical", cv: 3
+                    ]
+                ],
+                source: [
+                    type: "epochs", visualize: false,
+                    source_methods: ["dSPM"], data_type: "meg",
+                    spacing: "ico4", epoch_label: "event",
+                    dSPM: [
+                        make_inverse_operator: [
+                            loose: "auto", depth: 0.8, fixed: "auto", use_cps: true
+                        ],
+                        apply_inverse: [
+                            lambda2: 0.1111111111111111,
+                            method: "dSPM", pick_ori: "normal"
+                        ]
+                    ]
+                ]
+            ]"""
+            extra = """,
+                preproc: [
+                    meta: [event_codes: [dataset_event: 2]],
+                    steps: [[filter: [
+                        l_freq: 1.0, h_freq: 70.0, method: "iir",
+                        iir_params: [order: 5, ftype: "butter"], phase: "zero-double"
+                    ]]]
+                ],
+                epochs: [epochs: [tmax: 0.6, proj: false]],
+                covariance: [covariance: [cv: 5]],
+                source: [dSPM: [make_inverse_operator: [depth: 0.6]]],
+                recordings: [
+                    special_parameters: [
+                        match: [task: "special"],
+                        preproc: [steps: [[filter: [
+                            l_freq: 2.0, h_freq: 40.0, method: "iir",
+                            iir_params: [order: 3, ftype: "butter"], phase: "zero"
+                        ]]]],
+                        epochs: [epochs: [decim: 2, reject_tmin: -0.1]],
+                        covariance: [covariance: [tmax: -0.01, n_jobs: 1]],
+                        source: [dSPM: [apply_inverse: [lambda2: 0.04, use_cps: false]]]
+                    ]
+                ]"""
+            config = root / "mne-config-contract.config"
+            write_config(
+                config,
+                output,
+                dataset_block("dataset", dataset, extra=extra),
+                defaults_override=defaults_override,
+            )
+            self.run_pipeline(config, output)
+
+            regular_recording = "sub-01_task-regular_run-01_meg"
+            regular_route = json.loads(
+                (
+                    output
+                    / "preprocessed"
+                    / "source_recon"
+                    / regular_recording
+                    / "routing.json"
+                ).read_text(encoding="utf-8")
+            )
+            special_recording = "sub-01_task-special_run-01_meg"
+            special_route = json.loads(
+                (
+                    output
+                    / "preprocessed"
+                    / "source_recon"
+                    / special_recording
+                    / "routing.json"
+                ).read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(regular_route["recording_profile"], "")
+            self.assertEqual(
+                regular_route["preproc_config"]["meta"]["event_codes"],
+                {"default_event": 1, "dataset_event": 2},
+            )
+            regular_filter = regular_route["preproc_config"]["preproc"][0]["filter"]
+            self.assertEqual(regular_filter["h_freq"], 70.0)
+            self.assertEqual(regular_filter["phase"], "zero-double")
+
+            self.assertEqual(special_route["recording_profile"], "special_parameters")
+            self.assertNotIn("steps", special_route["preproc_config"])
+            self.assertEqual(
+                special_route["preproc_config"]["meta"]["event_codes"],
+                {"default_event": 1, "dataset_event": 2},
+            )
+            special_filter = special_route["preproc_config"]["preproc"][0]["filter"]
+            self.assertEqual(
+                special_filter,
+                {
+                    "l_freq": 2.0,
+                    "h_freq": 40.0,
+                    "method": "iir",
+                    "iir_params": {"order": 3, "ftype": "butter"},
+                    "phase": "zero",
+                },
+            )
+
+            epoch_kwargs = special_route["epochs_config"]["epochs"]
+            self.assertEqual(epoch_kwargs["tmin"], -0.2)
+            self.assertEqual(epoch_kwargs["tmax"], 0.6)
+            self.assertFalse(epoch_kwargs["proj"])
+            self.assertEqual(epoch_kwargs["decim"], 2)
+            self.assertEqual(epoch_kwargs["reject_tmin"], -0.1)
+            self.assertEqual(epoch_kwargs["reject"]["mag"], 4e-12)
+
+            covariance_kwargs = special_route["covariance_config"]["covariance"]
+            self.assertTrue(covariance_kwargs["keep_sample_mean"])
+            self.assertEqual(covariance_kwargs["method"], "empirical")
+            self.assertEqual(covariance_kwargs["cv"], 5)
+            self.assertEqual(covariance_kwargs["tmax"], -0.01)
+            self.assertEqual(covariance_kwargs["n_jobs"], 1)
+
+            source_config = special_route["source_config"]
+            inverse_kwargs = source_config["dSPM"]["make_inverse_operator"]
+            apply_kwargs = source_config["dSPM"]["apply_inverse"]
+            self.assertEqual(inverse_kwargs["loose"], "auto")
+            self.assertEqual(inverse_kwargs["depth"], 0.6)
+            self.assertEqual(inverse_kwargs["fixed"], "auto")
+            self.assertTrue(inverse_kwargs["use_cps"])
+            self.assertEqual(apply_kwargs["lambda2"], 0.04)
+            self.assertEqual(apply_kwargs["method"], "dSPM")
+            self.assertEqual(apply_kwargs["pick_ori"], "normal")
+            self.assertFalse(apply_kwargs["use_cps"])
 
     def test_recording_level_steps_reduce_the_dataset_stage(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -542,6 +722,25 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             )
             self.assertIn("dataset-only fields", combined)
 
+    def test_nonstandard_process_output_directory_fails_fast(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            create_dataset(dataset)
+            extra = """,
+                epochs: [output_dir: "custom_epochs"]"""
+            config = root / "invalid-process-output.config"
+            write_config(config, output, dataset_block("dataset", dataset, extra=extra))
+
+            _, combined = self.run_pipeline(
+                config, output, stub=False, expect_success=False
+            )
+            self.assertIn(
+                "epochs.output_dir is internal and fixed to 'epochs'", combined
+            )
+            self.assertIn("dataset-level output_dir", combined)
+
     def test_invalid_match_fields_and_overlapping_profiles_fail_fast(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -710,6 +909,9 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                 "source_imaging",
             ):
                 self.assertEqual(statuses(process_name), {"COMPLETED"}, process_name)
+            self.assertEqual(
+                statuses("generate_static_html_report"), {"COMPLETED"}
+            )
 
             time.sleep(1.1)
             meg_dir = dataset / "sub-01" / "meg"

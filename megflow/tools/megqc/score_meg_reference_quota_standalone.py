@@ -14,6 +14,7 @@ import json
 import math
 import re
 from collections.abc import Iterable as IterableABC
+from copy import deepcopy
 from pathlib import Path
 from typing import Iterable
 
@@ -23,6 +24,23 @@ import pandas as pd
 
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_MODEL = "lowcost_quota_T4_S2_Stat1_Fr1"
+DEFAULT_REFERENCE_PREPROC_STEPS: list[dict[str, object]] = [
+    {
+        "filter": {
+            "l_freq": 1.0,
+            "h_freq": 100.0,
+            "method": "iir",
+            "iir_params": {"order": 5, "ftype": "butter"},
+        }
+    },
+    {"notch_filter": {"freqs": 50}},
+    {"resample": {"sfreq": 250}},
+]
+
+
+def default_reference_preproc_steps() -> list[dict[str, object]]:
+    """Return an isolated copy of the reference-aligned QC preprocessing."""
+    return deepcopy(DEFAULT_REFERENCE_PREPROC_STEPS)
 
 
 def load_optional_mne():
@@ -148,6 +166,13 @@ def _fallback_preproc_steps(text: str) -> list[dict[str, object]]:
                 cfg["method"] = method_match.group(1)
             if cfg:
                 steps.append({"notch_filter": cfg})
+        elif "resample:" in stripped:
+            sfreq_match = re.search(
+                r"sfreq\s*:\s*([-+]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][-+]?\d+)?)",
+                stripped,
+            )
+            if sfreq_match:
+                steps.append({"resample": {"sfreq": float(sfreq_match.group(1))}})
     if not steps:
         raise ValueError("Could not parse NormMEG-QC preprocessing config without PyYAML.")
     return steps
@@ -156,15 +181,36 @@ def _fallback_preproc_steps(text: str) -> list[dict[str, object]]:
 def load_preproc_steps(config_text: str | None) -> list[dict[str, object]]:
     """Parse the small OSL-style preprocessing subset used before QC scoring."""
     text = (config_text or "").strip()
-    if not text or text.lower() in {"none", "false", "off"}:
+    if not text:
+        return default_reference_preproc_steps()
+    if text.lower() in {"none", "false", "off"}:
         return []
-    try:
-        import yaml  # type: ignore
-    except Exception:
-        return _fallback_preproc_steps(text)
 
-    parsed = yaml.safe_load(text) or {}
-    steps = parsed.get("preproc", parsed if isinstance(parsed, list) else [])
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            import yaml  # type: ignore
+        except Exception:
+            return _fallback_preproc_steps(text)
+        parsed = yaml.safe_load(text)
+
+    if parsed is None:
+        return default_reference_preproc_steps()
+    if isinstance(parsed, list):
+        steps = parsed
+    elif isinstance(parsed, dict):
+        steps = parsed.get("preproc")
+    else:
+        raise ValueError("NormMEG-QC preprocessing config must be a mapping or list.")
+
+    if steps is None or steps == []:
+        return default_reference_preproc_steps()
+    if steps is False or (
+        isinstance(steps, str)
+        and steps.strip().lower() in {"none", "false", "off"}
+    ):
+        return []
     if not isinstance(steps, list):
         raise ValueError("NormMEG-QC preprocessing config must contain a 'preproc' list.")
     return [step for step in steps if isinstance(step, dict)]
@@ -190,9 +236,9 @@ def apply_reference_preprocessing(raw, args: argparse.Namespace):
         raise ValueError("no MEG channels available for reference preprocessing")
 
     applied: list[dict[str, object]] = []
-    sfreq = float(raw.info.get("sfreq", np.nan))
-    nyquist = sfreq / 2.0 if np.isfinite(sfreq) and sfreq > 0 else np.nan
     for step in steps:
+        sfreq = float(raw.info.get("sfreq", np.nan))
+        nyquist = sfreq / 2.0 if np.isfinite(sfreq) and sfreq > 0 else np.nan
         if "filter" in step and isinstance(step["filter"], dict):
             cfg = dict(step["filter"])
             l_freq = _float_or_none(cfg.get("l_freq"))
@@ -241,6 +287,50 @@ def apply_reference_preprocessing(raw, args: argparse.Namespace):
                     "source": "config",
                 }
             )
+        elif "resample" in step and isinstance(step["resample"], dict):
+            cfg = dict(step["resample"])
+            target_sfreq = _float_or_none(cfg.get("sfreq"))
+            if target_sfreq is None or target_sfreq <= 0:
+                raise ValueError("NormMEG-QC resample.sfreq must be a positive number.")
+
+            method = str(cfg.get("method") or "fft")
+            if np.isclose(sfreq, target_sfreq, rtol=0.0, atol=1e-9):
+                applied.append(
+                    {
+                        "step": "resample",
+                        "sfreq_before": sfreq,
+                        "sfreq": target_sfreq,
+                        "sfreq_after": sfreq,
+                        "method": method,
+                        "status": "skipped",
+                        "reason": "already at target sampling rate",
+                    }
+                )
+                continue
+
+            kwargs: dict[str, object] = {
+                "npad": cfg.get("npad") or "auto",
+                "method": method,
+                "n_jobs": int(getattr(args, "n_jobs", 1)),
+                "verbose": "error",
+            }
+            for key in ("window", "pad"):
+                if key in cfg and cfg[key] is not None:
+                    kwargs[key] = cfg[key]
+            raw.resample(target_sfreq, **kwargs)
+            applied.append(
+                {
+                    "step": "resample",
+                    "sfreq_before": sfreq,
+                    "sfreq": target_sfreq,
+                    "sfreq_after": float(raw.info["sfreq"]),
+                    "method": method,
+                    "status": "applied",
+                }
+            )
+        else:
+            operation = next(iter(step), "<empty>")
+            raise ValueError(f"Unsupported NormMEG-QC preprocessing operation: {operation}")
     return raw, applied
 
 
@@ -947,7 +1037,7 @@ def main() -> None:
     parser.add_argument(
         "--preproc-config",
         default="",
-        help="Explicit YAML preprocessing config applied before scoring. No default is applied by the scorer.",
+        help="YAML preprocessing override. Empty input uses the built-in 1-100 Hz, 50 Hz notch, and 250 Hz reference preprocessing.",
     )
     parser.add_argument(
         "--omit-bad-annotations",

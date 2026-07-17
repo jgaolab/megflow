@@ -12,6 +12,16 @@ interactive report is used when reviewers need to inspect the underlying
 recording, edit sidecar files, and continue the workflow with Nextflow
 ``-resume``.
 
+Downloadable Report Demonstrations
+----------------------------------
+A complete MEGFlow report demonstration package is available from the
+`MEGFlow demonstration archive on OSF
+<https://doi.org/10.17605/OSF.IO/QE93S>`__. The archive provides a complete,
+self-contained static HTML report package for download and a demonstration
+video showing how the interactive Streamlit report is opened and reviewed.
+After extracting the static report package, open its ``index.html`` file in a
+web browser; no running MEGFlow service is required.
+
 .. figure:: ../_static/megflow_runtime.png
    :alt: MEGFlow running through Nextflow and completing selected processing steps.
    :class: megflow-report-figure

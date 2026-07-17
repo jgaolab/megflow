@@ -26,7 +26,7 @@ examples/quspin_rier2024_sub001
 The example data are distributed separately on OSF:
 
 ```text
-https://osf.io/qe93s/overview
+https://doi.org/10.17605/OSF.IO/QE93S
 ```
 
 Download `opm-examples.7z` from that OSF project and extract it in this folder

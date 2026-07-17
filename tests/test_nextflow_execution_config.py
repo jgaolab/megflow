@@ -13,6 +13,7 @@ INTERACTIVE_NEXTFLOW = REPO_ROOT / "megflow" / "reports" / "reports" / "nextflow
 INTERACTIVE_CONFIG = REPO_ROOT / "megflow" / "reports" / "reports" / "nx_config_online.py"
 MULTI_DATASET_DEMO = REPO_ROOT / "nextflow" / "nextflow_multi_dataset_demo.config"
 OPM_COG_TASK_OVERRIDE_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_opm_cog_task_overrides_example.config"
+MAXWELL_TSSS_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_maxwell_tsss_example.config"
 MULTI_DATASET_SOURCE_RUNNER = REPO_ROOT / "run_MultiDatasets_sourcecode.sh"
 OPM_COG_RUNNER = REPO_ROOT / "run_OPM_COG.sh"
 MEGQC_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_megqc.config"
@@ -73,14 +74,79 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         if not DOCKER_CONFIG.is_file():
             self.skipTest("the container image packages only its Docker execution config")
         text = SOURCE_CONFIG.read_text(encoding="utf-8")
-        for profile in ("local", "slurm", "singularity", "lenient", "strict", "debug"):
+        for profile in ("local", "docker", "slurm", "singularity", "lenient", "strict", "debug"):
             self.assertRegex(text, rf"(?m)^\s{{4}}{profile}\s*\{{")
         self.assertIn('executor.queueSize = (System.getenv("MEGFLOW_SLURM_QUEUE_SIZE") ?: "100") as int', text)
+
+    def test_normmegqc_defaults_resample_to_250_hz(self):
+        standalone_defaults = (
+            MULTI_DATASET_DEMO,
+            REPO_ROOT / "nextflow" / "nextflow_corpus.config",
+        )
+        configs = available_configs() + tuple(
+            path
+            for path in standalone_defaults
+            if path.is_file()
+        )
+        for config in configs:
+            text = config.read_text(encoding="utf-8")
+            match = re.search(
+                r"(?s)megqc:\s*\[(.*?)\n\s{12}preproc:\s*\[",
+                text,
+            )
+            self.assertIsNotNone(match, config.name)
+            qc_block = match.group(1)
+            if "[filter:" not in qc_block:
+                # Omitting megqc.preproc selects the scorer's tested
+                # reference-aligned fallback; a partial explicit recipe does not.
+                self.assertNotIn("preproc:", qc_block, config.name)
+                continue
+            filter_index = qc_block.index("[filter:")
+            notch_index = qc_block.index("[notch_filter:")
+            resample_index = qc_block.index("[resample: [sfreq: 250]]")
+            self.assertLess(filter_index, notch_index, config.name)
+            self.assertLess(notch_index, resample_index, config.name)
 
     def test_outer_container_does_not_enable_nested_docker(self):
         text = packaged_docker_config().read_text(encoding="utf-8")
         self.assertRegex(text, r"(?s)docker\s*\{\s*enabled\s*=\s*false\s*\}")
         self.assertNotIn("runOptions = '-u $(id -u):$(id -g)'", text)
+
+    def test_deepprep_runtime_is_owned_by_the_outer_megflow_image(self):
+        pipeline_text = PIPELINE.read_text(encoding="utf-8")
+        runtime_fields = (
+            "deepprep_backend",
+            "deepprep_command",
+            "deepprep_container",
+            "deepprep_sif",
+        )
+        configs = (
+            SOURCE_CONFIG,
+            DOCKER_CONFIG,
+            REPO_ROOT / "nextflow" / "nextflow_corpus.config",
+            MULTI_DATASET_DEMO,
+            REPO_ROOT / "nextflow" / "nextflow_meg_masc_deepprep_anat.config",
+        )
+        for config in configs:
+            if config.is_file():
+                text = config.read_text(encoding="utf-8")
+                for field in runtime_fields:
+                    self.assertNotIn(field, text, config.name)
+
+        for field in runtime_fields:
+            self.assertNotIn(f"['anatomy', '{field}']", pipeline_text)
+        self.assertIn(
+            'deepprep_command="/opt/DeepPrep/deepprep/deepprep.sh"',
+            pipeline_text,
+        )
+        self.assertNotRegex(pipeline_text, r"(?m)^\s*docker run\b")
+        self.assertNotRegex(pipeline_text, r"(?m)^\s*singularity exec\b")
+
+        source_text = SOURCE_CONFIG.read_text(encoding="utf-8")
+        self.assertIn(
+            'process.container = System.getenv("MEGFLOW_DOCKER_IMAGE") ?: "cmrlab/megflow:1.0.0"',
+            source_text,
+        )
 
     def test_docker_runner_uses_effective_nextflow_log_option(self):
         text = packaged_docker_runner().read_text(encoding="utf-8")
@@ -127,14 +193,49 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertTrue(OPM_COG_TASK_OVERRIDE_EXAMPLE.is_file())
         text = OPM_COG_TASK_OVERRIDE_EXAMPLE.read_text(encoding="utf-8")
         self.assertIn('includeConfig "nextflow.config"', text)
-        self.assertIn("defaults: inheritedDefaults + [", text)
-        self.assertRegex(text, r"(?m)^\s{8}OPM_COG:\s*\[")
-        self.assertRegex(text, r"(?m)^\s{12}recordings:\s*\[")
+        self.assertIn('params.megflow.defaults.steps = "meg_all"', text)
+        self.assertIn("params.megflow.defaults.epochs.epochs.tmin = -0.2", text)
+        self.assertIn("params.megflow.datasets = [", text)
+        self.assertRegex(text, r"(?m)^\s{4}OPM_COG:\s*\[")
+        self.assertRegex(text, r"(?m)^\s{8}recordings:\s*\[")
         for task in ("aef", "vef", "tap", "ssvef"):
             self.assertIn(f'match: [task: "{task}"]', text)
         self.assertIn('task: ["aef", "vef", "tap", "ssvef"]', text)
         self.assertGreaterEqual(text.count("forward: [epoch_label:"), 4)
         self.assertGreaterEqual(text.count("visualization: ["), 4)
+
+    def test_maxwell_tsss_example_uses_declarative_profile_configuration(self):
+        self.assertTrue(MAXWELL_TSSS_EXAMPLE.is_file())
+        text = MAXWELL_TSSS_EXAMPLE.read_text(encoding="utf-8")
+        self.assertIn('includeConfig "nextflow.config"', text)
+        self.assertNotRegex(text, r"(?m)^def\s+")
+        self.assertIn('params.megflow.defaults.preproc = [', text)
+        self.assertIn('params.megflow.datasets = [', text)
+        self.assertRegex(text, r"(?m)^\s{4}MEGIN_SITE_A:\s*\[")
+        self.assertRegex(text, r"(?m)^\s{8}recordings:\s*\[")
+        self.assertEqual(text.count("[maxwell_filter: ["), 3)
+        self.assertIn("st_duration: 10.0", text)
+        self.assertIn("st_duration: 20.0", text)
+        self.assertIn('calibration: "/data/site-a/calibration/sss_cal.dat"', text)
+
+    def test_user_profile_configs_avoid_groovy_map_assembly(self):
+        exceptions = {
+            "deepprep.common.config",
+            "nextflow.config",
+            "nextflow_for_docker.config",
+        }
+        profile_configs = sorted(
+            path
+            for path in (REPO_ROOT / "nextflow").glob("*.config")
+            if path.name not in exceptions
+        )
+        self.assertTrue(profile_configs)
+        for config in profile_configs:
+            text = config.read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"(?m)^def\s+", config.name)
+            self.assertNotIn("params.megflow = params.megflow +", text, config.name)
+            self.assertNotRegex(text, r"\binherited[A-Z]\w*", config.name)
+            self.assertNotIn("params.megflow.datasets.clear()", text, config.name)
 
     def test_multi_dataset_source_runner_uses_demo_config_without_docker(self):
         self.assertTrue(MULTI_DATASET_SOURCE_RUNNER.is_file())
@@ -199,6 +300,22 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("failOnMismatch: true", text)
         self.assertIn("Source routing clean lineage mismatch", text)
 
+    def test_reports_use_a_value_barrier_and_never_resume_from_cache(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertGreaterEqual(text.count("cache false"), 2)
+        self.assertIn("report_completion_tokens = dataset_token_ch", text)
+        self.assertIn(".mix(source_token_ch)\n        .collect()", text)
+        self.assertIn("val completion_tokens", text)
+        self.assertIn(
+            "generate_static_html_report(\n"
+            "        native_dataset_report_row_ch,\n"
+            "        report_completion_tokens\n"
+            "    )",
+            text,
+        )
+        self.assertNotIn("report_wait_token_ch", text)
+        self.assertNotIn("stable -resume caching", text)
+
     def test_rank_and_lcmv_covariance_contracts_are_explicit(self):
         pipeline_text = PIPELINE.read_text(encoding="utf-8")
         covariance_text = (REPO_ROOT / "megflow" / "compute_covariance.py").read_text(
@@ -217,12 +334,64 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn('--data_covariance_file \\"${lcmv_data_cov_file}\\"', pipeline_text)
         self.assertIn('--resolved_rank_file "${resolved_rank_file}"', pipeline_text)
         self.assertIn("Covariance/source input lineage mismatch", pipeline_text)
+        self.assertIn('/source_visualization.py"', pipeline_text)
         self.assertIn("task.exitStatus == 2", SOURCE_CONFIG.read_text(encoding="utf-8"))
         self.assertIn('output_dir / "lcmv-data-cov.fif"', covariance_text)
         self.assertIn('output_dir / "resolved-rank.json"', covariance_text)
         self.assertIn("def load_resolved_rank", source_text)
         self.assertNotIn("mne.compute_raw_covariance(", source_text)
         self.assertNotIn("mne.compute_covariance(", source_text)
+
+    def test_mne_and_osl_parameter_passthrough_contracts_are_explicit(self):
+        pipeline_text = PIPELINE.read_text(encoding="utf-8")
+        preproc_text = (REPO_ROOT / "megflow" / "meg_preproc_osl.py").read_text(
+            encoding="utf-8"
+        )
+        wrapper_text = (
+            REPO_ROOT
+            / "megflow"
+            / "tools"
+            / "osl-ephys"
+            / "osl_ephys"
+            / "preprocessing"
+            / "mne_wrappers.py"
+        ).read_text(encoding="utf-8")
+        source_text = (REPO_ROOT / "megflow" / "source_localization.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("def _osl_preprocessing_config(config):", preproc_text)
+        self.assertIn("osl_config.pop('digitization', None)", preproc_text)
+        self.assertNotIn("{'preproc': config.get('preproc', [])}", preproc_text)
+        self.assertIn("def steps = out.remove('steps')", pipeline_text)
+        self.assertIn("preproc_config: preproc_config", pipeline_text)
+        self.assertIn("epochs_config: epochs_config", pipeline_text)
+        self.assertIn("covariance_config: covariance_config", pipeline_text)
+        self.assertIn("source_config: source_config", pipeline_text)
+        self.assertIn("np.asarray(freqs, dtype=float).reshape(-1)", wrapper_text)
+
+        self.assertIn("def _minimum_norm_mne_kwargs", source_text)
+        self.assertIn('"make_inverse_operator"', source_text)
+        self.assertIn('"apply_inverse_raw"', source_text)
+        self.assertIn("def _lcmv_mne_kwargs", source_text)
+        self.assertIn('"apply_lcmv_raw"', source_text)
+        self.assertIn("apply_lcmv(evoked, filters, **apply_lcmv_kwargs)", source_text)
+        self.assertIn("apply_lcmv_raw(raw, filters, **apply_lcmv_kwargs)", source_text)
+
+        default_configs = available_configs() + tuple(
+            path
+            for path in (
+                MULTI_DATASET_DEMO,
+                REPO_ROOT / "nextflow" / "nextflow_corpus.config",
+            )
+            if path.is_file()
+        )
+        for config in default_configs:
+            self.assertIn(
+                "lambda2: 0.1111111111111111",
+                config.read_text(encoding="utf-8"),
+                config.name,
+            )
 
     def test_raw_covariance_pairing_is_channel_backed_and_many_to_one(self):
         text = PIPELINE.read_text(encoding="utf-8")
@@ -250,6 +419,40 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("Multiple recording profiles matched", text)
         self.assertIn("share output identifiers", text)
         self.assertIn("overlapping ${field} paths", text)
+
+    def test_process_output_directories_are_internal_and_hidden_from_configs(self):
+        pipeline_text = PIPELINE.read_text(encoding="utf-8")
+        fixed_dirs = {
+            "ica": "ica_report",
+            "epochs": "epochs",
+            "coreg": "trans",
+            "covariance": "covariance",
+            "forward": "forward_solution",
+            "source": "source_recon",
+        }
+        self.assertIn("Map fixedProcessOutputDirs()", pipeline_text)
+        self.assertIn("validateFixedProcessOutputDirs(effectiveConfig, context)", pipeline_text)
+        self.assertIn("output_dir is internal and fixed to", pipeline_text)
+        for module, directory in fixed_dirs.items():
+            self.assertIn(f"{module}: '{directory}'", pipeline_text)
+            self.assertIn(f"processOutputDir('{module}')", pipeline_text)
+
+        public_configs = available_configs() + tuple(
+            path
+            for path in (
+                MULTI_DATASET_DEMO,
+                REPO_ROOT / "nextflow" / "nextflow_corpus.config",
+            )
+            if path.is_file()
+        )
+        for config in public_configs:
+            text = config.read_text(encoding="utf-8")
+            for directory in fixed_dirs.values():
+                self.assertNotIn(
+                    f'output_dir: "{directory}"',
+                    text,
+                    f"{config.name} exposes fixed process directory {directory}",
+                )
 
 
 if __name__ == "__main__":

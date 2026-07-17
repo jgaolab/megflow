@@ -78,9 +78,10 @@ When ``megqc.enabled = true``, MEGFlow scores each imported MEG recording
 before the main preprocessing chain. The output is saved under
 ``preprocessed/quality_control/<recording>/`` and copied into the static
 report. The NMDQ score assumes the bundled reference-aligned NormMEG-QC
-preprocessing, including the fixed 1-100 Hz band-pass filter. Changing that
-band-pass changes the metric distribution and makes the score less comparable
-to the normative reference.
+preprocessing, including the fixed 1-100 Hz band-pass filter, 50 Hz notch, and
+250 Hz resampling. Changing the band-pass or target sampling rate changes the
+metric distribution and makes the score less comparable to the normative
+reference.
 
 .. list-table::
    :header-rows: 1

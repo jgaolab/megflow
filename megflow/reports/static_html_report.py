@@ -53,6 +53,9 @@ DEFAULT_THRESHOLDS = {
 
 NMDQ_FULL_NAME = "Normative MEG Data Quality Score"
 NMDQ_SHORT_NAME = "NMDQ Score"
+ARTIFACT_OVERVIEW_DISPLAY_NOTE = (
+    "Adjacent samples are combined for plotting, so high-frequency artifacts may be less visible."
+)
 
 STEP_DEFS = [
     ("quality_score", NMDQ_SHORT_NAME),
@@ -4365,6 +4368,7 @@ def collect_subject_data(
                     static_overview.get("start_time", 0),
                     static_overview.get("duration", artifact_overview_duration),
                 ),
+                "note": ARTIFACT_OVERVIEW_DISPLAY_NOTE,
             }
         )
     else:
@@ -4391,6 +4395,7 @@ def collect_subject_data(
                         "segment_time": segment_time,
                         "duration": image_record.get("duration"),
                         "details": artifact_overview_caption(segment_time, image_record.get("duration")),
+                        "note": ARTIFACT_OVERVIEW_DISPLAY_NOTE,
                     }
                 )
 
@@ -4933,14 +4938,27 @@ def render_quality_preprocessing_steps(steps: list[dict[str, Any]]) -> str:
         elif step.get("step") == "notch_filter":
             freqs = [freq for freq in ensure_list(step.get("freqs")) if finite_float(freq) is not None]
             detail = " ".join(f"{fmt_float(freq, 0, ' Hz')}" for freq in freqs) if freqs else html_text(step.get("reason", "auto"))
+        elif step.get("step") == "resample":
+            sfreq_before = finite_float(step.get("sfreq_before"))
+            sfreq_after = finite_float(step.get("sfreq_after", step.get("sfreq")))
+            if sfreq_before is not None and sfreq_after is not None:
+                detail = f"{fmt_float(sfreq_before, 1, ' Hz')} -> {fmt_float(sfreq_after, 1, ' Hz')}"
+            else:
+                detail = fmt_float(sfreq_after, 1, " Hz")
         else:
             detail = html_text(step.get("reason", ""))
+        status = str(step.get("status", "")).strip()
+        method_or_status = (
+            status
+            if status and status != "applied"
+            else step.get("method", status or "applied")
+        )
         rows.append(
             f"""
             <tr>
               <td>{html_text(step.get('step', ''))}</td>
               <td>{html_text(detail)}</td>
-              <td>{html_text(step.get('method', step.get('status', 'applied')))}</td>
+              <td>{html_text(method_or_status)}</td>
             </tr>
             """
         )
@@ -5013,12 +5031,22 @@ def render_gallery(assets: list[dict[str, Any]], prefix: str = "") -> str:
             badge_text = html_text(badge.get("text", ""))
             badge_class = html_text(badge.get("class", "neutral"))
             badge_html = f'<div class="figure-badge {badge_class}">{badge_text}</div>'
+        details_html = (
+            f'<div class="figure-meta">{html_text(asset.get("details", ""))}</div>'
+            if asset.get("details")
+            else ""
+        )
+        note_html = (
+            f'<div class="info-note">{html_text(asset.get("note", ""))}</div>'
+            if asset.get("note")
+            else ""
+        )
         blocks.append(
             f"""
             <div class="figure {figure_class}">
               {badge_html}
               <a href="{rel}" target="_blank"><img src="{rel}" alt="{title}"></a>
-              <div class="caption">{title}{f'<div class="figure-meta">{html_text(asset.get("details", ""))}</div>' if asset.get("details") else ''}</div>
+              <div class="caption">{title}{details_html}{note_html}</div>
             </div>
             """
         )
@@ -5498,7 +5526,7 @@ def build_subject_html(summary: dict[str, Any], output_root: Path) -> None:
             <div class="metric-box"><div class="k">Device Reference</div><div class="v">{html_text(quality_score.get('device_type', 'N/A'))}</div></div>
             <div class="metric-box"><div class="k">Category</div><div class="v">{html_text(quality_score.get('category', 'N/A'))}</div></div>
           </div>
-          <div class="info-note">The Normative MEG Data Quality (NMDQ) Score uses a 0-100 scale where higher is better. Each family score averages its available MAG and GRAD component scores; the overall score averages all available family scores. Before scoring, raw data is aligned to the reference space with the NormMEG-QC preprocessing below. The 1-100 Hz band-pass is fixed for normative scoring and should not be changed.</div>
+          <div class="info-note">The Normative MEG Data Quality (NMDQ) Score uses a 0-100 scale where higher is better. Each family score averages its available MAG and GRAD component scores; the overall score averages all available family scores. Before scoring, raw data is aligned to the reference space with the NormMEG-QC preprocessing below. The 1-100 Hz band-pass and 250 Hz sampling rate are fixed for normative scoring and should not be changed.</div>
           {render_quality_preprocessing_steps(quality_score.get('reference_preprocessing', []))}
         </div>
         <div class="panel quality-score-figure-panel">

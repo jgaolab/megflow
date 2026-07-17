@@ -300,7 +300,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--preproc_config",
         default="",
-        help="Explicit YAML preprocessing config applied before scoring. No default is applied by the scorer.",
+        help="YAML preprocessing override. Empty input uses the built-in 1-100 Hz, 50 Hz notch, and 250 Hz reference preprocessing.",
     )
     parser.add_argument(
         "--keep_bad_annotations",

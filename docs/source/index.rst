@@ -182,4 +182,5 @@ Where to Go Next
    reference/deepreject.rst
    reference/qc_metrics.rst
    reference/examples.rst
+   reference/opm_conversion.rst
    reference/validation.rst

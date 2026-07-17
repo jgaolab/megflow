@@ -160,7 +160,15 @@ The table above uses **basic preprocessing** for the first MEG-only signal steps
 - **Notch filter** (50 Hz and 100 Hz)
 - **Resample** (250 Hz sampling rate)
 
-Optional **Maxwell / tSSS** for Elekta-style data can be inserted into the ordered `preproc.steps` list; supply the required calibration and cross-talk paths when needed. For **CTF** runs, if a matching `*_headshape.pos` is present next to the raw file, **digitization from the headshape** is merged into the preprocessed FIF after those steps.
+Optional **Maxwell / tSSS** for MEGIN/Elekta data is configured as an OSL
+`maxwell_filter` stage; a positive `st_duration` enables tSSS. Use the
+three-level [`nextflow_maxwell_tsss_example.config`](nextflow/nextflow_maxwell_tsss_example.config)
+and the [configuration reference](docs/source/reference/configuration.rst#maxwell-filtering-and-tsss)
+for calibration, cross-talk, ordering, bad-channel, and dataset/recording
+override requirements. Maxwell/tSSS remains disabled in the shared defaults.
+For **CTF** runs, if a matching `*_headshape.pos` is present next to the raw
+file, **digitization from the headshape** is merged into the preprocessed FIF
+after those steps.
 
 For corpus runs with mixed line-noise frequencies, keep the default preprocessing shared and override only the relevant dataset profile:
 
@@ -178,9 +186,11 @@ params.megflow.datasets = [
 
 NormMEG-QC has its own lightweight preprocessing setting,
 `params.megflow.defaults.megqc.preproc`, so scoring stays aligned with the
-configured reference space. The NormMEG-QC band-pass filter is fixed at
-1-100 Hz for reference alignment; do not change those filter values or the
-NMDQ score will no longer be comparable to the normative reference. Use
+configured reference space. The NormMEG-QC band-pass filter and sampling rate
+are fixed at 1-100 Hz and 250 Hz for reference alignment; do not change those
+values or the NMDQ score will no longer be comparable to the normative
+reference. The scorer carries the same sequence internally, so an omitted or
+empty `megqc.preproc` list still uses the reference defaults. Use
 `megqc.meg_vendor = "auto"` by default so each recording is matched to the
 appropriate reference device family. Vendor values are case-insensitive; the
 examples use lowercase for consistency. If a corpus contains datasets whose
@@ -351,15 +361,18 @@ Dataset tuple channels and Nextflow's normal process parallelism handle
 scheduling in one DAG. Tune process-level `maxForks`, CPU, and memory settings
 in the Nextflow config according to available compute and I/O capacity.
 
-The main config includes `local`, `slurm`, `singularity`, `lenient`, `strict`,
-and `debug` execution profiles. Single-dataset runs write Nextflow observability
+The main config includes `local`, `docker`, `slurm`, `singularity`, `lenient`,
+`strict`, and `debug` execution profiles. The `docker` profile containerizes the
+complete source-launched workflow in the MEGFlow image; DeepPrep never launches
+a nested container. Single-dataset runs write Nextflow observability
 files under `static_html_report/nextflow/`; corpus runs use
 `corpus_static_html_report/nextflow/`. MEGFlow launch wrappers pass the matching
 `nextflow/nextflow.log` path through Nextflow's top-level `-log` option. Slurm
 partition, account, QoS, work directory, queue size, and SIF settings are read
 from `MEGFLOW_SLURM_*`, `MEGFLOW_SIF`, and `MEGFLOW_SINGULARITY_*` environment
-variables; see the configuration and cluster documentation for the complete
-list.
+variables. Source-launched Docker runs use `MEGFLOW_DOCKER_IMAGE` and
+`MEGFLOW_DOCKER_RUN_OPTIONS`; see the configuration documentation for the
+complete list and FreeSurfer license mount example.
 
 ### Using pipeline steps with Docker
 

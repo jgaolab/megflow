@@ -88,7 +88,7 @@ _RUN_DETAIL_HELP: dict[str, str] = {
     "megqc_meg_vendor": "MEG vendor used to select the Normative Reference; auto infers from channels and metadata.",
     "megqc_category": "Normative reference category, usually auto, rest, task, or ALL.",
     "megqc_reference_scope": "Reference pool priority used for scoring, for example device plus category.",
-    "megqc_preproc_config": "Reference-aligned scoring preprocessing. Keep the 1-100 Hz band-pass fixed.",
+    "megqc_preproc_config": "Reference-aligned scoring preprocessing. Keep the 1-100 Hz band-pass and 250 Hz sampling rate fixed.",
     "megqc_keep_bad_annotations": "Yes keeps BAD annotations during scoring to match the reference.",
     "megqc_omit_bad_channels": "No keeps raw.info['bads'] during scoring; omit only for diagnostics.",
 }

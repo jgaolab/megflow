@@ -235,6 +235,29 @@ class CorpusBundledNavigationTests(unittest.TestCase):
 
 
 class StaticQualityScoreTests(unittest.TestCase):
+    def test_quality_preprocessing_table_renders_resampling(self):
+        rendered = static_report.render_quality_preprocessing_steps(
+            [
+                {
+                    "step": "resample",
+                    "sfreq_before": 1000.0,
+                    "sfreq_after": 250.0,
+                    "method": "fft",
+                    "status": "applied",
+                }
+            ]
+        )
+
+        self.assertIn("<td>resample</td>", rendered)
+        self.assertIn("1000.0 Hz", rendered)
+        self.assertIn("250.0 Hz", rendered)
+        self.assertIn("<td>fft</td>", rendered)
+
+        skipped = static_report.render_quality_preprocessing_steps(
+            [{"step": "resample", "sfreq": 250.0, "status": "skipped"}]
+        )
+        self.assertIn("<td>skipped</td>", skipped)
+
     def test_subject_report_omits_internal_quality_profile_metadata(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             report_root = Path(tmpdir) / "report"
@@ -338,6 +361,8 @@ class StaticArtifactOverviewTests(unittest.TestCase):
                     "title": "Artifact Overview",
                     "rel_path": "overview.jpg",
                     "artifact_group": "overview",
+                    "details": "Start time 0.0 s · Duration 20.0 s",
+                    "note": static_report.ARTIFACT_OVERVIEW_DISPLAY_NOTE,
                 },
             ]
         )
@@ -346,6 +371,11 @@ class StaticArtifactOverviewTests(unittest.TestCase):
         self.assertIn("Overview plot", rendered)
         self.assertIn('src="mask.jpg"', rendered)
         self.assertIn('src="overview.jpg"', rendered)
+        self.assertIn(static_report.ARTIFACT_OVERVIEW_DISPLAY_NOTE, rendered)
+        self.assertLess(
+            rendered.index("Start time 0.0 s · Duration 20.0 s"),
+            rendered.index(static_report.ARTIFACT_OVERVIEW_DISPLAY_NOTE),
+        )
 
     def test_artifact_overview_renders_shared_scale_meg_waveforms(self):
         sfreq = 200.0
