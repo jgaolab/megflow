@@ -173,7 +173,7 @@ Run it with:
      -v /data/corpus_megflow:/output \
      -v /data/corpus_smri:/smri \
      -v /data/corpus.config:/config/corpus.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/corpus.config \
      --input /input \
      --output /output \

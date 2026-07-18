@@ -64,7 +64,7 @@ the container:
      -v /data/study/bids:/input \
      -v /data/study/megflow:/output \
      -v /data/study/project.config:/config/project.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/project.config \
      --input /input \
      --output /output \
@@ -89,7 +89,7 @@ preprocessing, epoch, covariance, and source settings:
      -v /data/corpus:/input \
      -v /data/corpus_megflow:/output \
      -v /data/corpus.config:/config/corpus.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/corpus.config \
      --input /input \
      --output /output \

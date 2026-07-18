@@ -20,7 +20,7 @@ the entrypoint assign container-visible dataset and output paths:
      -v /data/corpus_megflow:/output \
      -v /data/corpus_smri:/smri \
      -v /data/corpus.config:/config/corpus.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/corpus.config \
      --input /input \
      --output /output \
@@ -127,7 +127,7 @@ The following execution profiles are defined in ``nextflow.config``:
      - Run tasks directly on the current workstation or server.
    * - ``docker``
      - Keep the Nextflow driver on the host and run each workflow task in
-       ``cmrlab/megflow:1.0.0``. The image contains DeepPrep.
+       ``cplmeg/megflow:1.0.0``. The image contains DeepPrep.
    * - ``slurm``
      - Submit each task to Slurm using process-specific CPU, memory, and time
        directives.
@@ -152,7 +152,7 @@ cluster names:
      - Meaning
    * - ``MEGFLOW_DOCKER_IMAGE``
      - Complete MEGFlow image used by the source ``docker`` profile; defaults
-       to ``cmrlab/megflow:1.0.0``.
+       to ``cplmeg/megflow:1.0.0``.
    * - ``MEGFLOW_DOCKER_RUN_OPTIONS``
      - Docker bind/runtime options; defaults to ``-v /data:/data``.
    * - ``MEGFLOW_SLURM_PARTITION``
@@ -183,7 +183,7 @@ For Slurm with Singularity:
 
    export MEGFLOW_SLURM_PARTITION=cpu
    export MEGFLOW_SLURM_ACCOUNT=my_account
-   export MEGFLOW_SIF=/shared/containers/cmrlab_megflow_1.0.0.sif
+   export MEGFLOW_SIF=/shared/containers/cplmeg_megflow_1.0.0.sif
    export MEGFLOW_SINGULARITY_RUN_OPTIONS='-B /data:/data'
 
    nextflow -log /data/project/megflow_run/static_html_report/nextflow/nextflow.log \

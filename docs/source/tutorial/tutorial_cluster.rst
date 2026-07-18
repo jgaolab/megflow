@@ -15,11 +15,11 @@ Use Nextflow 24.10 or newer; the repository integration suite currently tests
 
 .. code-block:: bash
 
-   singularity build cmrlab_megflow_1.0.0.sif \
-     docker://cmrlab/megflow:1.0.0
+   singularity build cplmeg_megflow_1.0.0.sif \
+     docker://cplmeg/megflow:1.0.0
 
 If the Docker image is already present in the local Docker daemon,
-``docker-daemon://cmrlab/megflow:1.0.0`` is an alternative source URI.
+``docker-daemon://cplmeg/megflow:1.0.0`` is an alternative source URI.
 
 Site Settings
 -------------
@@ -35,7 +35,7 @@ environment variables:
    export MEGFLOW_SLURM_QOS=normal
    export MEGFLOW_SLURM_QUEUE_SIZE=100
    export MEGFLOW_SLURM_WORKDIR=/shared/project/megflow/work
-   export MEGFLOW_SIF=/shared/project/containers/cmrlab_megflow_1.0.0.sif
+   export MEGFLOW_SIF=/shared/project/containers/cplmeg_megflow_1.0.0.sif
    export MEGFLOW_SINGULARITY_CACHE=/shared/project/.singularity
    export MEGFLOW_SINGULARITY_RUN_OPTIONS='-B /shared:/shared'
    export MEGFLOW_DRIVER_LOG=/shared/project/megflow/report/nextflow/nextflow.log

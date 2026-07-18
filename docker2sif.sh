@@ -1,5 +1,5 @@
 #!/usr/bin bash
-container_name=cmrlab/megflow
+container_name=cplmeg/megflow
 version=1.0.0
 safe_container_name=${container_name//\//_}
 #/opt/singularity-ce/4.1.1/bin/singularity build --sandbox debug_singularity docker-daemon://${container_name}:${version}

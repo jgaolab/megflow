@@ -46,6 +46,21 @@ class ComponentScoreMergeTests(unittest.TestCase):
 
 
 class ExistingLabelOutputTests(unittest.TestCase):
+    def test_marked_component_writer_matches_normalized_json_list(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            output_file = Path(temp_dir) / "marked_components.txt"
+
+            written = run_ica_label.write_marked_component_indices(
+                output_file,
+                [9, 3, 3, "invalid", -1],
+            )
+
+            self.assertEqual(written, [3, 9])
+            self.assertEqual(
+                output_file.read_text(encoding="utf-8"),
+                "3\n9\n",
+            )
+
     def test_existing_labels_are_preserved_without_explicit_overwrite(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             output_file = Path(temp_dir) / "marked_components.txt"
@@ -115,11 +130,16 @@ class ExistingLabelOutputTests(unittest.TestCase):
             written_indices=[3, 7],
             marked_output_mode="auto",
             n_components=10,
+            category_switches={"ecg": True, "eog": False, "outlier": True},
         )
 
         self.assertEqual(payload["ecg_indices"], [3])
         self.assertEqual(payload["eog_indices"], [])
         self.assertEqual(payload["outlier_indices"], [7])
+        self.assertEqual(
+            payload["category_switches"],
+            {"ecg": True, "eog": False, "outlier": True},
+        )
         self.assertEqual(payload["marked_components"]["auto_indices"], [3, 7])
         self.assertEqual(
             payload["marked_components"]["written_indices"],
@@ -137,7 +157,8 @@ class ExistingLabelOutputTests(unittest.TestCase):
             category_indices={"ecg": [3], "eog": [], "outlier": []},
             written_indices=[3, 9],
             marked_output_mode="preserved_manual",
-            n_components=10,
+            n_components=4,
+            category_switches={"ecg": True, "eog": True, "outlier": False},
         )
 
         self.assertEqual(payload["marked_components"]["auto_indices"], [3])
@@ -255,6 +276,12 @@ class MegnetNormalizationTests(unittest.TestCase):
         outcome = run_ica_label.detector_outcome_from_probabilities(
             "mne_icalabel",
             probabilities,
+            metadata={
+                "backend": "mne_icalabel.megnet",
+                "native_class_order": list(
+                    run_ica_label.MNE_MEGNET_NATIVE_CLASSES
+                ),
+            },
         )
 
         filtered = run_ica_label.filter_detector_outcome(
@@ -267,6 +294,15 @@ class MegnetNormalizationTests(unittest.TestCase):
         self.assertEqual(filtered.eog_indices, [])
         self.assertNotIn("labels", filtered.detail)
         self.assertNotIn("probabilities", filtered.detail)
+        self.assertNotIn("class_order", filtered.detail)
+        self.assertNotIn(
+            "native_class_order",
+            filtered.detail["metadata"],
+        )
+        self.assertEqual(
+            filtered.detail["metadata"]["backend"],
+            "mne_icalabel.megnet",
+        )
         self.assertEqual(
             filtered.detail["detections"],
             {

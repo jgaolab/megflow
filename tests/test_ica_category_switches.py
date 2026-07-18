@@ -112,8 +112,79 @@ class IcaLabelMainCategoryGateTests(unittest.TestCase):
             self.assertEqual(payload["ecg_indices"], [])
             self.assertEqual(payload["eog_indices"], [])
             self.assertEqual(payload["outlier_indices"], [])
+            self.assertEqual(
+                payload["category_switches"],
+                {"ecg": False, "eog": False, "outlier": False},
+            )
             self.assertEqual(payload["marked_components"]["auto_indices"], [])
             self.assertEqual(payload["marked_components"]["written_indices"], [])
+
+    def test_enabled_mne_eog_uses_automatic_channel_selection(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            recording_name = "sub-01_task-rest_meg"
+            raw_path = temp_path / "input" / recording_name / "raw.fif"
+            output_dir = temp_path / "ica_report"
+            args = SimpleNamespace(
+                raw_data_path=str(raw_path),
+                ica_file=str(temp_path / "ica" / "fit-ica.fif"),
+                ica_sources_file=None,
+                output_dir=str(output_dir),
+                overwrite_existing=True,
+                refresh_existing=False,
+                config="{}",
+            )
+            config = {
+                "ic_ecg": False,
+                "ic_eog": True,
+                "ic_outlier": False,
+                "mne_icalabel": False,
+                "megnet_retrained": False,
+                "mne_algorithm": True,
+                "rules_algorithm": False,
+                "find_bads_eog": {"ch_name": None},
+            }
+            raw = SimpleNamespace(filenames=[str(raw_path)])
+            eog_scores = np.asarray([0.1, 0.2, 0.9, 0.3])
+            ica = SimpleNamespace(
+                n_components_=4,
+                find_bads_ecg=mock.Mock(),
+                find_bads_eog=mock.Mock(return_value=([2], eog_scores)),
+                find_bads_muscle=mock.Mock(),
+            )
+
+            with (
+                mock.patch.object(run_ica_label, "parse_arguments", return_value=args),
+                mock.patch.object(run_ica_label.yaml, "safe_load", return_value=config),
+                mock.patch.object(run_ica_label.mne.io, "read_raw", return_value=raw),
+                mock.patch.object(
+                    run_ica_label.mne.preprocessing,
+                    "read_ica",
+                    return_value=ica,
+                ),
+            ):
+                run_ica_label.main()
+
+            ica.find_bads_eog.assert_called_once_with(raw, ch_name=None)
+            ica.find_bads_ecg.assert_not_called()
+            ica.find_bads_muscle.assert_not_called()
+
+            result_dir = output_dir / recording_name
+            self.assertEqual(
+                (result_dir / "marked_components.txt").read_text(encoding="utf-8"),
+                "2\n",
+            )
+            payload = json.loads(
+                (result_dir / "ecg_eog_scores.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(payload["ecg_indices"], [])
+            self.assertEqual(payload["eog_indices"], [2])
+            self.assertEqual(payload["eog"], [0.9])
+            self.assertEqual(
+                payload["category_switches"],
+                {"ecg": False, "eog": True, "outlier": False},
+            )
+            self.assertEqual(payload["marked_components"]["auto_indices"], [2])
 
 
 class RuleClassifierCategoryGateTests(unittest.TestCase):

@@ -1,6 +1,6 @@
 #!/bin/bash  
 
-IMAGE_NAME=cmrlab/megflow
+IMAGE_NAME=cplmeg/megflow
 VERSION="1.0.0"
 DOCKERFILE_NAME=megflow.Dockerfile 
 

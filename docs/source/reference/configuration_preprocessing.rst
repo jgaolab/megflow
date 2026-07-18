@@ -617,7 +617,8 @@ produces no automatic ICA exclusions:
 
 All enabled-category indices are normalized and de-duplicated before ICA
 application. ``ecg_eog_scores.json`` writes ``ecg_indices``, ``eog_indices``,
-and ``outlier_indices``; a disabled category is represented by an empty array.
+``outlier_indices``, and the recording's resolved ``category_switches``; a
+disabled category is represented by an empty array.
 When several methods assign the same component to ECG or EOG, the summary
 stores the maximum score. When ECG and EOG are both enabled, each MEGNet method
 also retains its complete four-class labels and probabilities under
@@ -631,6 +632,13 @@ three category arrays. In automatic mode, it equals both
 edited text file, ``auto_indices`` remains the newly detected union while
 ``written_indices`` exactly records the preserved text-file contents. ICA
 application consumes that same text file.
+
+Static reports read the recording-level ``category_switches`` sidecar, with the
+run manifest as a fallback for older outputs. A disabled ECG or EOG category
+does not trigger a misleading ``No ... components detected`` warning;
+missing-component alarms remain active for categories that were actually
+enabled. This remains correct when recordings in one dataset use different
+``ic_label`` overrides.
 
 The former ``ica_label`` boolean has been removed and is not accepted as a
 compatibility alias; use ``mne_icalabel``. The retrained model operates only

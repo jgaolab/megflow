@@ -1,4 +1,5 @@
 import re
+import subprocess
 import unittest
 from pathlib import Path
 
@@ -104,6 +105,28 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn(
             "python -m pip install --no-deps -e ./megflow/tools/osl-ephys",
             workflow,
+        )
+
+    def test_validation_workflow_local_inputs_are_tracked(self):
+        required_paths = (
+            ".github/workflows/validation.yml",
+            "requirements_doc.txt",
+            "requirements_validation.txt",
+            "scripts/validation/run_unittest_gate.py",
+            "scripts/validation/run_validation.sh",
+            "scripts/validation/validate_windows_installer.py",
+        )
+        result = subprocess.run(
+            ["git", "ls-files", "--error-unmatch", *required_paths],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(
+            result.returncode,
+            0,
+            msg=f"Validation workflow inputs must be tracked by Git:\n{result.stderr}",
         )
 
     def test_validation_gates_cover_every_test_module_and_windows_parser(self):
@@ -242,7 +265,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
         source_text = SOURCE_CONFIG.read_text(encoding="utf-8")
         self.assertIn(
-            'process.container = System.getenv("MEGFLOW_DOCKER_IMAGE") ?: "cmrlab/megflow:1.0.0"',
+            'process.container = System.getenv("MEGFLOW_DOCKER_IMAGE") ?: "cplmeg/megflow:1.0.0"',
             source_text,
         )
 

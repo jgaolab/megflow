@@ -4446,6 +4446,9 @@ def collect_subject_data(
     ica_data = {
         "marked_components": [],
         "marked_count": 0,
+        "ecg_enabled": bool(scope.get("ic_ecg_enabled", True)),
+        "eog_enabled": bool(scope.get("ic_eog_enabled", True)),
+        "outlier_enabled": bool(scope.get("ic_outlier_enabled", False)),
         "ecg_indices": [],
         "eog_indices": [],
         "ecg_scores": [],
@@ -4471,6 +4474,12 @@ def collect_subject_data(
 
     if scores_file.exists():
         scores = safe_json(scores_file)
+        category_switches = scores.get("category_switches")
+        if isinstance(category_switches, dict):
+            for category in ("ecg", "eog", "outlier"):
+                enabled = category_switches.get(category)
+                if isinstance(enabled, bool):
+                    ica_data[f"{category}_enabled"] = enabled
         ica_data["ecg_indices"] = ensure_list(scores.get("ecg_indices", []))
         ica_data["eog_indices"] = ensure_list(scores.get("eog_indices", []))
         ica_data["ecg_scores"] = ensure_list(scores.get("ecg", []))
@@ -4708,29 +4717,31 @@ def collect_subject_data(
     if expected_steps.get("ica", True) and expect_ica_outputs_for_qc(scope) and not ica_data["exists"]:
         alarms.append({"category": "Completeness", "severity": "warn", "message": "ICA outputs are missing."})
     elif ica_data["exists"]:
-        if not ica_data["has_ecg"]:
-            if alert_missing_ecg_components:
-                alarms.append({"category": "ICA", "severity": "warn", "message": "No ECG-related components detected."})
-        elif ica_data["marked_count"] == 0:
-            alarms.append(
-                {
-                    "category": "ICA",
-                    "severity": "warn",
-                    "message": "ECG-related components detected but none marked.",
-                }
-            )
+        if ica_data["ecg_enabled"]:
+            if not ica_data["has_ecg"]:
+                if alert_missing_ecg_components:
+                    alarms.append({"category": "ICA", "severity": "warn", "message": "No ECG-related components detected."})
+            elif ica_data["marked_count"] == 0:
+                alarms.append(
+                    {
+                        "category": "ICA",
+                        "severity": "warn",
+                        "message": "ECG-related components detected but none marked.",
+                    }
+                )
 
-        if not ica_data["has_eog"]:
-            if alert_missing_eog_components:
-                alarms.append({"category": "ICA", "severity": "warn", "message": "No EOG-related components detected."})
-        elif ica_data["marked_count"] == 0:
-            alarms.append(
-                {
-                    "category": "ICA",
-                    "severity": "warn",
-                    "message": "EOG-related components detected but none marked.",
-                }
-            )
+        if ica_data["eog_enabled"]:
+            if not ica_data["has_eog"]:
+                if alert_missing_eog_components:
+                    alarms.append({"category": "ICA", "severity": "warn", "message": "No EOG-related components detected."})
+            elif ica_data["marked_count"] == 0:
+                alarms.append(
+                    {
+                        "category": "ICA",
+                        "severity": "warn",
+                        "message": "EOG-related components detected but none marked.",
+                    }
+                )
 
     if expected_steps.get("coregistration", True) and expect_coregistration_outputs_for_qc(scope) and not coreg_data["exists"]:
         alarms.append({"category": "Completeness", "severity": "warn", "message": "Coregistration outputs are missing."})

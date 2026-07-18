@@ -15,7 +15,7 @@ Recommended: Containerized One-Click Install
 --------------------------------------------
 
 The scripts under ``scripts/install/`` install or reuse a container runtime,
-pull ``cmrlab/megflow:<version>``, and verify the installation by running the
+pull ``cplmeg/megflow:<version>``, and verify the installation by running the
 MEGFlow help command.
 
 Linux:
@@ -53,7 +53,7 @@ automatic. In ``auto`` mode, a usable Docker daemon is preferred and the
 installer otherwise selects Apptainer/Singularity.
 
 When Apptainer or Singularity is already available, the installer pulls a SIF
-from ``docker://cmrlab/megflow:<version>`` and runs the image entrypoint with
+from ``docker://cplmeg/megflow:<version>`` and runs the image entrypoint with
 ``-h``. If neither runtime is installed, package-manager installation is
 best-effort because package availability differs among Linux distributions and
 HPC sites. Install the runtime through the site's supported repository first
@@ -77,7 +77,7 @@ Pull the MEGFlow image:
 
 .. code-block:: bash
 
-   docker pull cmrlab/megflow:<version>
+   docker pull cplmeg/megflow:<version>
 
 Replace ``<version>`` with a release tag such as ``1.0.0`` or ``latest``.
 
@@ -113,7 +113,7 @@ full MEG workflow with existing anatomy.
 
 .. code-block:: bash
 
-   docker run --rm -it cmrlab/megflow:<version> -h
+   docker run --rm -it cplmeg/megflow:<version> -h
 
 Docker runs do not require Docker's ``--user`` flag. The container entrypoint
 prepares mounted output permissions, then drops to the host UID/GID inferred

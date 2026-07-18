@@ -47,7 +47,7 @@ For a BIDS dataset with T1w images:
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \
@@ -86,7 +86,7 @@ Example command:
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
      -v /path/to/my_nextflow.config:/config/project.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/project.config \
      --input /input \
      --output /output \
@@ -112,7 +112,7 @@ Use ``--steps meg_all`` when:
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
      -v /path/to/my_nextflow.config:/config/project.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/project.config \
      --input /input \
      --output /output \
@@ -136,7 +136,7 @@ coregistration and forward/source modeling require the reconstructed anatomy.
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
      -v /path/to/my_nextflow.config:/config/project.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/project.config \
      --input /input \
      --output /output \
@@ -156,7 +156,7 @@ uses FreeSurfer/BEM after generating the pseudo T1 image.
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \

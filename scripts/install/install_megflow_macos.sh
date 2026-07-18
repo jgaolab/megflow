@@ -3,7 +3,7 @@
 set -euo pipefail
 
 IMAGE_TAG="${1:-latest}"
-IMAGE="cmrlab/megflow:${IMAGE_TAG}"
+IMAGE="cplmeg/megflow:${IMAGE_TAG}"
 
 log() {
   echo "[megflow-install][macos] $*"

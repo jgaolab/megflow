@@ -53,7 +53,7 @@ The static report can also be regenerated without rerunning the pipeline:
      -v /data/bids:/input \
      -v /data/out:/output \
      -v /data/smri:/smri \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      -i /input -o /output --fs_subjects_dir /smri --steps report
 
 The report directory is self-contained and includes copied figures, sidecar
@@ -173,8 +173,11 @@ the evidence behind each warning or failed threshold.
          :class: megflow-card-image megflow-card-image-tall
          :target: ../_static/static_reports/megflow_ica.png
 
-      ICA labels, marked components, ECG/EOG candidates, topographies, and
-      overlay plots are grouped on the subject page.
+      ICA labels, marked components, enabled ECG/EOG/outlier candidates,
+      topographies, and overlay plots are grouped on the subject page. A
+      category disabled in that recording's resolved ``ic_label`` settings is
+      omitted from missing-component alarms rather than being reported as a
+      failed detection.
 
    .. grid-item-card:: Coregistration
       :class-card: megflow-screenshot-card
@@ -260,7 +263,7 @@ Example:
 
 .. code-block:: bash
 
-   docker run ... cmrlab/megflow:<version> \
+   docker run ... cplmeg/megflow:<version> \
      -i /input -o /output \
      --static_task_log_mode all-command-log
 
@@ -301,7 +304,7 @@ run MEGFlow with Docker and expose port ``8501``:
 
    docker run --rm -it -p 8501:8501 \
      -v /data/megflow_output:/output \
-     cmrlab/megflow:<version> \
+     cplmeg/megflow:<version> \
      -r
 
 The Docker entrypoint handles mounted output permissions automatically. It
@@ -326,7 +329,7 @@ For corpus-mode outputs, mount the output root and pass it as ``-o``:
 
    docker run --rm -it -p 8501:8501 \
      -v /data/megflow_corpus_output:/output \
-     cmrlab/megflow:<version> \
+     cplmeg/megflow:<version> \
      -r -o /output
 
 The Streamlit entrypoint detects ``/output/datasets/<dataset_name>/`` and adds

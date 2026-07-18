@@ -128,6 +128,18 @@ def read_marked_component_indices(output_file):
     return sorted(unique_ints(path.read_text(encoding="utf-8").splitlines()))
 
 
+def write_marked_component_indices(output_file, component_indices):
+    path = Path(output_file)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    normalized = sorted(unique_ints(component_indices))
+    temporary_path = path.with_name(f"{path.name}.tmp")
+    with temporary_path.open("w", encoding="utf-8") as handle:
+        for component_idx in normalized:
+            handle.write(f"{component_idx}\n")
+    os.replace(temporary_path, path)
+    return normalized
+
+
 def read_marked_component_metadata(scores_file):
     path = Path(scores_file)
     if not path.is_file():
@@ -216,10 +228,17 @@ def finalize_score_payload(
     scores_dict,
     *,
     category_indices,
+    category_switches,
     written_indices,
     marked_output_mode,
     n_components,
 ):
+    resolved_switches = {}
+    for category, default in ICA_CATEGORY_DEFAULTS.items():
+        enabled = category_switches.get(category, default)
+        if not isinstance(enabled, bool):
+            raise TypeError(f"category_switches.{category} must be a boolean")
+        resolved_switches[category] = enabled
     normalized_categories = {
         category: sorted(
             unique_ints(category_indices.get(category, []), n_components)
@@ -227,6 +246,7 @@ def finalize_score_payload(
         for category in ICA_CATEGORY_DEFAULTS
     }
     payload = normalize_score_dict(scores_dict, n_components)
+    payload["category_switches"] = resolved_switches
     for category in ("ecg", "eog"):
         score_by_index = dict(
             zip(
@@ -251,7 +271,7 @@ def finalize_score_payload(
     payload["marked_components"] = {
         "mode": marked_output_mode,
         "auto_indices": auto_indices,
-        "written_indices": sorted(unique_ints(written_indices, n_components)),
+        "written_indices": sorted(unique_ints(written_indices)),
     }
     return payload
 
@@ -332,11 +352,13 @@ def filter_detector_outcome(outcome, categories):
         if category_detections:
             detections[category] = category_detections
 
+    include_full_model_output = categories["ecg"] and categories["eog"]
     detail = {
         key: value
         for key, value in outcome.detail.items()
         if key
         not in {
+            "class_order",
             "labels",
             "probabilities",
             "artifact_indices",
@@ -352,7 +374,13 @@ def filter_detector_outcome(outcome, categories):
             "detections": detections,
         }
     )
-    if categories["ecg"] and categories["eog"]:
+    metadata = detail.get("metadata")
+    if isinstance(metadata, dict):
+        detail["metadata"] = dict(metadata)
+        if not include_full_model_output:
+            detail["metadata"].pop("native_class_order", None)
+    if include_full_model_output:
+        detail["class_order"] = outcome.detail.get("class_order", [])
         detail["labels"] = list(labels)
         detail["probabilities"] = outcome.detail.get("probabilities", [])
     return DetectorOutcome(
@@ -621,29 +649,49 @@ def main():
             # find which ICs match the EOG pattern
             if categories["eog"]:
                 try:
-                    # check eog flat.
-                    if config["find_bads_eog"]['ch_name'] is not None:
-                        for ref_ch_name in config["find_bads_eog"]['ch_name']:
-                            logging.info("EOG Ref Channel " + ref_ch_name + "")
-                            config["find_bads_eog"]['ch_name'] = ref_ch_name
-                            print("EOG Ref Channel: " + ref_ch_name + "")
-                            print("Measure Methods:",config["find_bads_eog"]['measure'])
-                            print("Reference Channel Name: ",config["find_bads_eog"]['ch_name'])
+                    eog_config = dict(config.get("find_bads_eog", {}) or {})
+                    configured_ch_names = eog_config.get("ch_name")
+                    if configured_ch_names is None:
+                        eog_ch_names = [None]
+                    elif isinstance(configured_ch_names, str):
+                        eog_ch_names = [configured_ch_names]
+                    else:
+                        eog_ch_names = list(configured_ch_names)
+
+                    for ref_ch_name in eog_ch_names:
+                        call_config = dict(eog_config)
+                        call_config["ch_name"] = ref_ch_name
+                        if ref_ch_name is not None:
+                            logging.info("EOG reference channel: %s", ref_ch_name)
                             eog_signal = raw.copy().pick(ref_ch_name).get_data()
                             flat_ratio = calculate_flat_ratio(eog_signal)
-                            logging.info("The flat ratio of eog signal:",flat_ratio)
+                            logging.info("The flat ratio of the EOG signal: %s", flat_ratio)
                             if flat_ratio > 0.1:
-                                config["find_bads_eog"]['ch_name'] = None
+                                call_config["ch_name"] = None
 
-                            eog_indices, eog_scores = ica.find_bads_eog(raw,**config.get("find_bads_eog", {}))
-                            logging.info("EOG indices:{}, {}".format(eog_indices,eog_scores))
-                            print(f"EOG indices({ref_ch_name}):{eog_indices}_eog_scores:{eog_scores}")
-                            mne_ic_labels['index'].extend(eog_indices)
-                            mne_ic_labels['labels'].extend(['EOG']*len(eog_indices))
-                            mne_ic_labels['y_pred_proba'].extend(eog_scores[eog_indices])
-                            ic_eog.extend(eog_indices)
-                            for component_idx in eog_indices:
-                                append_component_score(scores_dict, "eog", component_idx, eog_scores[component_idx])
+                        eog_indices, eog_scores = ica.find_bads_eog(
+                            raw, **call_config
+                        )
+                        logging.info(
+                            "EOG indices: %s, scores: %s",
+                            eog_indices,
+                            eog_scores,
+                        )
+                        print(
+                            f"EOG indices({ref_ch_name}):{eog_indices}"
+                            f"_eog_scores:{eog_scores}"
+                        )
+                        mne_ic_labels['index'].extend(eog_indices)
+                        mne_ic_labels['labels'].extend(['EOG']*len(eog_indices))
+                        mne_ic_labels['y_pred_proba'].extend(eog_scores[eog_indices])
+                        ic_eog.extend(eog_indices)
+                        for component_idx in eog_indices:
+                            append_component_score(
+                                scores_dict,
+                                "eog",
+                                component_idx,
+                                eog_scores[component_idx],
+                            )
                 except Exception as e:
                     logging.error(f"[MNE-Python] Error:{e}")
 
@@ -784,6 +832,7 @@ def main():
         scores_dict = finalize_score_payload(
             scores_dict,
             category_indices=category_indices,
+            category_switches=categories,
             written_indices=written_indices,
             marked_output_mode=marked_output_mode,
             n_components=n_components,
@@ -794,15 +843,13 @@ def main():
             handle.write("\n")
         os.replace(temporary_scores_file, scores_output_file)
 
-        if marked_output_mode == "auto" or not os.path.exists(artifact_ic_output_file):
-            temporary_marked_file = f"{artifact_ic_output_file}.tmp"
-            with open(temporary_marked_file, "w", encoding="utf-8") as handle:
-                for idx in written_indices:
-                    handle.write(f"{idx}\n")
-            os.replace(temporary_marked_file, artifact_ic_output_file)
-        else:
+        write_marked_component_indices(
+            artifact_ic_output_file,
+            written_indices,
+        )
+        if marked_output_mode != "auto":
             print(
-                "Existing manually edited ICA components were preserved; "
+                "Existing manually selected ICA components were preserved; "
                 "automatic detector details were refreshed in "
                 f"{scores_output_file}."
             )

@@ -2,7 +2,7 @@
 # MEGFlow: A Scalable and Reproducible Pipeline for Large-Scale MEG Preprocessing
 
 [![Documentation Status](https://readthedocs.org/projects/megflow-docs/badge/?version=latest)](https://megflow-docs.readthedocs.io/)
-[![Docker Pulls](https://img.shields.io/docker/pulls/cmrlab/megflow)](https://hub.docker.com/r/cmrlab/megflow)
+[![Docker Pulls](https://img.shields.io/docker/pulls/cplmeg/megflow)](https://hub.docker.com/r/cplmeg/megflow)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](https://opensource.org/licenses/MIT)
 
 **MEGFlow** is a preprocessing pipeline for MEG (Magnetoencephalography) data, built on **MNE-Python** and **Nextflow**.
@@ -52,7 +52,7 @@ environments may lead to behavior that differs from the containerized workflow.
 ### Recommended: Containerized Install
 
 The scripts under `scripts/install/` install or reuse a container runtime, pull
-`cmrlab/megflow:<version>`, and verify the image by running the MEGFlow help
+`cplmeg/megflow:<version>`, and verify the image by running the MEGFlow help
 command.
 
 ```bash
@@ -107,7 +107,7 @@ If you prefer to install manually, install Docker following the
 image directly:
 
 ```bash
-docker pull cmrlab/megflow:<version>
+docker pull cplmeg/megflow:<version>
 ```
 
 *(Replace `<version>` with the specific version tag, e.g., `1.0.0` or `latest`)*
@@ -118,7 +118,7 @@ docker pull cmrlab/megflow:<version>
 
 ### Basic Command Structure
 ```bash
-docker run --rm -it cmrlab/megflow:<version> [nextflow_options]
+docker run --rm -it cplmeg/megflow:<version> [nextflow_options]
 ```
 
 ### Pipeline steps
@@ -324,7 +324,7 @@ You can set this in `nextflow.config` or override it for a run:
 
 ```bash
 nextflow run ... --static_task_log_mode all-command-log
-docker run ... cmrlab/megflow:<tag> ... --static_task_log_mode all-command-log
+docker run ... cplmeg/megflow:<tag> ... --static_task_log_mode all-command-log
 ```
 
 Artifact Review in the static report packages one overview plot per subject by
@@ -412,7 +412,7 @@ The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.s
 - **Modifiers** that contain commas must be **quoted for the shell**, e.g. `--steps 'meg_epochs,skip_ica'`.
 - **Corpus mode** uses `--corpus`; in that mode `-i` / `--input` points to a directory whose immediate children are datasets, and `--fs_subjects_dir` is used as the base directory for per-dataset FreeSurfer outputs. Named profiles, `dataset_include`, `dataset_exclude`, and dataset-level module overrides from the mounted config are preserved.
 - You can instead set **`params.megflow.defaults.steps = '...'`** inside the Nextflow file you mount at **`/program/nextflow/nextflow.config`**; a container **`--steps`** / **`-s`** argument **overrides** that for the run.
-- **`-s`** here is the **MEGFlow** flag (input path is **`-i`**), not Docker’s **`-i`** (interactive). Typical pattern: `docker run ... cmrlab/megflow:<tag> -i /input -o /output ... --steps all`.
+- **`-s`** here is the **MEGFlow** flag (input path is **`-i`**), not Docker’s **`-i`** (interactive). Typical pattern: `docker run ... cplmeg/megflow:<tag> -i /input -o /output ... --steps all`.
 - The Docker entrypoint copies the mounted config to
   `/program/nextflow/run_nextflow.config`, applies command-line path overrides,
   runs Nextflow with that file, and copies it to `<output>/nextflow.config` for
@@ -421,7 +421,7 @@ The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.s
 
 **Docker output ownership**
 
-You do **not** need to add Docker's `--user` flag or pre-create the output directory. If the host output path does not exist, Docker may create it as `root:root` before the container starts; MEGFlow fixes that at startup, then runs the pipeline as the host user inferred from `/input`. For interactive report runs such as `docker run ... -v /data/preprocessed:/output cmrlab/megflow:<version> -r`, ownership is inferred from `/output`. Outputs should therefore be writable by the submitting user, not owned by root.
+You do **not** need to add Docker's `--user` flag or pre-create the output directory. If the host output path does not exist, Docker may create it as `root:root` before the container starts; MEGFlow fixes that at startup, then runs the pipeline as the host user inferred from `/input`. For interactive report runs such as `docker run ... -v /data/preprocessed:/output cplmeg/megflow:<version> -r`, ownership is inferred from `/output`. Outputs should therefore be writable by the submitting user, not owned by root.
 
 Nextflow's `docker.runOptions = '-u $(id -u):$(id -g)'` syntax is valid when a
 host Nextflow process launches a separate Docker container for each task. It is
@@ -434,7 +434,7 @@ If neither `/input` nor `/output` is owned by the user who should own generated 
 docker run --rm -it \
   -e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)" \
   -v /data/bids:/input -v /data/out:/output \
-  cmrlab/megflow:<version> \
+  cplmeg/megflow:<version> \
   -i /input -o /output
 ```
 
@@ -445,7 +445,7 @@ docker run --rm -it \
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   -v /data/license.txt:/fs_license.txt \
-  cmrlab/megflow:1.0.0 \
+  cplmeg/megflow:1.0.0 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
   --steps meg_all
@@ -454,7 +454,7 @@ docker run --rm -it \
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
   -v /data/license.txt:/fs_license.txt \
-  cmrlab/megflow:1.0.0 \
+  cplmeg/megflow:1.0.0 \
   -i /input -o /output \
   --fs_license_file /fs_license.txt --fs_subjects_dir /smri \
   --steps all
@@ -462,7 +462,7 @@ docker run --rm -it \
 # Static HTML report only (existing preproc under preproc_dir)
 docker run --rm -it \
   -v /data/bids:/input -v /data/out:/output -v /data/smri:/smri \
-  cmrlab/megflow:1.0.0 \
+  cplmeg/megflow:1.0.0 \
   -i /input -o /output --fs_subjects_dir /smri \
   --steps report
 ```
@@ -496,7 +496,7 @@ docker run --rm -it \
     -v /data/datasets/SMN4Lang/smri:/smri \
     -v /data/megflow/license.txt:/fs_license.txt \
     -v /data/megflow/nextflow/nextflow.config:/program/nextflow/nextflow.config \
-    cmrlab/megflow:1.0.0 \
+    cplmeg/megflow:1.0.0 \
     -i /input \
     -o /output \
     --fs_license_file /fs_license.txt \
@@ -522,7 +522,7 @@ Use the `-r` flag and map port `8501`:
 ```bash
 docker run --rm -it -p 8501:8501 \
   -v /data/studies/LanguageStudy/megflow:/output \
-  cmrlab/megflow:<version> -r
+  cplmeg/megflow:<version> -r
 ```
 
 **Access via browser:**

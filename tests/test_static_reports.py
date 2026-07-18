@@ -138,8 +138,74 @@ class StaticIcaAlertConfigurationTests(unittest.TestCase):
             self.assertNotIn("No ECG-related components detected.", disabled_messages)
             self.assertNotIn("No EOG-related components detected.", disabled_messages)
 
+            (ica_dir / "ecg_eog_scores.json").write_text(
+                json.dumps(
+                    {
+                        "ecg_indices": [],
+                        "eog_indices": [],
+                        "ecg": [],
+                        "eog": [],
+                        "category_switches": {
+                            "ecg": False,
+                            "eog": True,
+                            "outlier": False,
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+            category_gated_summary = static_report.collect_subject_data(
+                "sub-01",
+                report_root,
+                Path(tmpdir) / "category_gated_report",
+                dict(static_report.DEFAULT_THRESHOLDS),
+                qc_scope={
+                    "meg_stage": 3,
+                    "skip_ica": False,
+                    "run_meg": True,
+                    "megqc_enabled": True,
+                },
+            )
+            category_gated_messages = {
+                alarm["message"] for alarm in category_gated_summary["alarms"]
+            }
+            self.assertNotIn(
+                "No ECG-related components detected.",
+                category_gated_messages,
+            )
+            self.assertIn(
+                "No EOG-related components detected.",
+                category_gated_messages,
+            )
+            self.assertFalse(category_gated_summary["ica"]["ecg_enabled"])
+            self.assertTrue(category_gated_summary["ica"]["eog_enabled"])
+
 
 class StaticManifestScopeTests(unittest.TestCase):
+    def test_nested_ica_category_switches_control_report_expectations(self):
+        manifest = {
+            "parsed": {
+                "primary": "meg_all",
+                "meg_stage": 3,
+                "run_meg": True,
+                "run_anatomy": False,
+                "skip_ica": False,
+            },
+            "params_snapshot": {
+                "effective_config": {
+                    "ic_label": {
+                        "ic_ecg": False,
+                        "ic_eog": True,
+                    }
+                }
+            },
+        }
+
+        scope = static_report.qc_completeness_scope_from_manifest(manifest)
+
+        self.assertFalse(scope["ic_ecg_enabled"])
+        self.assertTrue(scope["ic_eog_enabled"])
+
     def test_nested_effective_config_disables_normmeg_qc_expectations(self):
         manifest = {
             "parsed": {

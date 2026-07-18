@@ -21,7 +21,7 @@ omit the anatomy mounts instead.
      -v /data/study/smri:/smri \
      -v /data/license.txt:/fs_license.txt:ro \
      -v /data/study/project.config:/config/project.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/project.config \
      --input /input \
      --output /output \

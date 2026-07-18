@@ -3,7 +3,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-IMAGE="${IMAGE:-cmrlab/megflow:1.0.0}"
+IMAGE="${IMAGE:-cplmeg/megflow:1.0.0}"
 PROJECT_ROOT="${PROJECT_ROOT:-$SCRIPT_DIR}"
 DATASETS_ROOT="/data/liaopan/datasets"
 CONFIG="${CONFIG:-$PROJECT_ROOT/nextflow/nextflow_multi_dataset_demo.config}"

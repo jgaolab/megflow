@@ -56,6 +56,7 @@ class IcaCategoryDocumentationContractTests(unittest.TestCase):
             source,
         )
         self.assertIn("outlier_indices", source)
+        self.assertIn("category_switches", source)
         self.assertIn("no automatic ICA exclusions", source)
 
     def test_pipeline_and_output_pages_document_json_text_consistency(self):
@@ -71,6 +72,14 @@ class MegnetNextflowContractTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.source = NEXTFLOW_FILE.read_text(encoding="utf-8")
+        fingerprint_start = cls.source.index(
+            "String icaLabelImplementationFingerprint"
+        )
+        fingerprint_end = cls.source.index(
+            "String megflowOutputRoot",
+            fingerprint_start,
+        )
+        cls.fingerprint_function = cls.source[fingerprint_start:fingerprint_end]
         cls.label_process = process_block(
             cls.source,
             "run_ic_label",
@@ -89,13 +98,14 @@ class MegnetNextflowContractTests(unittest.TestCase):
         self.assertIn("String icaLabelImplementationFingerprint", self.source)
         for relative_path in (
             "run_ica_label.py",
+            "tools/ica_classify",
             "tools/megnet_retrained/__init__.py",
             "tools/megnet_retrained/inference.py",
             "tools/megnet_retrained/runtime/preprocessing.py",
             "tools/megnet_retrained/model.onnx",
         ):
             with self.subTest(path=relative_path):
-                self.assertIn(relative_path, self.source)
+                self.assertIn(relative_path, self.fingerprint_function)
         self.assertIn("def icaLabelFingerprints = [:]", self.source)
         self.assertIn(
             "icaLabelImplementationFingerprint(effective_config.code_dir)",

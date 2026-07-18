@@ -167,7 +167,8 @@ Important Sidecar Files
        preserved manual review may replace that automatic union.
    * - ``ecg_eog_scores.json``
      - Enabled-category ``ecg_indices``, ``eog_indices``, and
-       ``outlier_indices`` plus method provenance. Its
+       ``outlier_indices``, the resolved ``category_switches``, and method
+       provenance. Its
        ``marked_components.auto_indices`` records the automatic category union,
        while ``written_indices`` exactly matches ``marked_components.txt``.
    * - ``*_clean_raw.fif``

@@ -11,7 +11,7 @@ set -euo pipefail
 #   CONFIG=/data/corpus.config \
 #   bash scripts/cohort-dev/run_MultiDatasets.sh
 
-IMAGE="${IMAGE:-cmrlab/megflow:1.0.0}"
+IMAGE="${IMAGE:-cplmeg/megflow:1.0.0}"
 CONFIG="${CONFIG:-nextflow/nextflow_for_docker.config}"
 DATASET_ROOT="${DATASET_ROOT:-/path/to/corpus_INPUT}"
 OUTPUT_ROOT="${OUTPUT_ROOT:-/path/to/corpus_OUTPUT}"

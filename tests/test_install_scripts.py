@@ -91,7 +91,7 @@ class InstallScriptContractTests(unittest.TestCase):
         self.assertEqual(
             calls,
             [
-                "pull --force ./megflow_1.0.0.sif docker://cmrlab/megflow:1.0.0",
+                "pull --force ./megflow_1.0.0.sif docker://cplmeg/megflow:1.0.0",
                 "run ./megflow_1.0.0.sif -h",
             ],
         )
@@ -110,8 +110,8 @@ class InstallScriptContractTests(unittest.TestCase):
             [
                 "info",
                 "info",
-                "pull cmrlab/megflow:latest",
-                "run --rm cmrlab/megflow:latest -h",
+                "pull cplmeg/megflow:latest",
+                "run --rm cplmeg/megflow:latest -h",
             ],
         )
 
@@ -126,8 +126,8 @@ class InstallScriptContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls[-2:], [
-            "pull cmrlab/megflow:1.0.0",
-            "run --rm cmrlab/megflow:1.0.0 -h",
+            "pull cplmeg/megflow:1.0.0",
+            "run --rm cplmeg/megflow:1.0.0 -h",
         ])
 
     def test_linux_rejects_unknown_runtime_before_invoking_a_runtime(self):
@@ -179,8 +179,8 @@ class InstallScriptContractTests(unittest.TestCase):
             calls,
             [
                 "info",
-                "pull cmrlab/megflow:1.0.0",
-                "run --rm cmrlab/megflow:1.0.0 -h",
+                "pull cplmeg/megflow:1.0.0",
+                "run --rm cplmeg/megflow:1.0.0 -h",
             ],
         )
 
@@ -199,8 +199,8 @@ class InstallScriptContractTests(unittest.TestCase):
             [
                 "info",
                 "info",
-                "pull cmrlab/megflow:1.0.0",
-                "run --rm cmrlab/megflow:1.0.0 -h",
+                "pull cplmeg/megflow:1.0.0",
+                "run --rm cplmeg/megflow:1.0.0 -h",
             ],
         )
 
@@ -214,8 +214,8 @@ class InstallScriptContractTests(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls[-2:], [
-            "pull cmrlab/megflow:latest",
-            "run --rm cmrlab/megflow:latest -h",
+            "pull cplmeg/megflow:latest",
+            "run --rm cplmeg/megflow:latest -h",
         ])
 
 

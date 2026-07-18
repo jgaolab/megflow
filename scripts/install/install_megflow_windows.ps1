@@ -3,7 +3,7 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-$Image = "cmrlab/megflow:$ImageTag"
+$Image = "cplmeg/megflow:$ImageTag"
 $script:DockerCommand = $null
 
 function Write-Log {

@@ -180,6 +180,28 @@ def _megqc_enabled_from_manifest(
     return default
 
 
+def _ica_category_enabled_from_manifest(
+    manifest: dict[str, Any] | None,
+    category: str,
+    default: bool = True,
+) -> bool:
+    if not isinstance(manifest, dict):
+        return default
+    snapshot = manifest.get("params_snapshot")
+    if not isinstance(snapshot, dict):
+        return default
+    key = f"ic_{category}"
+    if key in snapshot:
+        return _bool_value(snapshot.get(key), default)
+    effective = snapshot.get("effective_config")
+    if not isinstance(effective, dict):
+        return default
+    ic_label = effective.get("ic_label")
+    if isinstance(ic_label, dict) and key in ic_label:
+        return _bool_value(ic_label.get(key), default)
+    return default
+
+
 def _snapshot_with_effective_values(snapshot: dict[str, Any]) -> dict[str, Any]:
     normalized = dict(snapshot)
     effective = snapshot.get("effective_config")
@@ -277,7 +299,14 @@ def qc_completeness_scope_from_manifest(manifest: dict[str, Any] | None) -> dict
     If manifest is missing or unparsed, assume a full MEG pipeline (meg_stage 3)
     so older datasets without manifest keep previous strict behaviour.
     """
-    default = {"meg_stage": 3, "skip_ica": False, "run_meg": True, "megqc_enabled": True}
+    default = {
+        "meg_stage": 3,
+        "skip_ica": False,
+        "run_meg": True,
+        "megqc_enabled": True,
+        "ic_ecg_enabled": True,
+        "ic_eog_enabled": True,
+    }
     if not manifest:
         return default
     parsed = manifest.get("parsed")
@@ -285,7 +314,14 @@ def qc_completeness_scope_from_manifest(manifest: dict[str, Any] | None) -> dict
         return default
     if not _parsed_bool(parsed, "run_meg"):
         ms = _parsed_int(parsed, "meg_stage", -99)
-        return {"meg_stage": ms, "skip_ica": _parsed_bool(parsed, "skip_ica"), "run_meg": False, "megqc_enabled": False}
+        return {
+            "meg_stage": ms,
+            "skip_ica": _parsed_bool(parsed, "skip_ica"),
+            "run_meg": False,
+            "megqc_enabled": False,
+            "ic_ecg_enabled": False,
+            "ic_eog_enabled": False,
+        }
     ms = _parsed_int(parsed, "meg_stage", 3)
     megqc_enabled = _megqc_enabled_from_manifest(manifest)
     return {
@@ -293,6 +329,12 @@ def qc_completeness_scope_from_manifest(manifest: dict[str, Any] | None) -> dict
         "skip_ica": _parsed_bool(parsed, "skip_ica"),
         "run_meg": True,
         "megqc_enabled": megqc_enabled,
+        "ic_ecg_enabled": _ica_category_enabled_from_manifest(
+            manifest, "ecg"
+        ),
+        "ic_eog_enabled": _ica_category_enabled_from_manifest(
+            manifest, "eog"
+        ),
     }
 
 

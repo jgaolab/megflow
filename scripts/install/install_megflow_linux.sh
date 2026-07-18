@@ -4,7 +4,7 @@ set -euo pipefail
 
 IMAGE_TAG="${1:-latest}"
 RUNTIME_MODE="${2:-auto}" # auto | docker | apptainer
-IMAGE="cmrlab/megflow:${IMAGE_TAG}"
+IMAGE="cplmeg/megflow:${IMAGE_TAG}"
 SIF_PATH="${MEGFLOW_SIF_PATH:-./megflow_${IMAGE_TAG}.sif}"
 RUNTIME=""
 

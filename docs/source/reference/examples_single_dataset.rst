@@ -37,7 +37,7 @@ covariance, and source-model assumptions during the first quality check.
      -v /data/study/bids:/input \
      -v /data/study/megflow:/output \
      -v /data/study/megflow.config:/config/project.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/project.config \
      --input /input \
      --output /output \
@@ -78,7 +78,7 @@ effective ``anatomy.fs_license_file`` field.
      -v /data/MEG-MASC/smri:/smri \
      -v /data/license.txt:/fs_license.txt:ro \
      -v /data/MEG-MASC/anatomy.config:/config/anatomy.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/anatomy.config \
      --input /input \
      --output /output \
@@ -147,7 +147,7 @@ selection, and :doc:`configuration_source` for covariance and source settings.
      -v /data/study/megflow:/output \
      -v /data/study/smri:/smri \
      -v /data/study/megflow.config:/config/project.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/project.config \
      --input /input \
      --output /output \

@@ -1,7 +1,7 @@
 # MEGFlow One-Click Install Scripts
 
-MEGFlow is officially distributed as a **Docker image** (`cmrlab/megflow`).
-For Linux HPC environments where Docker daemon is unavailable, the Linux script supports an Apptainer/Singularity workflow by pulling from `docker://cmrlab/megflow:<tag>`.
+MEGFlow is officially distributed as a **Docker image** (`cplmeg/megflow`).
+For Linux HPC environments where Docker daemon is unavailable, the Linux script supports an Apptainer/Singularity workflow by pulling from `docker://cplmeg/megflow:<tag>`.
 
 ## Script List
 
@@ -15,7 +15,7 @@ Each script automatically performs the following steps:
 
 1. Check and, when supported by the host package manager, install a container
    runtime (Docker on Windows/macOS; Docker or Apptainer/Singularity on Linux).
-2. Pull `cmrlab/megflow:<tag>` (default `latest`).
+2. Pull `cplmeg/megflow:<tag>` (default `latest`).
 3. Run `-h` inside the container image to print help text and verify installation.
 4. Validate basic inputs (for example, image tag cannot be empty).
 
@@ -74,4 +74,4 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windo
 - Package installation fails:
   - Re-run with proper privileges (`root` or `sudo`) and check network/package mirror access.
 - Image tag issues:
-  - Make sure the tag is not empty and exists in `cmrlab/megflow`.
+  - Make sure the tag is not empty and exists in `cplmeg/megflow`.

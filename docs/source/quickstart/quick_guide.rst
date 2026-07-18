@@ -51,7 +51,7 @@ cleaning, which avoids dataset-specific event and source-model assumptions:
    docker run --rm -it \
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      -i /input \
      -o /output \
      --steps meg_ica \
@@ -167,7 +167,7 @@ Then run the first QC pass with:
      -v /path/to/bids:/input \
      -v /path/to/output:/output \
      -v /path/to/my_nextflow.config:/config/project.config:ro \
-     cmrlab/megflow:1.0.0 \
+     cplmeg/megflow:1.0.0 \
      --config /config/project.config \
      --input /input \
      --output /output \

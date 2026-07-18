@@ -276,7 +276,9 @@ String icaLabelImplementationFingerprint(def codeDirValue) {
         new File(codeDir, 'tools/megnet_retrained/runtime/__init__.py'),
         new File(codeDir, 'tools/megnet_retrained/runtime/preprocessing.py'),
         new File(codeDir, 'tools/megnet_retrained/model.onnx')
-    ])
+    ]) + '|' + codeTreeStatFingerprint(
+        new File(codeDir, 'tools/ica_classify')
+    )
 }
 
 String megflowOutputRoot() {
@@ -1124,7 +1126,7 @@ process run_deepprep {
 
     if [ ! -x "\${deepprep_command}" ]; then
         echo "DeepPrep is not available in this runtime: \${deepprep_command}" >&2
-        echo "Run MEGFlow in cmrlab/megflow:1.0.0 or use the Nextflow docker/singularity execution profile." >&2
+        echo "Run MEGFlow in cplmeg/megflow:1.0.0 or use the Nextflow docker/singularity execution profile." >&2
         exit 1
     fi
     if [ ! -f "\${fs_license_file}" ]; then

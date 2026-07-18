@@ -53,7 +53,8 @@ Subject-Level Metrics
    * - ICA artifact candidates by category
      - ``ica_report/<recording>/ecg_eog_scores.json``
      - ECG, EOG, and outlier candidates retained by the three category master
-       switches. Disabled categories are empty. The JSON also distinguishes
+       switches. Disabled categories are empty, and ``category_switches``
+       records the resolved per-recording settings. The JSON also distinguishes
        the automatic union from the exact written/manual component list.
    * - ICA component review views
      - ``ica_report/<recording>/ica_results/*.png``
