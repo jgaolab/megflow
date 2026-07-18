@@ -34,8 +34,13 @@ class DockerEntrypointOptionTests(unittest.TestCase):
 
         self.base_config = self.root / "base.config"
         self.base_config.write_text(
-            'params.megflow = [defaults: [steps: "meg_all", anatomy: [is_bids: false]], '
-            'datasets: [docker_input: [name: "docker_input"], '
+            'params.megflow = [defaults: [steps: "meg_all", '
+            'anatomy: [is_bids: false, method: "pseudomri", '
+            't1_input_type: "dicom", t1_dicom_series_glob: "*T1*"], '
+            'report: [static_task_log_mode: "none", '
+            'static_artifact_overview_duration: 45.0]], '
+            'datasets: [docker_input: [name: "docker_input", '
+            't1_dir: "/configured/t1"], '
             'NamedDataset: [steps: "meg_epochs"]]]\n',
             encoding="utf-8",
         )
@@ -91,25 +96,27 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             "--steps",
             "--view-report",
             "--corpus",
-            "--static_task_log_mode",
-            "--static_artifact_overview_duration",
             "--fs_license_file",
             "--fs_subjects_dir",
             "--t1_dir",
-            "--t1_input_type",
-            "--t1_dicom_series_glob",
-            "--anatomy_preprocess_method",
             "--resume",
+            "--help",
         )
         for option in expected_options:
             self.assertIn(option, result.stdout)
             self.assertIn(option, docs)
+        removed_options = (
+            "--static_task_log_mode",
+            "--static_artifact_overview_duration",
+            "--t1_input_type",
+            "--t1_dicom_series_glob",
+            "--anatomy_preprocess_method",
+        )
+        for option in removed_options:
+            self.assertNotIn(option, result.stdout)
+            self.assertNotIn(option, docs)
         self.assertIn("Single-dataset structural MRI input root", result.stdout)
-        self.assertIn("nifti|dicom for non-BIDS FreeSurfer input", result.stdout)
-        self.assertIn("Quoted relative glob", result.stdout)
         self.assertIn("single-dataset mode", docs)
-        self.assertIn("non-BIDS FreeSurfer", docs)
-        self.assertIn("quote the value", docs)
 
     def test_single_dataset_options_generate_expected_runtime_config(self):
         input_dir = self.root / "single-input"
@@ -136,16 +143,6 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             str(fs_dir),
             "--t1_dir",
             str(t1_dir),
-            "--t1_input_type",
-            "dicom",
-            "--t1_dicom_series_glob",
-            "*T1*",
-            "--anatomy_preprocess_method",
-            "freesurfer",
-            "--static_task_log_mode",
-            "failed",
-            "--static_artifact_overview_duration",
-            "30.5",
             "--resume",
         )
 
@@ -157,16 +154,39 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             f'megflowRuntimeDockerInput.t1_dir = "{t1_dir}"',
             f'megflowRuntimeDockerInput.fs_subjects_dir = "{fs_dir}"',
             'megflowRuntimeDockerInput.steps = "anatomy"',
-            'megflowRuntimeAnatomy.method = "freesurfer"',
-            'megflowRuntimeAnatomy.t1_input_type = "dicom"',
-            'megflowRuntimeAnatomy.t1_dicom_series_glob = "*T1*"',
             f'megflowRuntimeAnatomy.fs_license_file = "{license_file}"',
-            'megflowRuntimeReport.static_task_log_mode = "failed"',
-            "megflowRuntimeReport.static_artifact_overview_duration = 30.5",
         )
         for line in expected_lines:
             self.assertIn(line, config)
+        self.assertNotIn("megflowRuntimeReport", config)
+        self.assertNotIn("megflowRuntimeAnatomy.method", config)
+        self.assertNotIn("megflowRuntimeAnatomy.t1_input_type", config)
+        self.assertNotIn("megflowRuntimeAnatomy.t1_dicom_series_glob", config)
         self.assertIn("-resume", self.nextflow_args.read_text(encoding="utf-8").splitlines())
+
+    def test_config_controls_report_anatomy_and_default_t1_dir(self):
+        input_dir = self.root / "single-input"
+        output_dir = self.root / "single-output"
+        input_dir.mkdir()
+
+        result = self._run(
+            "--config",
+            str(self.base_config),
+            "--input",
+            str(input_dir),
+            "--output",
+            str(output_dir),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        config = (output_dir / "nextflow.config").read_text(encoding="utf-8")
+        self.assertIn('t1_dir: "/configured/t1"', config)
+        self.assertIn('method: "pseudomri"', config)
+        self.assertIn('static_task_log_mode: "none"', config)
+        self.assertIn("static_artifact_overview_duration: 45.0", config)
+        self.assertNotIn("megflowRuntimeDockerInput.t1_dir =", config)
+        self.assertNotIn("megflowRuntimeAnatomy", config)
+        self.assertNotIn("megflowRuntimeReport", config)
 
     def test_corpus_options_generate_shared_defaults_and_preserve_profiles(self):
         input_dir = self.root / "corpus-input"
@@ -187,12 +207,6 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             "all",
             "--fs_subjects_dir",
             str(fs_root),
-            "--t1_input_type",
-            "dicom",
-            "--t1_dicom_series_glob",
-            "*mprage*",
-            "--anatomy_preprocess_method",
-            "freesurfer",
         )
 
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
@@ -201,14 +215,13 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             f'params.megflow.corpus_root = "{input_dir}"',
             f'params.megflow.fs_subjects_root = "{fs_root}"',
             'megflowRuntimeDefaults.steps = "all"',
-            'megflowRuntimeAnatomy.method = "freesurfer"',
-            'megflowRuntimeAnatomy.t1_input_type = "dicom"',
-            'megflowRuntimeAnatomy.t1_dicom_series_glob = "*mprage*"',
             'megflowRuntimeCorpusDatasets.remove("docker_input")',
             'NamedDataset: [steps: "meg_epochs"]',
         )
         for line in expected_lines:
             self.assertIn(line, config)
+        self.assertNotIn("megflowRuntimeAnatomy", config)
+        self.assertNotIn("megflowRuntimeReport", config)
 
     def test_view_report_starts_streamlit_without_nextflow(self):
         output_dir = self.root / "report-output"
@@ -257,45 +270,24 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.assertIn("--t1_dir is only valid for a single-dataset run", result.stdout)
         self.assertFalse(self.nextflow_args.exists())
 
-    def test_invalid_t1_input_type_is_rejected(self):
-        input_dir = self.root / "single-input"
-        output_dir = self.root / "single-output"
-        input_dir.mkdir()
-
-        result = self._run(
-            "--config",
-            str(self.base_config),
-            "--input",
-            str(input_dir),
-            "--output",
-            str(output_dir),
-            "--t1_input_type",
-            "not-a-real-type",
+    def test_removed_processing_options_are_rejected(self):
+        removed_options = (
+            ("--static_task_log_mode", "failed"),
+            ("--task-log-mode", "failed"),
+            ("--static_artifact_overview_duration", "30.5"),
+            ("--artifact-overview-duration", "30.5"),
+            ("--t1_input_type", "dicom"),
+            ("--t1_dicom_series_glob", "*T1*"),
+            ("--t1-dicom-series-glob", "*T1*"),
+            ("--anatomy_preprocess_method", "freesurfer"),
+            ("--anatomy-preprocess-method", "freesurfer"),
         )
 
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("expected nifti or dicom", result.stdout)
-        self.assertFalse(self.nextflow_args.exists())
-
-    def test_absolute_t1_dicom_series_glob_is_rejected(self):
-        input_dir = self.root / "single-input"
-        output_dir = self.root / "single-output"
-        input_dir.mkdir()
-
-        result = self._run(
-            "--config",
-            str(self.base_config),
-            "--input",
-            str(input_dir),
-            "--output",
-            str(output_dir),
-            "--t1_dicom_series_glob",
-            "/absolute/*T1*",
-        )
-
-        self.assertNotEqual(result.returncode, 0)
-        self.assertIn("must be a relative glob", result.stdout)
-        self.assertFalse(self.nextflow_args.exists())
+        for option, value in removed_options:
+            with self.subTest(option=option):
+                result = self._run(option, value)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn(f"Unknown parameter: {option}", result.stdout)
 
 
 if __name__ == "__main__":

@@ -648,6 +648,51 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                 self.assertIn(message, combined)
                 self.assertNotIn("Submitted process", combined)
 
+    def test_invalid_report_and_anatomy_config_fail_before_process_submission(self):
+        invalid_cases = {
+            "task_log_mode": (
+                ', report: [static_task_log_mode: "verbose"]',
+                "report.static_task_log_mode must be one of",
+            ),
+            "artifact_overview_duration": (
+                ", report: [static_artifact_overview_duration: 0]",
+                "report.static_artifact_overview_duration must be a positive number",
+            ),
+            "t1_input_type": (
+                ', anatomy: [method: "freesurfer", is_bids: false, '
+                't1_input_type: "archive"]',
+                "anatomy.t1_input_type must be nifti or dicom",
+            ),
+            "absolute_dicom_glob": (
+                ', anatomy: [method: "freesurfer", is_bids: false, '
+                't1_input_type: "dicom", t1_dicom_series_glob: "/T1/*"]',
+                "anatomy.t1_dicom_series_glob must be relative",
+            ),
+        }
+        for name, (profile_extra, message) in invalid_cases.items():
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                output = root / "output"
+                dataset = root / "dataset"
+                create_dataset(dataset)
+                config = root / "invalid-profile.config"
+                write_config(
+                    config,
+                    output,
+                    dataset_block(
+                        "dataset",
+                        dataset,
+                        steps="anatomy",
+                        extra=profile_extra,
+                    ),
+                )
+
+                _, combined = self.run_pipeline(
+                    config, output, expect_success=False
+                )
+                self.assertIn(message, combined)
+                self.assertNotIn("Submitted process", combined)
+
     def test_dataset_and_recording_overrides_do_not_cross_route(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

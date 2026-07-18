@@ -320,11 +320,11 @@ task log content copied into the static report is controlled by
 - `failed`: copy `.command.err`, `.command.log`, and `.command.out` only for failed or ignored tasks when you want a smaller report package.
 - `none`: do not copy `.command*` logs into the static report.
 
-You can set this in `nextflow.config` or override it for a run:
+Set this in the active `nextflow.config` so source and Docker runs use the same
+saved configuration:
 
-```bash
-nextflow run ... --static_task_log_mode all-command-log
-docker run ... cplmeg/megflow:<tag> ... --static_task_log_mode all-command-log
+```groovy
+params.megflow.defaults.report.static_task_log_mode = "all-command-log"
 ```
 
 Artifact Review in the static report packages one overview plot per subject by
@@ -477,14 +477,18 @@ docker run --rm -it \
 | `-s`, `--steps` | Sets the runtime `params.megflow` steps value (e.g. `all`, `meg_all`, `anatomy`, `report`). With **Docker**, pass this **after the image name**; see [Using pipeline steps with Docker](#using-pipeline-steps-with-docker). Same semantics as [Pipeline steps](#pipeline-steps). |
 | `-r`, `--view-report` | Run Streamlit to view the report (does not run Nextflow) |
 | `--corpus` | Treat the input directory as a collection of datasets, preserve matching named dataset profiles, run each selected child through the native dataset tuple DAG, and generate a corpus-level static report |
-| `--static_task_log_mode` | Static report task log bundling mode: `all-command-log` (default), `failed`, or `none` |
-| `--static_artifact_overview_duration` | Seconds represented by the single Artifact Review overview plot in the static report; default `200.0` |
 | `--fs_license_file` | Specify the FreeSurfer license file path |
 | `--fs_subjects_dir` | Specify the FreeSurfer `SUBJECTS_DIR` containing processed T1 results |
 | `--t1_dir` | Specify the T1 image directory |
-| `--t1_input_type` | Specify the T1 input type |
-| `--t1_dicom_series_glob` | Optional relative glob for selecting DICOM series directories under each T1 DICOM root, e.g. `*T1*` or `*mprage*` |
 | `--resume` | Resume the previous run (Nextflow option) |
+
+Processing and report policy is configured in `params.megflow`, not exposed as
+Docker entrypoint flags. This includes `anatomy.method`,
+`anatomy.t1_input_type`, `anatomy.t1_dicom_series_glob`,
+`report.static_task_log_mode`, and
+`report.static_artifact_overview_duration`. Put shared values under
+`params.megflow.defaults` and dataset-specific values under the matching
+`params.megflow.datasets.<name>` profile.
 
 ### Example: Running a Full Pipeline
 Example with input/output volumes and license files:

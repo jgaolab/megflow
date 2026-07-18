@@ -126,46 +126,36 @@ the output owner explicitly.
 
    Usage: /program/nextflow/run.sh [options]
    Options:
-     -c, --config          Specify the Nextflow config file
-     -i, --input           Specify the input directory
-     -o, --output          Specify the output directory including report results
-     -s, --steps           Pipeline mode, for example all, meg_all, anatomy, report
+     -c, --config          Project configuration file
+     -i, --input           MEG dataset or corpus input directory
+     -o, --output          MEGFlow output directory
+     -s, --steps           Pipeline stage override, for example all or meg_all
      -r, --view-report     Run Streamlit to view the report and do not run Nextflow
-     --corpus              Treat input children as datasets and preserve named profiles
-     --static_task_log_mode failed|all-command-log|none
-     --static_artifact_overview_duration Seconds shown by the artifact overview
-     --fs_license_file     Specify the FreeSurfer license file
-     --fs_subjects_dir     Specify the FreeSurfer SUBJECTS_DIR directory
-     --t1_dir              Single-dataset structural MRI input root (defaults to --input)
-     --t1_input_type       nifti|dicom for non-BIDS FreeSurfer input
-     --t1_dicom_series_glob Quoted relative glob below each non-BIDS T1 DICOM root
-     --anatomy_preprocess_method freesurfer|deepprep|pseudomri
-     --resume              Resume the previous run
+     --corpus              Process immediate input children as separate datasets
+     --fs_license_file     FreeSurfer license path inside the container
+     --fs_subjects_dir     FreeSurfer SUBJECTS_DIR inside the container
+     --t1_dir              Single-dataset structural MRI input root
+     --resume              Resume the previous Nextflow execution
+     -h, --help             Show this help message
 
 Common ``--steps`` values are ``meg_all`` for full MEG processing with existing
 anatomy, ``all`` for anatomy plus full MEG, ``anatomy`` for structural MRI only,
 and ``report`` for static report regeneration. See
 :doc:`../reference/configuration` for all modes and modifiers.
-``--static_task_log_mode`` controls whether the static report bundles only
-failed task logs, successful ``.command.log`` files as well, or no command
-logs. The entrypoint maps ``--fs_license_file`` into the effective
+The entrypoint maps ``--fs_license_file`` into the effective
 ``anatomy.fs_license_file`` setting. In ``--corpus`` mode it also preserves
 named dataset profiles from the mounted config, including dataset-specific
 processing blocks and ``dataset_include`` / ``dataset_exclude`` filters.
 
-The structural MRI options have explicit scopes. In single-dataset mode,
-``--t1_dir`` sets ``datasets.docker_input.t1_dir`` and defaults to ``--input``
-when omitted. It is rejected with ``--corpus`` because each corpus dataset can
-have a different MRI root; set ``t1_dir`` in the corresponding named dataset
-profile instead. In corpus mode, ``--t1_input_type``,
-``--t1_dicom_series_glob``, and ``--anatomy_preprocess_method`` become shared
-defaults, while an explicit dataset profile still takes precedence.
+In single-dataset mode, ``--t1_dir`` explicitly overrides
+``datasets.docker_input.t1_dir``. When it is omitted, the entrypoint preserves
+the configured value and MEGFlow ultimately falls back to the dataset input
+directory. ``--t1_dir`` is rejected with ``--corpus`` because each corpus
+dataset can have a different MRI root; set ``t1_dir`` in each named profile.
 
-``--t1_input_type`` and ``--t1_dicom_series_glob`` apply only to non-BIDS
-FreeSurfer processing (``anatomy.method = "freesurfer"`` and
-``anatomy.is_bids = false``). The input type must be ``nifti`` or ``dicom``.
-The series selector must be relative to each DICOM root; quote the value so the
-host shell does not expand it, for example
-``--t1_dicom_series_glob '*mprage*'``. DeepPrep requires BIDS anatomy and does
-not use these two non-BIDS selectors. See :doc:`../reference/configuration`
-for the complete Docker-to-profile mapping.
+Scientific and report behavior is configured only in ``params.megflow``.
+Set ``anatomy.method``, ``anatomy.t1_input_type``,
+``anatomy.t1_dicom_series_glob``, ``report.static_task_log_mode``, and
+``report.static_artifact_overview_duration`` under shared defaults or the
+matching dataset profile. This keeps the effective values reviewable in the
+saved runtime config and allows heterogeneous corpus datasets to differ.

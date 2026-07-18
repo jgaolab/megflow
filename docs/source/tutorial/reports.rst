@@ -239,8 +239,8 @@ Task Log Bundling
 By default, MEGFlow copies successful-task ``.command.log`` excerpts as well
 as failed-task command logs so the portable report contains fuller task
 provenance. Configure this with ``static_task_log_mode`` in the Nextflow
-config, or pass ``--static_task_log_mode`` through the Docker entrypoint or
-Nextflow command.
+config. Put a shared value under ``params.megflow.defaults.report`` or override
+it in a named dataset profile.
 
 .. list-table::
    :header-rows: 1
@@ -261,11 +261,9 @@ Nextflow command.
 
 Example:
 
-.. code-block:: bash
+.. code-block:: groovy
 
-   docker run ... cplmeg/megflow:<version> \
-     -i /input -o /output \
-     --static_task_log_mode all-command-log
+   params.megflow.defaults.report.static_task_log_mode = "all-command-log"
 
 How to Interpret the Static Report
 ----------------------------------

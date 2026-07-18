@@ -19,8 +19,6 @@ FS_SUBJECTS_ROOT="${FS_SUBJECTS_ROOT:-${OUTPUT_ROOT}/smri}"
 FS_LICENSE_FILE="${FS_LICENSE_FILE:-}"
 STEPS="${STEPS:-meg_ica}"
 RESUME="${RESUME:-true}"
-STATIC_TASK_LOG_MODE="${STATIC_TASK_LOG_MODE:-all-command-log}"
-STATIC_ARTIFACT_OVERVIEW_DURATION="${STATIC_ARTIFACT_OVERVIEW_DURATION:-200.0}"
 
 if [ ! -d "$DATASET_ROOT" ]; then
     echo "DATASET_ROOT does not exist: $DATASET_ROOT" >&2
@@ -53,8 +51,6 @@ megflow_args=(
     --fs_subjects_dir /smri
     --corpus
     --steps "$STEPS"
-    --static_task_log_mode "$STATIC_TASK_LOG_MODE"
-    --static_artifact_overview_duration "$STATIC_ARTIFACT_OVERVIEW_DURATION"
 )
 
 if [ -n "$FS_LICENSE_FILE" ]; then
@@ -79,8 +75,6 @@ echo "MRI root:             $FS_SUBJECTS_ROOT"
 echo "Config:               $CONFIG"
 echo "Image:                $IMAGE"
 echo "Steps:                $STEPS"
-echo "Task log mode:        $STATIC_TASK_LOG_MODE"
-echo "Artifact overview:    ${STATIC_ARTIFACT_OVERVIEW_DURATION}s"
 echo "============================================================"
 
 docker "${docker_args[@]}" "$IMAGE" "${megflow_args[@]}"

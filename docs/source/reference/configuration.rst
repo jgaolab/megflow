@@ -183,27 +183,19 @@ Command-line options map as follows:
      - ``datasets.docker_input.t1_dir``
      - Single-dataset structural MRI input root. It is rejected in corpus mode;
        set ``t1_dir`` in each named dataset profile instead.
-   * - ``--t1_input_type``
-     - single profile or corpus default ``anatomy.t1_input_type``
-     - ``nifti`` or ``dicom`` for non-BIDS FreeSurfer anatomy.
-   * - ``--t1_dicom_series_glob``
-     - single profile or corpus default anatomy block
-     - Quoted relative DICOM series selection glob.
-   * - ``--anatomy_preprocess_method``
-     - single profile or corpus default ``anatomy.method``
-     - ``freesurfer``, ``deepprep``, or ``pseudomri``.
-   * - ``--static_task_log_mode``
-     - ``defaults.report.static_task_log_mode``
-     - ``all-command-log``, ``failed``, or ``none``.
-   * - ``--static_artifact_overview_duration``
-     - ``defaults.report.static_artifact_overview_duration``
-     - Positive duration in seconds.
    * - ``--resume``
      - Nextflow ``-resume``
      - Reuses valid cached tasks.
    * - ``-r``, ``--view-report``
      - Report viewer mode
      - Starts Streamlit without launching preprocessing.
+
+Processing and report policy is intentionally not exposed through the Docker
+entrypoint. Configure ``anatomy.method``, ``anatomy.t1_input_type``,
+``anatomy.t1_dicom_series_glob``, ``report.static_task_log_mode``, and
+``report.static_artifact_overview_duration`` in ``params.megflow.defaults`` or
+the matching dataset profile. MEGFlow validates the effective values after
+defaults and dataset settings are merged, before submitting any process.
 
 Canonical Configuration Structure
 ---------------------------------

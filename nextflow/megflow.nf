@@ -454,6 +454,63 @@ void validateFixedProcessOutputDirs(Map config, String context) {
     }
 }
 
+void validateReportConfig(Map config, String context) {
+    def taskLogMode = cfgText(
+        config,
+        ['report', 'static_task_log_mode'],
+        'all-command-log'
+    ).trim().toLowerCase()
+    def allowedTaskLogModes = ['failed', 'all-command-log', 'none'] as Set
+    if (!allowedTaskLogModes.contains(taskLogMode)) {
+        throw new IllegalArgumentException(
+            "${context}.report.static_task_log_mode must be one of " +
+            "${allowedTaskLogModes.sort()}; received '${taskLogMode}'."
+        )
+    }
+
+    def durationValue = cfgGet(
+        config,
+        ['report', 'static_artifact_overview_duration'],
+        200.0
+    )
+    BigDecimal duration
+    try {
+        duration = new BigDecimal(durationValue.toString())
+    } catch (NumberFormatException ignored) {
+        duration = null
+    }
+    if (duration == null || duration <= 0) {
+        throw new IllegalArgumentException(
+            "${context}.report.static_artifact_overview_duration must be a positive number; " +
+            "received '${durationValue}'."
+        )
+    }
+}
+
+void validateAnatomyInputConfig(Map config, String context) {
+    def inputType = cfgText(config, ['anatomy', 't1_input_type'], 'nifti')
+        .trim()
+        .toLowerCase()
+    if (!(inputType in ['nifti', 'dicom'])) {
+        throw new IllegalArgumentException(
+            "${context}.anatomy.t1_input_type must be nifti or dicom; received '${inputType}'."
+        )
+    }
+
+    def dicomSeriesGlob = cfgText(
+        config,
+        ['anatomy', 't1_dicom_series_glob'],
+        ''
+    ).trim()
+    def windowsAbsolute = dicomSeriesGlob ==~ /^[A-Za-z]:[\\\/].*/
+    if (dicomSeriesGlob && (new File(dicomSeriesGlob).isAbsolute() || windowsAbsolute)) {
+        throw new IllegalArgumentException(
+            "${context}.anatomy.t1_dicom_series_glob must be relative to the T1 DICOM root; " +
+            "received '${dicomSeriesGlob}'."
+        )
+    }
+}
+
 boolean modulePreprocConfigured(Map effectiveConfig, String moduleName) {
     def value = cfgGet(effectiveConfig, [moduleName, 'preproc'], null)
     if (value instanceof Map) {
@@ -796,7 +853,10 @@ List resolveDatasetProfiles(def megflowRaw) {
         def profileKey = matchingDatasetProfileKey(datasets, candidateName)
         def profile = profileKey == null ? [:] : asMap(datasets[profileKey])
         def effective = deepMerge(defaults, profile)
-        validateRecordingProfiles(effective, "params.megflow.datasets.${profileKey ?: candidateName}")
+        def profileContext = "params.megflow.datasets.${profileKey ?: candidateName}"
+        validateReportConfig(effective, profileContext)
+        validateAnatomyInputConfig(effective, profileContext)
+        validateRecordingProfiles(effective, profileContext)
         def datasetName = sanitizeDatasetName((profile.name ?: candidateName).toString())
         def datasetDir = (profile.dataset_dir ?: candidate.dataset_dir).toString()
         if (!new File(datasetDir).isDirectory()) {

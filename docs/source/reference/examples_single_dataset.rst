@@ -84,7 +84,6 @@ effective ``anatomy.fs_license_file`` field.
      --output /output \
      --fs_subjects_dir /smri \
      --fs_license_file /fs_license.txt \
-     --anatomy_preprocess_method deepprep \
      --steps anatomy \
      --resume
 

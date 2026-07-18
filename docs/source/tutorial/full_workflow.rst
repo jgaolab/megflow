@@ -147,7 +147,14 @@ coregistration and forward/source modeling require the reconstructed anatomy.
 
 If no structural T1 image is available, use Pseudo-MRI mode instead. This mode
 requires usable digitization/headshape points in the MEG FIF files and still
-uses FreeSurfer/BEM after generating the pseudo T1 image.
+uses FreeSurfer/BEM after generating the pseudo T1 image. Set the backend in
+the mounted project config:
+
+.. code-block:: groovy
+
+   params.megflow.datasets.docker_input.anatomy = [
+     method: "pseudomri"
+   ]
 
 .. code-block:: bash
 
@@ -156,13 +163,14 @@ uses FreeSurfer/BEM after generating the pseudo T1 image.
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
+     -v /path/to/pseudomri.config:/config/project.config:ro \
      cplmeg/megflow:1.0.0 \
+     --config /config/project.config \
      -i /input \
      -o /output \
      --fs_subjects_dir /smri \
      --fs_license_file /fs_license.txt \
      --steps all \
-     --anatomy_preprocess_method pseudomri \
      --resume
 
 Full Workflow Checklist
