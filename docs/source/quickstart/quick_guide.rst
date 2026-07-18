@@ -142,13 +142,11 @@ Minimal Config Override
 -----------------------
 
 Most users should start from the default config. If you only want to select a
-task from a BIDS dataset, create a small overlay that first includes the complete
-container defaults and then changes only the import filter. The ``includeConfig``
-line is important: the remaining required defaults still come from the image.
+task from a BIDS dataset, create a small overlay that changes only the import
+filter. The Docker entrypoint loads the complete image defaults before applying
+the overlay with Nextflow ``-c``.
 
 .. code-block:: groovy
-
-   includeConfig "/program/nextflow/nextflow_for_docker.config"
 
    params.megflow.datasets.docker_input.meg_import = [
      subject_id: null,

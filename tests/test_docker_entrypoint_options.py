@@ -154,19 +154,28 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         config = (output_dir / "nextflow.config").read_text(encoding="utf-8")
         expected_lines = (
-            f'megflowRuntimeDockerInput.dataset_dir = "{input_dir}"',
-            f'megflowRuntimeDockerInput.output_dir = "{output_dir}"',
-            f'megflowRuntimeDockerInput.t1_dir = "{t1_dir}"',
-            f'megflowRuntimeDockerInput.fs_subjects_dir = "{fs_dir}"',
-            'megflowRuntimeDockerInput.steps = "anatomy"',
-            f'megflowRuntimeAnatomy.fs_license_file = "{license_file}"',
+            f'params.megflow.datasets.docker_input.dataset_dir = "{input_dir}"',
+            f'params.megflow.datasets.docker_input.output_dir = "{output_dir}"',
+            f'params.megflow.datasets.docker_input.t1_dir = "{t1_dir}"',
+            f'params.megflow.datasets.docker_input.fs_subjects_dir = "{fs_dir}"',
+            'params.megflow.datasets.docker_input.steps = "anatomy"',
+            f'params.megflow.datasets.docker_input.anatomy.fs_license_file = "{license_file}"',
         )
         for line in expected_lines:
             self.assertIn(line, config)
-        self.assertNotIn("megflowRuntimeReport", config)
-        self.assertNotIn("megflowRuntimeAnatomy.method", config)
-        self.assertNotIn("megflowRuntimeAnatomy.t1_input_type", config)
-        self.assertNotIn("megflowRuntimeAnatomy.t1_dicom_series_glob", config)
+        anatomy_init = (
+            "params.megflow.datasets.docker_input.anatomy = "
+            "params.megflow.datasets.docker_input.anatomy ?: [:]"
+        )
+        license_assignment = (
+            f'params.megflow.datasets.docker_input.anatomy.fs_license_file = "{license_file}"'
+        )
+        self.assertIn(anatomy_init, config)
+        self.assertLess(config.index(anatomy_init), config.index(license_assignment))
+        self.assertNotIn("params.megflow.datasets.docker_input.report", config)
+        self.assertNotIn("params.megflow.datasets.docker_input.anatomy.method =", config)
+        self.assertNotIn("params.megflow.datasets.docker_input.anatomy.t1_input_type =", config)
+        self.assertNotIn("params.megflow.datasets.docker_input.anatomy.t1_dicom_series_glob =", config)
         self.assertIn("-resume", self.nextflow_args.read_text(encoding="utf-8").splitlines())
 
     def test_single_dataset_launches_nextflow_from_output_launch_directory(self):
@@ -211,9 +220,9 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.assertIn('method: "pseudomri"', config)
         self.assertIn('static_task_log_mode: "none"', config)
         self.assertIn("static_artifact_overview_duration: 45.0", config)
-        self.assertNotIn("megflowRuntimeDockerInput.t1_dir =", config)
-        self.assertNotIn("megflowRuntimeAnatomy", config)
-        self.assertNotIn("megflowRuntimeReport", config)
+        self.assertNotIn("params.megflow.datasets.docker_input.t1_dir =", config)
+        self.assertNotIn("params.megflow.datasets.docker_input.anatomy.fs_license_file =", config)
+        self.assertNotIn("params.megflow.datasets.docker_input.report", config)
 
     def test_corpus_options_generate_shared_defaults_and_preserve_profiles(self):
         input_dir = self.root / "corpus-input"
@@ -241,14 +250,14 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         expected_lines = (
             f'params.megflow.corpus_root = "{input_dir}"',
             f'params.megflow.fs_subjects_root = "{fs_root}"',
-            'megflowRuntimeDefaults.steps = "all"',
-            'megflowRuntimeCorpusDatasets.remove("docker_input")',
+            'params.megflow.defaults.steps = "all"',
+            'params.megflow.datasets.docker_input.dataset_dir = ""',
             'NamedDataset: [steps: "meg_epochs"]',
         )
         for line in expected_lines:
             self.assertIn(line, config)
-        self.assertNotIn("megflowRuntimeAnatomy", config)
-        self.assertNotIn("megflowRuntimeReport", config)
+        self.assertNotIn("params.megflow.defaults.anatomy.fs_license_file =", config)
+        self.assertNotIn("params.megflow.defaults.report", config)
 
     def test_corpus_launches_nextflow_from_output_launch_directory(self):
         input_dir = self.root / "corpus-launch-input"

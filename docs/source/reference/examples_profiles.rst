@@ -126,8 +126,6 @@ Example ``corpus.config``:
 
 .. code-block:: groovy
 
-   includeConfig "/program/nextflow/nextflow_for_docker.config"
-
    params.megflow.dataset_include = ["WAND_Extracted", "SMN4Lang", "MEG-MASC"]
    params.megflow.dataset_exclude = []
    params.megflow.defaults.steps = "meg_ica"

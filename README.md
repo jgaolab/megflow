@@ -54,6 +54,13 @@ environments may lead to behavior that differs from the containerized workflow.
 MEGFlow `1.0.0` has been tested with Nextflow `24.10.3`, MNE-Python `1.8.0`,
 Python `3.10/3.11`, and Java `17`.
 
+The distributed image also starts under Nextflow `26.04+`. MEGFlow uses DSL2
+but currently selects the compatible v1 syntax parser because the workflow
+still contains dynamic Groovy constructs that are not accepted by the v2
+parser. The Docker entrypoint sets `NXF_SYNTAX_PARSER=v1` automatically. For a
+direct source launch with Nextflow 26, export the same variable before running
+the pipeline.
+
 For basic use, we recommend at least **8 CPU cores, 32 GB RAM, and 100 GB of
 free disk space**, in addition to space for the input data and generated
 results. For multi-dataset processing, **16 or more CPU cores, 64 GB RAM, and

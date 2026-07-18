@@ -49,7 +49,16 @@ image already runs Nextflow inside the container with the local executor; do
 not add a Nextflow ``docker`` profile to that command.
 
 Source launches should use Nextflow 24.10 or newer. The repository integration
-suite currently validates the workflow with Nextflow 24.10.3.
+suite currently validates the workflow with Nextflow 24.10.3. Nextflow 26.04
+defaults to its stricter v2 syntax parser, while the current MEGFlow DSL2
+workflow still uses dynamic Groovy constructs supported by parser v1. The
+distributed image selects the compatible parser automatically. For a direct
+source launch with Nextflow 26, set it explicitly:
+
+.. code-block:: bash
+
+   export NXF_SYNTAX_PARSER=v1
+   nextflow run nextflow/megflow.nf ...
 
 The main source configuration defines the execution layer as well as
 ``params.megflow``. Runtime observability files are stored inside the final

@@ -3,8 +3,8 @@ Configuration Reference
 
 MEGFlow is configured through ``params.megflow`` in a Nextflow configuration
 file. Most users should run the distributed Docker image and provide a small
-project config that includes the complete defaults bundled with the image.
-Only settings that differ for the study need to be repeated.
+project config. The image base config is loaded automatically before that
+project overlay, so only settings that differ for the study need to be repeated.
 
 Configuration Sequence
 ----------------------
@@ -33,15 +33,14 @@ preprocessing, source analysis, reporting, and execution resources.
 Using a Config with Docker
 --------------------------
 
-Create a host file such as ``/data/study/project.config``. Start it with the
-container base config, then add project-specific overrides. This example
-selects resting-state recordings and stops after continuous cleaning so the
-first quality-control report can be checked before configuring epochs or
-source reconstruction:
+Create a host file such as ``/data/study/project.config`` and add only
+project-specific overrides. The Docker entrypoint passes it to Nextflow with
+``-c`` after the image's project-level ``nextflow.config`` has been loaded.
+This example selects resting-state recordings and stops after continuous
+cleaning so the first quality-control report can be checked before configuring
+epochs or source reconstruction:
 
 .. code-block:: groovy
-
-   includeConfig "/program/nextflow/nextflow_for_docker.config"
 
    params.megflow.datasets.docker_input.steps = "meg_ica"
    params.megflow.datasets.docker_input.meg_import = [
@@ -74,9 +73,8 @@ The command deliberately omits ``--steps`` so
 ``datasets.docker_input.steps`` from the project config remains effective. Add
 ``--steps <value>`` only when a run should temporarily override that setting.
 The entrypoint writes the runtime config file to ``<output>/nextflow.config``.
-It retains the base ``includeConfig`` directive and records the path and
-command-line overrides appended for the run; Nextflow performs the final merge
-when loading that file.
+It records the project settings and command-line path overrides appended for
+the run; Nextflow first loads the image base config and then applies this file.
 
 For multiple datasets, mount the directory that contains the dataset folders
 and add ``--corpus``. Named profiles in the project config must match the

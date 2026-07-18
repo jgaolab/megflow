@@ -20,8 +20,6 @@ covariance, and source-model assumptions during the first quality check.
 
 .. code-block:: groovy
 
-   includeConfig "/program/nextflow/nextflow_for_docker.config"
-
    params.megflow.datasets.docker_input.meg_import = [
      subject_id: "first:10",
      session_id: null,
@@ -55,8 +53,6 @@ mounted and passed through the entrypoint; the CLI value is mapped to the
 effective ``anatomy.fs_license_file`` field.
 
 .. code-block:: groovy
-
-   includeConfig "/program/nextflow/nextflow_for_docker.config"
 
    params.megflow.datasets.docker_input.mri_import = [
      subject_id: ["05", "09", "11", "14", "15", "17", "18", "23", "24", "25"],
@@ -106,8 +102,6 @@ source run is rarely dataset independent.
 selection, and :doc:`configuration_source` for covariance and source settings.
 
 .. code-block:: groovy
-
-   includeConfig "/program/nextflow/nextflow_for_docker.config"
 
    params.megflow.datasets.docker_input.meg_import = [
      subject_id: "first:10",

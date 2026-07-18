@@ -49,14 +49,14 @@ Use one of these repository files as the base:
   MEGIN/Elekta Maxwell filtering and tSSS at default, dataset, and recording
   configuration levels without enabling it in the shared defaults.
 
-For Docker, a small project config can include the full config already present
-inside the image:
+For Docker, a small project config contains only study-specific overrides. The
+entrypoint automatically loads the full config already present inside the image
+before applying this file with Nextflow ``-c``:
 
 .. code-block:: groovy
 
-   includeConfig "/program/nextflow/nextflow_for_docker.config"
-
-   // Project-specific overrides follow this line.
+   // Project-specific overrides start immediately.
+   params.megflow.defaults.steps = "meg_ica"
 
 Mount that overlay at a container path such as ``/config/project.config`` and
 pass the path through ``--config``. This keeps the project file visibly

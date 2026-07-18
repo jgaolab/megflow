@@ -5,6 +5,11 @@
 # Exit on error
 set -e
 
+# MEGFlow is DSL2 but still uses Groovy constructs supported by Nextflow's v1
+# syntax parser. Nextflow 26 defaults to v2, so select the compatible parser
+# explicitly until the pipeline itself is migrated to the static v2 syntax.
+export NXF_SYNTAX_PARSER=v1
+
 # Default configuration file and parameters
 CONFIG_FILE="/program/nextflow/nextflow.config"
 RUN_CONFIG_FILE="/program/nextflow/run_nextflow.config"
@@ -246,25 +251,23 @@ write_run_config() {
 
     if [ -n "$run_t1_dir" ]; then
         escaped_t1="$(groovy_escape "$run_t1_dir")"
-        t1_dir_assignment="megflowRuntimeDockerInput.t1_dir = \"${escaped_t1}\""
+        t1_dir_assignment="params.megflow.datasets.docker_input.t1_dir = \"${escaped_t1}\""
     fi
 
     if [ -n "$STEPS" ]; then
-        steps_assignment="megflowRuntimeDockerInput.steps = \"$(groovy_escape "$STEPS")\""
+        steps_assignment="params.megflow.datasets.docker_input.steps = \"$(groovy_escape "$STEPS")\""
     fi
 
     if [ -n "$FS_LICENSE_FILE" ]; then
-        anatomy_assignments="def megflowRuntimeAnatomy = new LinkedHashMap(megflowRuntimeDockerInput.anatomy ?: [:])"
+        anatomy_assignments="params.megflow.datasets.docker_input.anatomy = params.megflow.datasets.docker_input.anatomy ?: [:]"
         anatomy_assignments="${anatomy_assignments}
-megflowRuntimeAnatomy.fs_license_file = \"$(groovy_escape "$FS_LICENSE_FILE")\""
-        anatomy_assignments="${anatomy_assignments}
-megflowRuntimeDockerInput.anatomy = megflowRuntimeAnatomy"
+params.megflow.datasets.docker_input.anatomy.fs_license_file = \"$(groovy_escape "$FS_LICENSE_FILE")\""
     fi
 
     if [ -n "$run_fs_subjects_dir" ]; then
         echo "Using FreeSurfer subjects directory: $run_fs_subjects_dir"
         mkdir -p "$run_fs_subjects_dir"
-        fs_subjects_assignment="megflowRuntimeDockerInput.fs_subjects_dir = \"$(groovy_escape "$run_fs_subjects_dir")\""
+        fs_subjects_assignment="params.megflow.datasets.docker_input.fs_subjects_dir = \"$(groovy_escape "$run_fs_subjects_dir")\""
     fi
 
     cat >> "$run_config_file" <<EOF
@@ -276,18 +279,14 @@ params.megflow.corpus_root = ""
 params.megflow.dataset_include = ["docker_input"]
 params.megflow.dataset_exclude = []
 
-def megflowRuntimeDatasets = new LinkedHashMap(params.megflow.datasets ?: [:])
-def megflowRuntimeDockerInput = new LinkedHashMap(megflowRuntimeDatasets.docker_input ?: [:])
-megflowRuntimeDockerInput.name = "docker_input"
-megflowRuntimeDockerInput.dataset_dir = "${escaped_input}"
-megflowRuntimeDockerInput.output_dir = "${escaped_output}"
-megflowRuntimeDockerInput.preproc_dir = "${escaped_output}/preprocessed"
+params.megflow.datasets.docker_input.name = "docker_input"
+params.megflow.datasets.docker_input.dataset_dir = "${escaped_input}"
+params.megflow.datasets.docker_input.output_dir = "${escaped_output}"
+params.megflow.datasets.docker_input.preproc_dir = "${escaped_output}/preprocessed"
 ${t1_dir_assignment}
 ${fs_subjects_assignment}
 ${steps_assignment}
 ${anatomy_assignments}
-megflowRuntimeDatasets.docker_input = megflowRuntimeDockerInput
-params.megflow.datasets = megflowRuntimeDatasets
 
 workDir = "${escaped_output}/work"
 log.file = "${escaped_output}/static_html_report/nextflow/nextflow.log"
@@ -315,15 +314,13 @@ write_corpus_run_config() {
     escaped_fs_subjects_root="$(groovy_escape "$run_fs_subjects_root")"
 
     if [ -n "$STEPS" ]; then
-        steps_assignment="megflowRuntimeDefaults.steps = \"$(groovy_escape "$STEPS")\""
+        steps_assignment="params.megflow.defaults.steps = \"$(groovy_escape "$STEPS")\""
     fi
 
     if [ -n "$FS_LICENSE_FILE" ]; then
-        anatomy_assignments="def megflowRuntimeAnatomy = new LinkedHashMap(megflowRuntimeDefaults.anatomy ?: [:])"
+        anatomy_assignments="params.megflow.defaults.anatomy = params.megflow.defaults.anatomy ?: [:]"
         anatomy_assignments="${anatomy_assignments}
-megflowRuntimeAnatomy.fs_license_file = \"$(groovy_escape "$FS_LICENSE_FILE")\""
-        anatomy_assignments="${anatomy_assignments}
-megflowRuntimeDefaults.anatomy = megflowRuntimeAnatomy"
+params.megflow.defaults.anatomy.fs_license_file = \"$(groovy_escape "$FS_LICENSE_FILE")\""
     fi
 
     cat >> "$run_config_file" <<EOF
@@ -334,16 +331,13 @@ params.megflow.report_scope = "corpus"
 params.megflow.corpus_root = "${escaped_input}"
 params.megflow.fs_subjects_root = "${escaped_fs_subjects_root}"
 
-def megflowRuntimeDefaults = new LinkedHashMap(params.megflow.defaults ?: [:])
 ${steps_assignment}
 ${anatomy_assignments}
-params.megflow.defaults = megflowRuntimeDefaults
 
 // docker_input is the single-dataset placeholder bundled with the image.
-// All named corpus profiles from the mounted config remain available.
-def megflowRuntimeCorpusDatasets = new LinkedHashMap(params.megflow.datasets ?: [:])
-megflowRuntimeCorpusDatasets.remove("docker_input")
-params.megflow.datasets = megflowRuntimeCorpusDatasets
+// An empty dataset_dir keeps it out of corpus discovery while preserving all
+// named profiles from the mounted configuration.
+params.megflow.datasets.docker_input.dataset_dir = ""
 
 workDir = "${escaped_output}/work/corpus_driver"
 log.file = "${escaped_output}/corpus_static_html_report/nextflow/nextflow.log"

@@ -54,7 +54,7 @@ RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && \
         libxcursor1  \
         libxrender1 \
         libxi6 \
-        openjdk-11-jdk && \
+        openjdk-17-jdk && \
     rm -rf /var/lib/apt/lists/* && \
     ln -s /usr/bin/python3 /usr/bin/python && \
     mkdir -p /input /output /smri ${RUN_DIR}/nextflow ${RUN_DIR}/megflow/
@@ -138,10 +138,13 @@ RUN mkdir -p /tmp/megflow_home /tmp/megflow_cache /tmp/megflow_nextflow /tmp/NUM
 WORKDIR /output
 ENV HOME=/tmp/megflow_home \
     XDG_CACHE_HOME=/tmp/megflow_cache \
+    JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
+    NXF_JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64 \
     NXF_HOME=/tmp/megflow_nextflow \
     NUMBA_CACHE_DIR=/tmp/NUMBA_CACHE_DIR \
     MPLCONFIGDIR=/tmp/MPLCONFIGDIR \
-    NXF_OFFLINE='true'
+    NXF_OFFLINE='true' \
+    NXF_SYNTAX_PARSER='v1'
 EXPOSE 8501
 ENTRYPOINT ["/program/nextflow/run.sh"]
 

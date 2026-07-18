@@ -9,6 +9,7 @@ PIPELINE = REPO_ROOT / "nextflow" / "megflow.nf"
 SOURCE_CONFIG = REPO_ROOT / "nextflow" / "nextflow.config"
 DOCKER_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_docker.config"
 DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
+DOCKERFILE = REPO_ROOT / "megflow.Dockerfile"
 INTERACTIVE_APP = REPO_ROOT / "megflow" / "reports" / "reports.py"
 INTERACTIVE_NEXTFLOW = REPO_ROOT / "megflow" / "reports" / "reports" / "nextflow.py"
 INTERACTIVE_CONFIG = REPO_ROOT / "megflow" / "reports" / "reports" / "nx_config_online.py"
@@ -184,12 +185,55 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         for config in available_configs():
             text = config.read_text(encoding="utf-8")
             self.assertIn('report_scope: "dataset"', text)
-            self.assertIn('def megflowNextflowDir = "${params.megflow.output_dir}/${megflowReportPackage}/nextflow"', text)
-            self.assertIn('file = "${megflowNextflowDir}/nextflow.log"', text)
-            self.assertIn('file = "${megflowNextflowDir}/report.html"', text)
-            self.assertIn('file = "${megflowNextflowDir}/timeline.html"', text)
-            self.assertIn('file = "${megflowNextflowDir}/trace.txt"', text)
+            self.assertIn("params.megflow.report_scope == 'corpus'", text)
+            self.assertIn("'corpus_static_html_report'", text)
+            self.assertIn("'static_html_report'", text)
+            self.assertIn('/nextflow/nextflow.log"', text)
+            self.assertIn('/nextflow/report.html"', text)
+            self.assertIn('/nextflow/timeline.html"', text)
+            self.assertIn('/nextflow/trace.txt"', text)
             self.assertGreaterEqual(text.count("enabled = true"), 3)
+
+    def test_base_configs_use_declarative_v2_syntax(self):
+        for config in available_configs():
+            text = config.read_text(encoding="utf-8")
+            self.assertNotRegex(text, r"(?m)^\s*def\s+", config.name)
+            self.assertNotRegex(text, r"(?m)^\s*if\s*\(", config.name)
+
+    def test_docker_runner_generates_declarative_runtime_overrides(self):
+        text = packaged_docker_runner().read_text(encoding="utf-8")
+        self.assertNotIn("def megflowRuntime", text)
+        self.assertNotIn("new LinkedHashMap(params.megflow", text)
+        self.assertIn(
+            'params.megflow.datasets.docker_input.name = "docker_input"',
+            text,
+        )
+        self.assertIn(
+            'params.megflow.datasets.docker_input.dataset_dir = "${escaped_input}"',
+            text,
+        )
+        self.assertIn(
+            'params.megflow.datasets.docker_input.anatomy.fs_license_file',
+            text,
+        )
+        self.assertIn(
+            'params.megflow.defaults.anatomy.fs_license_file',
+            text,
+        )
+        self.assertIn(
+            'params.megflow.datasets.docker_input.dataset_dir = ""',
+            text,
+        )
+
+    def test_container_supports_nextflow_26_with_v1_pipeline_syntax(self):
+        runner = packaged_docker_runner().read_text(encoding="utf-8")
+        dockerfile = DOCKERFILE.read_text(encoding="utf-8")
+        self.assertIn("export NXF_SYNTAX_PARSER=v1", runner)
+        self.assertIn("openjdk-17-jdk", dockerfile)
+        self.assertNotIn("openjdk-11-jdk", dockerfile)
+        self.assertIn("JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64", dockerfile)
+        self.assertIn("NXF_JAVA_HOME=/usr/lib/jvm/java-17-openjdk-amd64", dockerfile)
+        self.assertIn("NXF_SYNTAX_PARSER='v1'", dockerfile)
 
     def test_source_config_has_portable_execution_profiles(self):
         if not DOCKER_CONFIG.is_file():
@@ -282,10 +326,13 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertNotIn("--cohort", text)
         self.assertNotIn("--anat_only", text)
         self.assertNotIn("--meg_only", text)
-        self.assertIn("new LinkedHashMap(params.megflow.datasets ?: [:])", text)
-        self.assertIn('megflowRuntimeCorpusDatasets.remove("docker_input")', text)
+        self.assertNotIn("new LinkedHashMap(params.megflow.datasets ?: [:])", text)
+        self.assertIn(
+            'params.megflow.datasets.docker_input.dataset_dir = ""',
+            text,
+        )
         self.assertIn("params.megflow.dataset_include", text)
-        self.assertIn("megflowRuntimeAnatomy.fs_license_file", text)
+        self.assertIn("params.megflow.defaults.anatomy.fs_license_file", text)
         self.assertIn('cp "$RUN_CONFIG_FILE" "${OUTPUT_DIR}/nextflow.config"', text)
 
     def test_interactive_reports_keep_run_root_separate_from_selected_dataset(self):
