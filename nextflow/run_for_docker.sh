@@ -367,20 +367,25 @@ run_nextflow_pipeline() {
     local run_work_dir="$3"
     local work_args=()
     local nextflow_report_dir="${run_output_dir}/static_html_report/nextflow"
+    local nextflow_launch_dir="${run_output_dir}/.nextflow-launch"
 
-    mkdir -p "$nextflow_report_dir"
+    mkdir -p "$nextflow_report_dir" "${nextflow_launch_dir}/.nextflow"
     if [ -n "$run_work_dir" ]; then
         mkdir -p "$run_work_dir"
         work_args=(-w "$run_work_dir")
     fi
 
-    nextflow -log "${nextflow_report_dir}/nextflow.log" run "${NEXTFLOW_FILE}" \
-        -c "${run_config_file}" \
-        "${work_args[@]}" \
-        -with-report "${nextflow_report_dir}/report.html" \
-        -with-timeline "${nextflow_report_dir}/timeline.html" \
-        -with-trace "${nextflow_report_dir}/trace.txt" \
-        "${nextflow_args[@]}"
+    # Nextflow keeps run history under launchDir/.nextflow, independently of NXF_HOME.
+    (
+        cd "$nextflow_launch_dir"
+        nextflow -log "${nextflow_report_dir}/nextflow.log" run "${NEXTFLOW_FILE}" \
+            -c "${run_config_file}" \
+            "${work_args[@]}" \
+            -with-report "${nextflow_report_dir}/report.html" \
+            -with-timeline "${nextflow_report_dir}/timeline.html" \
+            -with-trace "${nextflow_report_dir}/trace.txt" \
+            "${nextflow_args[@]}"
+    )
 
     cp "$run_config_file" "${run_output_dir}/nextflow.config"
 }
@@ -404,17 +409,22 @@ if [ "$CORPUS_MODE" = true ]; then
     corpus_work_dir="${OUTPUT_DIR}/work"
     corpus_fs_subjects_root="${FS_SUBJECTS_DIR:-/smri}"
     corpus_nextflow_dir="${OUTPUT_DIR}/corpus_static_html_report/nextflow"
-    mkdir -p "${OUTPUT_DIR}/datasets" "$corpus_nextflow_dir" "$corpus_work_dir" "$corpus_fs_subjects_root"
+    corpus_launch_dir="${OUTPUT_DIR}/.nextflow-launch"
+    mkdir -p "${OUTPUT_DIR}/datasets" "$corpus_nextflow_dir" "$corpus_work_dir" \
+        "$corpus_fs_subjects_root" "${corpus_launch_dir}/.nextflow"
 
     write_corpus_run_config "$INPUT_DIR" "$OUTPUT_DIR" "$RUN_CONFIG_FILE" "$corpus_fs_subjects_root"
 
-    nextflow -log "${corpus_nextflow_dir}/nextflow.log" run "${NEXTFLOW_FILE}" \
-        -c "${RUN_CONFIG_FILE}" \
-        -w "${corpus_work_dir}/corpus_driver" \
-        -with-report "${corpus_nextflow_dir}/report.html" \
-        -with-timeline "${corpus_nextflow_dir}/timeline.html" \
-        -with-trace "${corpus_nextflow_dir}/trace.txt" \
-        "${nextflow_args[@]}"
+    (
+        cd "$corpus_launch_dir"
+        nextflow -log "${corpus_nextflow_dir}/nextflow.log" run "${NEXTFLOW_FILE}" \
+            -c "${RUN_CONFIG_FILE}" \
+            -w "${corpus_work_dir}/corpus_driver" \
+            -with-report "${corpus_nextflow_dir}/report.html" \
+            -with-timeline "${corpus_nextflow_dir}/timeline.html" \
+            -with-trace "${corpus_nextflow_dir}/trace.txt" \
+            "${nextflow_args[@]}"
+    )
 
     cp "$RUN_CONFIG_FILE" "${OUTPUT_DIR}/nextflow.config"
     chmod -R ug+rwX "$OUTPUT_DIR" 2>/dev/null || true

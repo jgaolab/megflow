@@ -17,12 +17,16 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.fake_bin = self.root / "bin"
         self.fake_bin.mkdir()
         self.nextflow_args = self.root / "nextflow-args.txt"
+        self.nextflow_pwd = self.root / "nextflow-pwd.txt"
         self.streamlit_args = self.root / "streamlit-args.txt"
         self.streamlit_env = self.root / "streamlit-env.txt"
 
         self._write_executable(
             self.fake_bin / "nextflow",
-            '#!/bin/bash\nprintf "%s\\n" "$@" > "$MEGFLOW_TEST_NEXTFLOW_ARGS"\n',
+            "#!/bin/bash\n"
+            'printf "%s\\n" "$@" > "$MEGFLOW_TEST_NEXTFLOW_ARGS"\n'
+            'pwd > "$MEGFLOW_TEST_NEXTFLOW_PWD"\n'
+            'test -d .nextflow\n',
         )
         self._write_executable(
             self.fake_bin / "streamlit",
@@ -64,6 +68,7 @@ class DockerEntrypointOptionTests(unittest.TestCase):
                 "PATH": f"{self.fake_bin}:{self.env['PATH']}",
                 "MEGFLOW_DOCKER_DROPPED": "1",
                 "MEGFLOW_TEST_NEXTFLOW_ARGS": str(self.nextflow_args),
+                "MEGFLOW_TEST_NEXTFLOW_PWD": str(self.nextflow_pwd),
                 "MEGFLOW_TEST_STREAMLIT_ARGS": str(self.streamlit_args),
                 "MEGFLOW_TEST_STREAMLIT_ENV": str(self.streamlit_env),
             }
@@ -164,6 +169,28 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.assertNotIn("megflowRuntimeAnatomy.t1_dicom_series_glob", config)
         self.assertIn("-resume", self.nextflow_args.read_text(encoding="utf-8").splitlines())
 
+    def test_single_dataset_launches_nextflow_from_output_launch_directory(self):
+        input_dir = self.root / "single-launch-input"
+        output_dir = self.root / "single-launch-output"
+        input_dir.mkdir()
+
+        result = self._run(
+            "--config",
+            str(self.base_config),
+            "--input",
+            str(input_dir),
+            "--output",
+            str(output_dir),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        launch_dir = output_dir / ".nextflow-launch"
+        self.assertEqual(
+            Path(self.nextflow_pwd.read_text(encoding="utf-8").strip()),
+            launch_dir,
+        )
+        self.assertTrue((launch_dir / ".nextflow").is_dir())
+
     def test_config_controls_report_anatomy_and_default_t1_dir(self):
         input_dir = self.root / "single-input"
         output_dir = self.root / "single-output"
@@ -222,6 +249,32 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             self.assertIn(line, config)
         self.assertNotIn("megflowRuntimeAnatomy", config)
         self.assertNotIn("megflowRuntimeReport", config)
+
+    def test_corpus_launches_nextflow_from_output_launch_directory(self):
+        input_dir = self.root / "corpus-launch-input"
+        output_dir = self.root / "corpus-launch-output"
+        fs_root = self.root / "corpus-launch-fs"
+        (input_dir / "DatasetA").mkdir(parents=True)
+
+        result = self._run(
+            "--config",
+            str(self.base_config),
+            "--input",
+            str(input_dir),
+            "--output",
+            str(output_dir),
+            "--corpus",
+            "--fs_subjects_dir",
+            str(fs_root),
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
+        launch_dir = output_dir / ".nextflow-launch"
+        self.assertEqual(
+            Path(self.nextflow_pwd.read_text(encoding="utf-8").strip()),
+            launch_dir,
+        )
+        self.assertTrue((launch_dir / ".nextflow").is_dir())
 
     def test_view_report_starts_streamlit_without_nextflow(self):
         output_dir = self.root / "report-output"
