@@ -29,7 +29,8 @@ Top-Level Output Layout
    * - ``<output_dir>/static_html_report/nextflow/nextflow.log``
      - Nextflow driver log when the launcher supplies the documented ``-log`` path.
    * - ``<output_dir>/nextflow.config``
-     - Effective config copied from the Docker run config.
+     - Runtime config copied by the distributed Docker entrypoint. Source
+       launches do not create this file automatically.
    * - ``<output_dir>/static_html_report/``
      - Portable MEGFlow QC report. Depending on ``static_task_log_mode``, this
        may include packaged Nextflow ``.command*`` log excerpts.
@@ -49,12 +50,17 @@ directory names, while the corpus report retains the configured display name.
    |-- datasets/
    |   |-- <dataset_a>/
    |   |   |-- preprocessed/
-   |   |   `-- static_html_report/
+   |   |   `-- static_html_report/       # MEG/report stages
    |   `-- <dataset_b>/
    |       |-- preprocessed/
-   |       `-- static_html_report/
+   |       `-- static_html_report/       # MEG/report stages
    |-- corpus_static_html_report/
    |   |-- index.html
+   |   |-- assets/
+   |   |-- data/
+   |   |   |-- corpus_summary.json
+   |   |   `-- datasets.csv
+   |   |-- datasets/                     # bundled portable dataset reports
    |   `-- nextflow/
    |       |-- nextflow.log
    |       |-- report.html
@@ -68,6 +74,9 @@ for comparison, outlier discovery, and prioritizing manual review. The files
 under ``corpus_static_html_report/nextflow/`` describe the complete
 Nextflow invocation rather than one dataset. They are stored once and linked
 from the corpus report instead of being copied into every dataset report.
+An anatomy-only dataset has derivatives and reconstructed anatomy but no
+dataset-level static MEG report unless a later MEG or ``report`` stage creates
+one.
 
 Preprocessed Directory
 ----------------------
@@ -81,6 +90,9 @@ Preprocessed Directory
    * - ``preprocessed/<recording>/``
      - Continuous preprocessed raw files, ICA-clean raw files, and selected QA
        plots.
+   * - ``preprocessed/quality_control/<recording>/``
+     - NormMEG-QC summary JSON, component-score CSV, and NMDQ score figure when
+       ``megqc.enabled`` is true.
    * - ``preprocessed/artifact_report/<recording>/``
      - Bad-channel files, detector provenance, bad-segment annotation files,
        DeepReject provenance when enabled, a recording-wide mask heatmap, and
@@ -102,10 +114,18 @@ Preprocessed Directory
    * - ``preprocessed/source_recon/<recording>/``
      - Source reconstruction outputs and visualization figures.
    * - ``preprocessed/logs/``
-     - Nextflow log, MEGFlow run manifest, and config snapshots when available.
+     - ``megflow_run_manifest.json``. Nextflow logs and execution reports live
+       under the report package's ``nextflow/`` directory; the Docker runtime
+       config is copied to ``<output_dir>/nextflow.config``.
    * - ``preprocessed/deepprep/``
      - DeepPrep outputs when ``anatomy.method = "deepprep"`` and
        anatomy processing is enabled.
+   * - ``preprocessed/pseudomri/<subject>/``
+     - Generated pseudo T1 input when ``anatomy.method = "pseudomri"``.
+
+FreeSurfer-format anatomy is written to the configured ``fs_subjects_dir``.
+In a corpus run without an explicit override this is normally under
+``<output_dir>/smri/<dataset_name>/``; it is not a recording derivative.
 
 Important Sidecar Files
 -----------------------
@@ -118,6 +138,13 @@ Important Sidecar Files
      - Meaning
    * - ``*_preproc-raw.fif``
      - Continuous output from OSL preprocessing.
+   * - ``*.summary.json``
+     - NormMEG-QC NMDQ score, score metadata, family scores, and processing-gate
+       status.
+   * - ``*.component_scores.csv``
+     - NormMEG-QC component values and reference-calibrated subscores.
+   * - ``*.normative_quality_score.png``
+     - NMDQ score and metric-family score figure.
    * - ``*_bad_channels.txt``
      - One bad channel name per line.
    * - ``*_bad_channels_description.json``

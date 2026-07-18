@@ -15,6 +15,54 @@ PIPELINE = REPO_ROOT / "nextflow" / "megflow.nf"
 NEXTFLOW = os.environ.get("MEGFLOW_NEXTFLOW") or shutil.which("nextflow")
 
 
+REPORT_PROCESSES = {"generate_static_html_report"}
+MEG_ARTIFACT_PROCESSES = {
+    "import_meg_dataset",
+    "score_meg_quality",
+    "meg_basic_preproc",
+    "detect_artifacts",
+    "generate_static_html_report",
+}
+MEG_ICA_PROCESSES = MEG_ARTIFACT_PROCESSES | {
+    "run_ica",
+    "run_ic_label",
+    "apply_ica",
+}
+MEG_EPOCH_PROCESSES = MEG_ICA_PROCESSES | {"epochs"}
+MEG_SKIP_ICA_EPOCH_PROCESSES = MEG_ARTIFACT_PROCESSES | {"epochs"}
+MEG_SOURCE_PROCESSES = MEG_EPOCH_PROCESSES | {
+    "compute_covariance",
+    "coregistration",
+    "forward_solution",
+    "source_imaging",
+}
+FREESURFER_ANATOMY_PROCESSES = {
+    "import_mri_dataset",
+    "run_freesurfer",
+    "generate_bem",
+}
+DEEPPREP_ANATOMY_PROCESSES = {
+    "import_mri_dataset",
+    "run_deepprep",
+    "run_mkheadsurf",
+    "generate_bem",
+}
+PSEUDOMRI_ANATOMY_PROCESSES = {
+    "import_meg_dataset",
+    "generate_pseudomri",
+    "run_freesurfer",
+    "generate_bem",
+}
+DATASET_LEVEL_MEG_PROCESSES = {"import_meg_dataset", "generate_static_html_report"}
+RECORDING_ARTIFACT_PROCESSES = MEG_ARTIFACT_PROCESSES - DATASET_LEVEL_MEG_PROCESSES
+RECORDING_ICA_PROCESSES = MEG_ICA_PROCESSES - DATASET_LEVEL_MEG_PROCESSES
+RECORDING_EPOCH_PROCESSES = MEG_EPOCH_PROCESSES - DATASET_LEVEL_MEG_PROCESSES
+RECORDING_SKIP_ICA_EPOCH_PROCESSES = (
+    MEG_SKIP_ICA_EPOCH_PROCESSES - DATASET_LEVEL_MEG_PROCESSES
+)
+RECORDING_SOURCE_PROCESSES = MEG_SOURCE_PROCESSES - DATASET_LEVEL_MEG_PROCESSES
+
+
 def groovy_string(value):
     return json.dumps(str(value))
 
@@ -46,7 +94,14 @@ def create_dataset(root, tasks=("main",), *, with_t1=True):
         (anat_dir / "sub-01_T1w.nii.gz").write_text("synthetic T1\n", encoding="utf-8")
 
 
-def write_config(path, output_dir, datasets_text, *, defaults_override="[:]"):
+def write_config(
+    path,
+    output_dir,
+    datasets_text,
+    *,
+    defaults_override="[:]",
+    error_mode="strict",
+):
     path.write_text(
         textwrap.dedent(
             f"""
@@ -57,7 +112,7 @@ def write_config(path, output_dir, datasets_text, *, defaults_override="[:]"):
                     corpus_root: "",
                     dataset_include: [],
                     dataset_exclude: [],
-                    error_mode: "strict",
+                    error_mode: {groovy_string(error_mode)},
                     defaults: ([
                         steps: "meg_all",
                         dataset_format: "raw",
@@ -104,7 +159,7 @@ def write_config(path, output_dir, datasets_text, *, defaults_override="[:]"):
             }}
             process {{
                 executor = "local"
-                errorStrategy = "terminate"
+                errorStrategy = {{ params.megflow.error_mode == "strict" ? "terminate" : "ignore" }}
                 maxForks = 8
 
                 // Stub tasks only create tiny fixture files. Override production
@@ -144,7 +199,7 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             command.append("-resume")
         result = subprocess.run(
             command,
-            cwd=REPO_ROOT,
+            cwd=output_dir,
             env=dict(os.environ, NXF_ANSI_LOG="false"),
             text=True,
             capture_output=True,
@@ -170,115 +225,428 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
         with (output_dir / "trace.txt").open(encoding="utf-8") as handle:
             return list(csv.DictReader(handle, delimiter="\t"))
 
-    def test_stage_matrix_and_anatomy_meg_synchronization(self):
+    def trace_processes_for_dataset(self, output_dir, dataset_name):
+        processes = set()
+        for row in self.trace_rows(output_dir):
+            name = row["name"]
+            if " (" not in name:
+                continue
+            process_name, tag = name.split(" (", 1)
+            tag = tag.removesuffix(")")
+            if tag == dataset_name or tag.startswith(f"{dataset_name}:"):
+                processes.add(process_name)
+        return processes
+
+    def trace_processes_for_recording(
+        self, output_dir, dataset_name, recording_name
+    ):
+        tag_prefix = f"{dataset_name}:{recording_name}"
+        processes = set()
+        for row in self.trace_rows(output_dir):
+            name = row["name"]
+            if " (" not in name:
+                continue
+            process_name, tag = name.split(" (", 1)
+            tag = tag.removesuffix(")")
+            if tag == tag_prefix or tag.startswith(f"{tag_prefix}_"):
+                processes.add(process_name)
+        return processes
+
+    def assert_terminal_output(self, output, dataset_name, terminal):
+        preproc = output / "datasets" / dataset_name / "preprocessed"
+        recording = "sub-01_task-main_run-01_meg"
+        if terminal == "report":
+            return
+        if terminal in {
+            "artifacts",
+            "ica",
+            "epochs",
+            "epochs_skip_ica",
+            "source",
+        }:
+            self.assertTrue(
+                (preproc / recording / f"{recording}_preproc-raw.fif").is_file()
+            )
+        if terminal in {"artifacts", "ica", "epochs", "epochs_skip_ica", "source"}:
+            artifact_dir = preproc / "artifact_report" / recording
+            artifact_basename = f"{recording}_preproc-raw"
+            self.assertTrue(
+                (artifact_dir / f"{artifact_basename}_bad_channels.txt").is_file()
+            )
+            self.assertTrue(
+                (artifact_dir / f"{artifact_basename}_bad_segments.txt").is_file()
+            )
+        if terminal in {"ica", "epochs", "source"}:
+            self.assertTrue(
+                (
+                    preproc
+                    / recording
+                    / f"{recording}_preproc-raw_clean_raw.fif"
+                ).is_file()
+            )
+        if terminal in {"epochs", "epochs_skip_ica"}:
+            self.assertTrue(any((preproc / "epochs" / recording).glob("*-epo.fif")))
+        if terminal == "source":
+            self.assertTrue(
+                (preproc / "source_recon" / recording / "routing.json").is_file()
+            )
+
+    def test_meg_step_matrix_schedules_exact_process_boundaries(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             output = root / "output"
-            stages = {
-                "report_stage": "report",
-                "anatomy_stage": "anatomy",
-                "deepprep_stage": "anatomy",
-                "pseudomri_stage": "anatomy",
-                "native_nifti_stage": "anatomy",
-                "dicom_stage": "anatomy",
-                "artifacts_stage": "meg_artifacts",
-                "ica_stage": "meg_ica",
-                "epochs_stage": "meg_epochs",
-                "skip_ica_stage": "meg_epochs,skip_ica",
-                "full_stage": "meg_all",
-                "all_stage": "all",
+            cases = {
+                "report_stage": ("report", REPORT_PROCESSES, "report"),
+                "artifacts_stage": (
+                    "meg_artifacts",
+                    MEG_ARTIFACT_PROCESSES,
+                    "artifacts",
+                ),
+                "ica_stage": ("meg_ica", MEG_ICA_PROCESSES, "ica"),
+                "epochs_stage": ("meg_epochs", MEG_EPOCH_PROCESSES, "epochs"),
+                "skip_ica_stage": (
+                    "meg_epochs,skip_ica",
+                    MEG_SKIP_ICA_EPOCH_PROCESSES,
+                    "epochs_skip_ica",
+                ),
+                "full_stage": ("meg_all", MEG_SOURCE_PROCESSES, "source"),
+                "all_stage": (
+                    "all",
+                    MEG_SOURCE_PROCESSES | FREESURFER_ANATOMY_PROCESSES,
+                    "source",
+                ),
+                "default_stage": (None, MEG_SOURCE_PROCESSES, "source"),
+                "meg_alias": (" MeG ", MEG_SOURCE_PROCESSES, "source"),
+                "artifacts_alias": (
+                    " ARTIFACTS ",
+                    MEG_ARTIFACT_PROCESSES,
+                    "artifacts",
+                ),
+                "ica_alias": (" IcA ", MEG_ICA_PROCESSES, "ica"),
+                "epochs_alias": (
+                    " EpOcHs , SkIp_IcA ",
+                    MEG_SKIP_ICA_EPOCH_PROCESSES,
+                    "epochs_skip_ica",
+                ),
             }
             blocks = []
-            for name, steps in stages.items():
+            for name, (steps, _, _) in cases.items():
                 dataset_dir = root / name
                 create_dataset(dataset_dir)
-                if name == "native_nifti_stage":
-                    (dataset_dir / "sub-01_native.nii.gz").write_text(
-                        "synthetic native T1\n", encoding="utf-8"
+                if steps is None:
+                    blocks.append(
+                        textwrap.dedent(
+                            f"""
+                            {name}: [
+                                dataset_dir: {groovy_string(dataset_dir)}
+                            ]
+                            """
+                        ).strip()
                     )
-                dicom_root = root / "dicom-input"
-                if name == "dicom_stage":
-                    dicom_series = dicom_root / "subject01"
-                    dicom_series.mkdir(parents=True)
-                    (dicom_series / "image.dcm").write_text(
-                        "synthetic DICOM\n", encoding="utf-8"
-                    )
-                anatomy_extra = {
-                    "deepprep_stage": ',\n    anatomy: [method: "deepprep", is_bids: true]',
-                    "pseudomri_stage": ',\n    anatomy: [method: "pseudomri", is_bids: false]',
-                    "native_nifti_stage": ',\n    anatomy: [method: "freesurfer", is_bids: false, t1_input_type: "nifti"]',
-                    "dicom_stage": (
-                        f',\n    t1_dir: {groovy_string(dicom_root)},'
-                        '\n    anatomy: [method: "freesurfer", is_bids: false, t1_input_type: "dicom"]'
-                    ),
-                }.get(name, "")
-                blocks.append(
-                    dataset_block(name, dataset_dir, steps=steps, extra=anatomy_extra)
-                )
+                else:
+                    blocks.append(dataset_block(name, dataset_dir, steps=steps))
             config = root / "stages.config"
             write_config(config, output, ",\n".join(blocks))
 
             self.run_pipeline(config, output)
             names = self.trace_names(output)
-            report_datasets = {
-                "report_stage",
-                "artifacts_stage",
-                "ica_stage",
-                "epochs_stage",
-                "skip_ica_stage",
-                "full_stage",
-                "all_stage",
+            for dataset_name, (_, expected_processes, terminal) in cases.items():
+                with self.subTest(dataset=dataset_name):
+                    self.assertEqual(
+                        self.trace_processes_for_dataset(output, dataset_name),
+                        expected_processes,
+                    )
+                    self.assert_terminal_output(output, dataset_name, terminal)
+
+            self.assertEqual(
+                sum(
+                    name.startswith("generate_corpus_static_html_report (")
+                    for name in names
+                ),
+                1,
+            )
+            self.assertTrue(
+                (
+                    output
+                    / "smri"
+                    / "all_stage"
+                    / "sub-01"
+                    / "bem"
+                    / "stub-bem.done"
+                ).is_file()
+            )
+
+    def test_anatomy_step_matrix_schedules_only_selected_method(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dicom_root = root / "dicom-input"
+            dicom_series = dicom_root / "subject01"
+            dicom_series.mkdir(parents=True)
+            (dicom_series / "image.dcm").write_text(
+                "synthetic DICOM\n", encoding="utf-8"
+            )
+
+            cases = {
+                "freesurfer_stage": (
+                    root / "freesurfer_stage",
+                    "",
+                    FREESURFER_ANATOMY_PROCESSES,
+                    "sub-01",
+                ),
+                "deepprep_stage": (
+                    root / "deepprep_stage",
+                    ',\n    anatomy: [method: "deepprep", is_bids: true]',
+                    DEEPPREP_ANATOMY_PROCESSES,
+                    "sub-01",
+                ),
+                "pseudomri_stage": (
+                    root / "pseudomri_stage",
+                    ',\n    anatomy: [method: "pseudomri", is_bids: false]',
+                    PSEUDOMRI_ANATOMY_PROCESSES,
+                    "sub-01",
+                ),
+                "native_nifti_stage": (
+                    root / "native_nifti_stage",
+                    ',\n    anatomy: [method: "freesurfer", is_bids: false, t1_input_type: "nifti"]',
+                    {"run_freesurfer", "generate_bem"},
+                    "sub-01_native",
+                ),
+                "dicom_stage": (
+                    root / "dicom_stage",
+                    f',\n    t1_dir: {groovy_string(dicom_root)},'
+                    '\n    anatomy: [method: "freesurfer", is_bids: false, t1_input_type: "dicom"]',
+                    {"dcm2niix", "run_freesurfer", "generate_bem"},
+                    "subject01_stub",
+                ),
             }
-            for dataset_name in report_datasets:
-                self.assertTrue(
-                    any(
-                        name.startswith(
-                            f"generate_static_html_report ({dataset_name})"
-                        )
-                        for name in names
-                    ),
-                    dataset_name,
+            blocks = []
+            for name, (dataset_dir, extra, _, _) in cases.items():
+                create_dataset(dataset_dir)
+                if name == "native_nifti_stage":
+                    (dataset_dir / "sub-01_native.nii.gz").write_text(
+                        "synthetic native T1\n", encoding="utf-8"
+                    )
+                blocks.append(
+                    dataset_block(name, dataset_dir, steps="anatomy", extra=extra)
                 )
-            self.assertFalse(any("import_meg_dataset (report_stage)" in name for name in names))
+
+            config = root / "anatomy-stages.config"
+            write_config(config, output, ",\n".join(blocks))
+            self.run_pipeline(config, output)
+
+            for dataset_name, (_, _, expected_processes, subject_name) in cases.items():
+                with self.subTest(dataset=dataset_name):
+                    self.assertEqual(
+                        self.trace_processes_for_dataset(output, dataset_name),
+                        expected_processes,
+                    )
+                    self.assertTrue(
+                        (
+                            output
+                            / "smri"
+                            / dataset_name
+                            / subject_name
+                            / "bem"
+                            / "stub-bem.done"
+                        ).is_file()
+                    )
+
+    def test_resume_reruns_each_owner_with_a_missing_published_anatomy_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            cases = {
+                "pseudomri_missing": (
+                    ',\n    anatomy: [method: "pseudomri", is_bids: false]',
+                    "generate_pseudomri",
+                ),
+                "freesurfer_missing": ("", "run_freesurfer"),
+                "deepprep_missing": (
+                    ',\n    anatomy: [method: "deepprep", is_bids: true]',
+                    "run_deepprep",
+                ),
+                "mkheadsurf_missing": (
+                    ',\n    anatomy: [method: "deepprep", is_bids: true]',
+                    "run_mkheadsurf",
+                ),
+                "bem_missing": ("", "generate_bem"),
+                "control": ("", None),
+            }
+            blocks = []
+            for dataset_name, (extra, _) in cases.items():
+                dataset_dir = root / dataset_name
+                create_dataset(dataset_dir)
+                blocks.append(
+                    dataset_block(
+                        dataset_name,
+                        dataset_dir,
+                        steps="anatomy",
+                        extra=extra,
+                    )
+                )
+            config = root / "resume-anatomy-owner-matrix.config"
+            write_config(config, output, ",\n".join(blocks))
+            self.run_pipeline(config, output)
 
             smri = output / "smri"
-            self.assertTrue((smri / "anatomy_stage" / "sub-01" / "bem" / "stub-bem.done").is_file())
-            self.assertTrue((smri / "deepprep_stage" / "sub-01" / "bem" / "stub-bem.done").is_file())
-            self.assertTrue((smri / "pseudomri_stage" / "sub-01" / "bem" / "stub-bem.done").is_file())
-            self.assertTrue((smri / "native_nifti_stage" / "sub-01_native" / "bem" / "stub-bem.done").is_file())
-            self.assertTrue((smri / "dicom_stage" / "subject01_stub" / "bem" / "stub-bem.done").is_file())
-            self.assertTrue((smri / "all_stage" / "sub-01" / "bem" / "stub-bem.done").is_file())
-            self.assertTrue(any(name.startswith("run_deepprep (deepprep_stage") for name in names))
-            self.assertTrue(any(name.startswith("generate_pseudomri (pseudomri_stage") for name in names))
-            self.assertTrue(any(name.startswith("dcm2niix (dicom_stage") for name in names))
+            targets = {
+                "pseudomri_missing": output
+                / "datasets"
+                / "pseudomri_missing"
+                / "preprocessed"
+                / "pseudomri"
+                / "sub-01"
+                / "sub-01.nii.gz",
+                "freesurfer_missing": smri
+                / "freesurfer_missing"
+                / "sub-01"
+                / "scripts"
+                / "recon-all.done",
+                "deepprep_missing": smri
+                / "deepprep_missing"
+                / "sub-01"
+                / "scripts"
+                / "recon-all.done",
+                "mkheadsurf_missing": smri
+                / "mkheadsurf_missing"
+                / "sub-01"
+                / "surf"
+                / "lh.seghead",
+                "bem_missing": smri
+                / "bem_missing"
+                / "sub-01"
+                / "bem"
+                / "sub-01_ico4_watershed_bem-sol.fif",
+            }
+            for dataset_name, target in targets.items():
+                with self.subTest(delete=dataset_name):
+                    self.assertTrue(target.is_file(), target)
+                    target.unlink()
 
-            for name in ("artifacts_stage", "ica_stage", "epochs_stage", "skip_ica_stage", "full_stage", "all_stage"):
-                preproc = output / "datasets" / name / "preprocessed"
-                recording = "sub-01_task-main_run-01_meg"
-                self.assertTrue((preproc / recording / f"{recording}_preproc-raw.fif").is_file(), name)
+            self.run_pipeline(config, output, resume=True)
+            rows = self.trace_rows(output)
 
-            artifacts_preproc = output / "datasets" / "artifacts_stage" / "preprocessed"
-            self.assertFalse((artifacts_preproc / "ica_report").exists())
-
-            ica_preproc = output / "datasets" / "ica_stage" / "preprocessed"
-            self.assertTrue((ica_preproc / "sub-01_task-main_run-01_meg" / "sub-01_task-main_run-01_meg_preproc-raw_clean_raw.fif").is_file())
-            self.assertFalse((ica_preproc / "epochs").exists())
-
-            skip_preproc = output / "datasets" / "skip_ica_stage" / "preprocessed"
-            self.assertFalse((skip_preproc / "ica_report").exists())
-            self.assertTrue(any((skip_preproc / "epochs").rglob("*-epo.fif")))
-
-            for name in ("full_stage", "all_stage"):
-                route = (
-                    output
-                    / "datasets"
-                    / name
-                    / "preprocessed"
-                    / "source_recon"
-                    / "sub-01_task-main_run-01_meg"
-                    / "routing.json"
+            def dataset_subject_status(process_name, dataset_name):
+                matching = [
+                    row["status"]
+                    for row in rows
+                    if row["name"].startswith(f"{process_name} ({dataset_name}:")
+                ]
+                self.assertEqual(
+                    len(matching), 1, (process_name, dataset_name, rows)
                 )
-                self.assertTrue(route.is_file(), name)
+                return matching[0]
+
+            for dataset_name, (_, owner_process) in cases.items():
+                if owner_process is None:
+                    continue
+                with self.subTest(owner=owner_process, dataset=dataset_name):
+                    self.assertEqual(
+                        dataset_subject_status(owner_process, dataset_name),
+                        "COMPLETED",
+                    )
+                    self.assertTrue(targets[dataset_name].is_file())
+
+            for process_name in ("run_freesurfer", "generate_bem"):
+                self.assertEqual(
+                    dataset_subject_status(process_name, "control"),
+                    "CACHED",
+                    process_name,
+                )
+
+    def test_with_anatomy_modifier_stops_at_requested_meg_stage(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            cases = {
+                "artifacts_with_anatomy": (
+                    "meg_artifacts,with_anatomy",
+                    MEG_ARTIFACT_PROCESSES | FREESURFER_ANATOMY_PROCESSES,
+                    "artifacts",
+                ),
+                "ica_with_anatomy": (
+                    "meg_ica,with_anatomy",
+                    MEG_ICA_PROCESSES | FREESURFER_ANATOMY_PROCESSES,
+                    "ica",
+                ),
+                "epochs_with_anatomy": (
+                    "meg_epochs,with_anatomy",
+                    MEG_EPOCH_PROCESSES | FREESURFER_ANATOMY_PROCESSES,
+                    "epochs",
+                ),
+            }
+            blocks = []
+            for name, (steps, _, _) in cases.items():
+                dataset_dir = root / name
+                create_dataset(dataset_dir)
+                blocks.append(dataset_block(name, dataset_dir, steps=steps))
+
+            config = root / "with-anatomy.config"
+            write_config(config, output, ",\n".join(blocks))
+            self.run_pipeline(config, output)
+
+            for dataset_name, (_, expected_processes, terminal) in cases.items():
+                with self.subTest(dataset=dataset_name):
+                    self.assertEqual(
+                        self.trace_processes_for_dataset(output, dataset_name),
+                        expected_processes,
+                    )
+                    self.assert_terminal_output(output, dataset_name, terminal)
+                    self.assertTrue(
+                        (
+                            output
+                            / "smri"
+                            / dataset_name
+                            / "sub-01"
+                            / "bem"
+                            / "stub-bem.done"
+                        ).is_file()
+                    )
+
+    def test_invalid_step_values_fail_before_process_submission(self):
+        invalid_cases = {
+            "empty": ("", "MEGFlow steps is empty"),
+            "unknown_primary": ("meg_unknown", "Unknown steps 'meg_unknown'"),
+            "unknown_modifier": (
+                "meg_epochs,unknown",
+                "Unknown steps modifier: unknown",
+            ),
+            "skip_ica_wrong_stage": (
+                "meg_ica,skip_ica",
+                "skip_ica is only supported with meg_epochs",
+            ),
+            "meg_all_with_anatomy": (
+                "meg_all,with_anatomy",
+                "steps=meg_all cannot be combined with with_anatomy",
+            ),
+            "report_with_anatomy": (
+                "report,with_anatomy",
+                "with_anatomy is only supported with meg_artifacts, meg_ica, or meg_epochs",
+            ),
+            "all_with_anatomy": (
+                "all,with_anatomy",
+                "with_anatomy is only supported with meg_artifacts, meg_ica, or meg_epochs",
+            ),
+        }
+        for name, (steps, message) in invalid_cases.items():
+            with self.subTest(case=name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                output = root / "output"
+                dataset = root / "dataset"
+                create_dataset(dataset)
+                config = root / "invalid-steps.config"
+                write_config(
+                    config,
+                    output,
+                    dataset_block("dataset", dataset, steps=steps),
+                )
+
+                _, combined = self.run_pipeline(
+                    config, output, stub=False, expect_success=False
+                )
+                self.assertIn(message, combined)
+                self.assertNotIn("Submitted process", combined)
 
     def test_dataset_and_recording_overrides_do_not_cross_route(self):
         with tempfile.TemporaryDirectory() as tmp:
@@ -508,28 +876,57 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             root = Path(tmp)
             output = root / "output"
             dataset = root / "dataset"
-            create_dataset(dataset, ("artifacts", "ica", "epochs", "full"))
+            create_dataset(
+                dataset,
+                ("report", "artifacts", "ica", "epochs", "skipica", "full"),
+            )
             extra = """,
                 recordings: [
+                    report_only: [match: [task: "report"], steps: "report"],
                     artifacts_only: [match: [task: "artifacts"], steps: "meg_artifacts"],
                     ica_only: [match: [task: "ica"], steps: "meg_ica"],
-                    epochs_only: [match: [task: "epochs"], steps: "meg_epochs"]
+                    epochs_only: [match: [task: "epochs"], steps: "meg_epochs"],
+                    epochs_without_ica: [match: [task: "skipica"], steps: "meg_epochs,skip_ica"]
                 ]"""
             config = root / "recording-steps.config"
             write_config(config, output, dataset_block("dataset", dataset, extra=extra))
             self.run_pipeline(config, output)
 
             preproc = output / "preprocessed"
+            report_recording = "sub-01_task-report_run-01_meg"
             artifacts_recording = "sub-01_task-artifacts_run-01_meg"
             ica_recording = "sub-01_task-ica_run-01_meg"
             epochs_recording = "sub-01_task-epochs_run-01_meg"
+            skip_ica_recording = "sub-01_task-skipica_run-01_meg"
             full_recording = "sub-01_task-full_run-01_meg"
 
+            expected_by_recording = {
+                report_recording: set(),
+                artifacts_recording: RECORDING_ARTIFACT_PROCESSES,
+                ica_recording: RECORDING_ICA_PROCESSES,
+                epochs_recording: RECORDING_EPOCH_PROCESSES,
+                skip_ica_recording: RECORDING_SKIP_ICA_EPOCH_PROCESSES,
+                full_recording: RECORDING_SOURCE_PROCESSES,
+            }
+            for recording_name, expected_processes in expected_by_recording.items():
+                with self.subTest(recording=recording_name):
+                    self.assertEqual(
+                        self.trace_processes_for_recording(
+                            output, "dataset", recording_name
+                        ),
+                        expected_processes,
+                    )
+
+            self.assertFalse((preproc / report_recording).exists())
             self.assertFalse((preproc / "ica_report" / artifacts_recording).exists())
             self.assertTrue((preproc / "ica_report" / ica_recording).is_dir())
             self.assertFalse((preproc / "epochs" / ica_recording).exists())
             self.assertTrue(any((preproc / "epochs" / epochs_recording).glob("*-epo.fif")))
             self.assertFalse((preproc / "source_recon" / epochs_recording).exists())
+            self.assertFalse((preproc / "ica_report" / skip_ica_recording).exists())
+            self.assertTrue(
+                any((preproc / "epochs" / skip_ica_recording).glob("*-epo.fif"))
+            )
             self.assertTrue(
                 (preproc / "source_recon" / full_recording / "routing.json").is_file()
             )
@@ -1014,6 +1411,453 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                     {"COMPLETED"},
                     process_name,
                 )
+
+    def test_resume_distinguishes_edited_sidecars_from_missing_generated_outputs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            create_dataset(dataset, ("main", "control"))
+            config = root / "resume-published-outputs.config"
+            write_config(config, output, dataset_block("dataset", dataset))
+
+            recording_processes = (
+                "score_meg_quality",
+                "meg_basic_preproc",
+                "detect_artifacts",
+                "run_ica",
+                "run_ic_label",
+                "apply_ica",
+                "epochs",
+                "compute_covariance",
+                "coregistration",
+                "forward_solution",
+                "source_imaging",
+            )
+
+            def recording_status(process_name, task_name):
+                matching = [
+                    row["status"]
+                    for row in self.trace_rows(output)
+                    if row["name"].startswith(f"{process_name} (")
+                    and f"task-{task_name}" in row["name"]
+                ]
+                self.assertEqual(
+                    len(matching),
+                    1,
+                    (process_name, task_name, self.trace_rows(output)),
+                )
+                return matching[0]
+
+            def dataset_status(process_name):
+                matching = [
+                    row["status"]
+                    for row in self.trace_rows(output)
+                    if row["name"].startswith(f"{process_name} (")
+                ]
+                self.assertEqual(len(matching), 1, (process_name, matching))
+                return matching[0]
+
+            self.run_pipeline(config, output)
+            self.run_pipeline(config, output, resume=True)
+            for process_name in recording_processes:
+                for task_name in ("main", "control"):
+                    self.assertEqual(
+                        recording_status(process_name, task_name),
+                        "CACHED",
+                        (process_name, task_name),
+                    )
+            self.assertEqual(
+                dataset_status("generate_static_html_report"), "COMPLETED"
+            )
+
+            preproc = output / "preprocessed"
+            main_recording = "sub-01_task-main_run-01_meg"
+            bad_segments = (
+                preproc
+                / "artifact_report"
+                / main_recording
+                / f"{main_recording}_preproc-raw_bad_segments.txt"
+            )
+            time.sleep(1.1)
+            bad_segments.write_text("12.5 13.0\n", encoding="utf-8")
+            self.run_pipeline(config, output, resume=True)
+
+            for process_name in (
+                "score_meg_quality",
+                "meg_basic_preproc",
+                "detect_artifacts",
+            ):
+                self.assertEqual(
+                    recording_status(process_name, "main"),
+                    "CACHED",
+                    process_name,
+                )
+            for process_name in (
+                "run_ica",
+                "run_ic_label",
+                "apply_ica",
+                "epochs",
+                "compute_covariance",
+                "forward_solution",
+                "source_imaging",
+            ):
+                self.assertEqual(
+                    recording_status(process_name, "main"),
+                    "COMPLETED",
+                    process_name,
+                )
+            self.assertEqual(recording_status("coregistration", "main"), "COMPLETED")
+            for process_name in recording_processes:
+                self.assertEqual(
+                    recording_status(process_name, "control"),
+                    "CACHED",
+                    process_name,
+                )
+            self.assertEqual(
+                dataset_status("generate_static_html_report"), "COMPLETED"
+            )
+
+            epoch_files = list((preproc / "epochs" / main_recording).glob("*-epo.fif"))
+            self.assertEqual(len(epoch_files), 1, epoch_files)
+            epoch_files[0].unlink()
+            self.run_pipeline(config, output, resume=True)
+
+            self.assertTrue(epoch_files[0].is_file())
+            for process_name in (
+                "epochs",
+                "compute_covariance",
+                "forward_solution",
+                "source_imaging",
+            ):
+                self.assertEqual(
+                    recording_status(process_name, "main"),
+                    "COMPLETED",
+                    process_name,
+                )
+            for process_name in (
+                "score_meg_quality",
+                "meg_basic_preproc",
+                "detect_artifacts",
+                "run_ica",
+                "run_ic_label",
+                "apply_ica",
+                "coregistration",
+            ):
+                self.assertEqual(
+                    recording_status(process_name, "main"),
+                    "CACHED",
+                    process_name,
+                )
+            for process_name in recording_processes:
+                self.assertEqual(
+                    recording_status(process_name, "control"),
+                    "CACHED",
+                    process_name,
+                )
+            self.assertEqual(
+                dataset_status("generate_static_html_report"), "COMPLETED"
+            )
+
+    def test_resume_reruns_each_owner_with_a_missing_published_meg_output(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            owner_by_task = {
+                "qc": "score_meg_quality",
+                "preproc": "meg_basic_preproc",
+                "artifacts": "detect_artifacts",
+                "ica": "run_ica",
+                "label": "run_ic_label",
+                "scores": "run_ic_label",
+                "clean": "apply_ica",
+                "epochs": "epochs",
+                "epochanalysis": "epochs",
+                "covariance": "compute_covariance",
+                "coreg": "coregistration",
+                "forward": "forward_solution",
+                "source": "source_imaging",
+            }
+            create_dataset(dataset, (*owner_by_task, "control"))
+            extra = """,
+                epochs: [preproc: [[resample: [sfreq: 100]]]]"""
+            config = root / "resume-owner-matrix.config"
+            write_config(
+                config,
+                output,
+                dataset_block("dataset", dataset, extra=extra),
+            )
+            self.run_pipeline(config, output)
+
+            preproc = output / "preprocessed"
+
+            def recording(task_name):
+                return f"sub-01_task-{task_name}_run-01_meg"
+
+            def only_match(path):
+                matches = list(path.parent.glob(path.name))
+                self.assertEqual(len(matches), 1, matches)
+                return matches[0]
+
+            targets = {
+                "qc": only_match(
+                    preproc
+                    / "quality_control"
+                    / recording("qc")
+                    / "*.summary.json"
+                ),
+                "preproc": preproc
+                / recording("preproc")
+                / f"{recording('preproc')}_preproc-raw.fif",
+                "artifacts": preproc
+                / "artifact_report"
+                / recording("artifacts")
+                / f"{recording('artifacts')}_preproc-raw_bad_segments.txt",
+                "ica": preproc
+                / "ica_report"
+                / recording("ica")
+                / f"{recording('ica')}_preproc-raw_ica.fif",
+                "label": preproc
+                / "ica_report"
+                / recording("label")
+                / "marked_components.txt",
+                "scores": preproc
+                / "ica_report"
+                / recording("scores")
+                / "ecg_eog_scores.json",
+                "clean": preproc
+                / recording("clean")
+                / f"{recording('clean')}_preproc-raw_clean_raw.fif",
+                "epochs": only_match(
+                    preproc / "epochs" / recording("epochs") / "*-epo.fif"
+                ),
+                "epochanalysis": only_match(
+                    preproc
+                    / "epochs"
+                    / recording("epochanalysis")
+                    / "*_analysis-raw.fif"
+                ),
+                "covariance": preproc
+                / "covariance"
+                / recording("covariance")
+                / "bl-cov.fif",
+                "coreg": preproc
+                / "trans"
+                / recording("coreg")
+                / "coreg-trans.fif",
+                "forward": preproc
+                / "forward_solution"
+                / recording("forward")
+                / "event_ico4-fwd.fif",
+                "source": preproc / "source_recon" / recording("source"),
+            }
+            for task_name, target in targets.items():
+                with self.subTest(delete=task_name):
+                    self.assertTrue(target.exists(), target)
+                    if target.is_dir():
+                        shutil.rmtree(target)
+                    else:
+                        target.unlink()
+
+            self.run_pipeline(config, output, resume=True)
+            rows = self.trace_rows(output)
+
+            def recording_status(process_name, task_name):
+                matching = [
+                    row["status"]
+                    for row in rows
+                    if row["name"].startswith(f"{process_name} (")
+                    and f"task-{task_name}" in row["name"]
+                ]
+                self.assertEqual(len(matching), 1, (process_name, task_name, rows))
+                return matching[0]
+
+            for task_name, owner_process in owner_by_task.items():
+                with self.subTest(owner=owner_process, task=task_name):
+                    self.assertEqual(
+                        recording_status(owner_process, task_name), "COMPLETED"
+                    )
+                    self.assertTrue(targets[task_name].exists(), targets[task_name])
+
+            for process_name in (
+                "score_meg_quality",
+                "meg_basic_preproc",
+                "detect_artifacts",
+                "run_ica",
+                "run_ic_label",
+                "apply_ica",
+                "epochs",
+                "compute_covariance",
+                "coregistration",
+                "forward_solution",
+                "source_imaging",
+            ):
+                self.assertEqual(
+                    recording_status(process_name, "control"),
+                    "CACHED",
+                    process_name,
+                )
+            report_rows = [
+                row
+                for row in rows
+                if row["name"].startswith("generate_static_html_report (")
+            ]
+            self.assertEqual([row["status"] for row in report_rows], ["COMPLETED"])
+
+    def test_lenient_failures_and_qc_exclusion_still_schedule_all_reports(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            failures = {
+                "qcfail": "score_meg_quality",
+                "preprocfail": "meg_basic_preproc",
+                "artifactfail": "detect_artifacts",
+                "icafail": "run_ica",
+                "labelfail": "run_ic_label",
+                "applyfail": "apply_ica",
+                "epochfail": "epochs",
+                "covfail": "compute_covariance",
+                "coregfail": "coregistration",
+                "forwardfail": "forward_solution",
+                "sourcefail": "source_imaging",
+            }
+
+            mixed_dataset = root / "mixed"
+            create_dataset(mixed_dataset, (*failures, "success"))
+            failure_profiles = ",\n".join(
+                f"""{task_name}: [
+                    match: [task: {groovy_string(task_name)}],
+                    test_stub_fail_process: {groovy_string(process_name)}
+                ]"""
+                for task_name, process_name in failures.items()
+            )
+            mixed_extra = f""",
+                recordings: [
+                    {failure_profiles}
+                ]"""
+
+            all_failed_dataset = root / "all-failed"
+            create_dataset(all_failed_dataset, ("allfail",))
+            all_failed_extra = """,
+                recordings: [
+                    fail_immediately: [
+                        match: [task: "allfail"],
+                        test_stub_fail_process: "score_meg_quality"
+                    ]
+                ]"""
+
+            excluded_dataset = root / "qc-excluded"
+            create_dataset(excluded_dataset, ("lowqc",))
+            excluded_extra = """,
+                megqc: [min_score: 50.0],
+                recordings: [
+                    below_gate: [
+                        match: [task: "lowqc"],
+                        test_stub_qc_score: 10.0
+                    ]
+                ]"""
+
+            blocks = [
+                dataset_block("mixed", mixed_dataset, extra=mixed_extra),
+                dataset_block(
+                    "all_failed", all_failed_dataset, extra=all_failed_extra
+                ),
+                dataset_block(
+                    "qc_excluded", excluded_dataset, extra=excluded_extra
+                ),
+            ]
+            config = root / "lenient-failures.config"
+            write_config(
+                config,
+                output,
+                ",\n".join(blocks),
+                error_mode="lenient",
+            )
+            self.run_pipeline(config, output)
+            rows = self.trace_rows(output)
+
+            for task_name, process_name in failures.items():
+                with self.subTest(failure=process_name):
+                    matching = [
+                        row
+                        for row in rows
+                        if row["name"].startswith(f"{process_name} (mixed:")
+                        and f"task-{task_name}" in row["name"]
+                    ]
+                    self.assertEqual(len(matching), 1, matching)
+                    self.assertNotIn(
+                        matching[0]["status"], {"COMPLETED", "CACHED"}
+                    )
+
+            success_source = [
+                row
+                for row in rows
+                if row["name"].startswith("source_imaging (mixed:")
+                and "task-success" in row["name"]
+            ]
+            self.assertEqual(
+                [row["status"] for row in success_source], ["COMPLETED"]
+            )
+            self.assertFalse(
+                any(
+                    row["name"].startswith("meg_basic_preproc (all_failed:")
+                    for row in rows
+                )
+            )
+            self.assertFalse(
+                any(
+                    row["name"].startswith("meg_basic_preproc (qc_excluded:")
+                    for row in rows
+                )
+            )
+
+            dataset_reports = [
+                row
+                for row in rows
+                if row["name"].startswith("generate_static_html_report (")
+            ]
+            self.assertEqual(len(dataset_reports), 3, dataset_reports)
+            self.assertEqual(
+                {row["status"] for row in dataset_reports}, {"COMPLETED"}
+            )
+            corpus_reports = [
+                row
+                for row in rows
+                if row["name"].startswith("generate_corpus_static_html_report (")
+            ]
+            self.assertEqual(
+                [row["status"] for row in corpus_reports], ["COMPLETED"]
+            )
+
+    def test_strict_processing_failure_terminates_before_report_submission(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            create_dataset(dataset, ("fail",))
+            extra = """,
+                recordings: [
+                    fail_qc: [
+                        match: [task: "fail"],
+                        test_stub_fail_process: "score_meg_quality"
+                    ]
+                ]"""
+            config = root / "strict-failure.config"
+            write_config(
+                config,
+                output,
+                dataset_block("dataset", dataset, extra=extra),
+                error_mode="strict",
+            )
+            self.run_pipeline(config, output, expect_success=False)
+            names = self.trace_names(output)
+            self.assertTrue(
+                any(name.startswith("score_meg_quality (") for name in names)
+            )
+            self.assertFalse(
+                any(name.startswith("generate_static_html_report (") for name in names)
+            )
 
 
 if __name__ == "__main__":

@@ -203,6 +203,15 @@ String sanitizeDatasetName(String rawName) {
     rawName.replace(' ', '_').replaceAll(/[^A-Za-z0-9_.-]/, '_')
 }
 
+String megInputStem(def pathValue) {
+    def name = new File(pathValue.toString()).name
+    if (name.toLowerCase().endsWith('.fif.gz')) {
+        return name.substring(0, name.length() - '.fif.gz'.length())
+    }
+    def dotIndex = name.lastIndexOf('.')
+    return dotIndex > 0 ? name.substring(0, dotIndex) : name
+}
+
 String datasetLookupKey(def rawName) {
     sanitizeDatasetName((rawName ?: '').toString()).toLowerCase()
 }
@@ -255,6 +264,19 @@ String megflowImplementationFingerprint(def codeDirValue) {
     ].collect { name -> new File(codeDir, name) }
     return filesSha256(topLevelScripts) + '|' +
         toolTrees.collect { tree -> codeTreeStatFingerprint(tree) }.join('|')
+}
+
+String icaLabelImplementationFingerprint(def codeDirValue) {
+    def codeDir = new File(codeDirValue.toString())
+    return filesSha256([
+        new File(codeDir, 'run_ica_label.py'),
+        new File(codeDir, 'utils.py'),
+        new File(codeDir, 'tools/megnet_retrained/__init__.py'),
+        new File(codeDir, 'tools/megnet_retrained/inference.py'),
+        new File(codeDir, 'tools/megnet_retrained/runtime/__init__.py'),
+        new File(codeDir, 'tools/megnet_retrained/runtime/preprocessing.py'),
+        new File(codeDir, 'tools/megnet_retrained/model.onnx')
+    ])
 }
 
 String megflowOutputRoot() {
@@ -320,6 +342,17 @@ boolean cfgBool(Map config, List keys, boolean defaultValue = false) {
         return value
     }
     return value == null ? defaultValue : value.toString().toBoolean()
+}
+
+String stubFailureCommand(Map effectiveConfig, String processName) {
+    def requested = cfgText(effectiveConfig, ['test_stub_fail_process'], '')
+        .split(',')
+        .collect { it.trim().toLowerCase() }
+        .findAll { it }
+    if (!requested.contains(processName.toLowerCase())) {
+        return ':'
+    }
+    return "echo 'Injected stub failure: ${processName}' >&2; exit 1"
 }
 
 boolean sourceUsesLcmv(Map effectiveConfig) {
@@ -979,6 +1012,7 @@ process generate_pseudomri {
 
     output:
     tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val("${preproc_dir}/pseudomri/${subject_name}/${subject_name}.nii.gz"), val(subject_name), emit: pseudo_t1_inputs
+    path "pseudomri-output.guard", emit: pseudomri_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/create_pseudomri.py"
@@ -996,6 +1030,7 @@ process generate_pseudomri {
         --output_dir "${preproc_dir}/pseudomri/${subject_name}" \\
         --template_dir "${template_dir}" \\
         --template_subject "${template_subject}"
+    ln -s "${preproc_dir}/pseudomri/${subject_name}/${subject_name}.nii.gz" pseudomri-output.guard
     """
 
     stub:
@@ -1007,6 +1042,7 @@ process generate_pseudomri {
     # MEGFLOW_RAW_INPUT=${raw_input_hash}
     mkdir -p "${preproc_dir}/pseudomri/${subject_name}"
     touch "${preproc_dir}/pseudomri/${subject_name}/${subject_name}.nii.gz"
+    ln -s "${preproc_dir}/pseudomri/${subject_name}/${subject_name}.nii.gz" pseudomri-output.guard
     """
 }
 
@@ -1018,6 +1054,8 @@ process run_freesurfer {
 
     output:
     tuple val(dataset_name), val(output_dir), val(preproc_dir), val(subject_name), val(fs_subjects_dir), val("${fs_subjects_dir}/${subject_name}"), val(effective_config), emit: fs_subjects
+    path "freesurfer-reconstruction.guard", emit: freesurfer_reconstruction_cache_guard
+    path "freesurfer-head-surface.guard", emit: freesurfer_head_surface_cache_guard
 
     script:
     """
@@ -1045,6 +1083,8 @@ process run_freesurfer {
     else
         mkheadsurf -sd "${fs_subjects_dir}" -s "${subject_name}" -srcvol T1.mgz -thresh1 30
     fi
+    ln -s "${fs_subjects_dir}/${subject_name}/scripts/recon-all.done" freesurfer-reconstruction.guard
+    ln -s "${fs_subjects_dir}/${subject_name}/surf/lh.seghead" freesurfer-head-surface.guard
     """
 
     stub:
@@ -1053,6 +1093,8 @@ process run_freesurfer {
     mkdir -p "${fs_subjects_dir}/${subject_name}/scripts" "${fs_subjects_dir}/${subject_name}/surf" "${fs_subjects_dir}/${subject_name}/bem"
     touch "${fs_subjects_dir}/${subject_name}/scripts/recon-all.done"
     touch "${fs_subjects_dir}/${subject_name}/surf/lh.seghead"
+    ln -s "${fs_subjects_dir}/${subject_name}/scripts/recon-all.done" freesurfer-reconstruction.guard
+    ln -s "${fs_subjects_dir}/${subject_name}/surf/lh.seghead" freesurfer-head-surface.guard
     """
 }
 
@@ -1064,6 +1106,7 @@ process run_deepprep {
 
     output:
     tuple val(dataset_name), val(output_dir), val(preproc_dir), val(subject_name), val(fs_subjects_dir), val("${fs_subjects_dir}/${subject_name}"), val(effective_config), val(t1_input_hash), emit: fs_subjects
+    path "deepprep-reconstruction.guard", emit: deepprep_reconstruction_cache_guard
 
     script:
     output_dir = "${preproc_dir}/deepprep/${subject_name}"
@@ -1106,6 +1149,7 @@ process run_deepprep {
 
     kill -9 \$(pgrep redis-server) || true
     cp -rf "${output_dir}/Recon/"* "${fs_subjects_dir}/"
+    ln -s "${fs_subjects_dir}/${subject_name}/scripts/recon-all.done" deepprep-reconstruction.guard
     """
 
     stub:
@@ -1113,6 +1157,7 @@ process run_deepprep {
     # MEGFLOW_T1_INPUT=${t1_input_hash}
     mkdir -p "${fs_subjects_dir}/${subject_name}/scripts" "${fs_subjects_dir}/${subject_name}/surf" "${fs_subjects_dir}/${subject_name}/bem"
     touch "${fs_subjects_dir}/${subject_name}/scripts/recon-all.done"
+    ln -s "${fs_subjects_dir}/${subject_name}/scripts/recon-all.done" deepprep-reconstruction.guard
     """
 }
 
@@ -1124,11 +1169,13 @@ process run_mkheadsurf {
 
     output:
     tuple val(dataset_name), val(output_dir), val(preproc_dir), val(subject_name), val(fs_subjects_dir), val(subject_dir), val(effective_config), val(reconstruction_input_hash), emit: fs_subjects
+    path "mkheadsurf-output.guard", emit: mkheadsurf_cache_guard
 
     script:
     """
     # MEGFLOW_RECONSTRUCTION_INPUT=${reconstruction_input_hash}
     mkheadsurf -sd "${fs_subjects_dir}" -s "${subject_name}" -srcvol T1.mgz -thresh1 30
+    ln -s "${subject_dir}/surf/lh.seghead" mkheadsurf-output.guard
     """
 
     stub:
@@ -1136,6 +1183,7 @@ process run_mkheadsurf {
     # MEGFLOW_RECONSTRUCTION_INPUT=${reconstruction_input_hash}
     mkdir -p "${subject_dir}/surf"
     touch "${subject_dir}/surf/lh.seghead"
+    ln -s "${subject_dir}/surf/lh.seghead" mkheadsurf-output.guard
     """
 }
 
@@ -1147,11 +1195,14 @@ process generate_bem {
 
     output:
     tuple val(dataset_name), val(output_dir), val(preproc_dir), val(subject_name), val(fs_subjects_dir), val(subject_dir), val(effective_config), emit: bem_subjects
+    path "bem-surfaces-output.guard", emit: bem_surfaces_cache_guard
+    path "bem-solution-output.guard", emit: bem_solution_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/generate_bem.py"
     code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/utils.py"])
     subject_basename = file(subject_dir).getBaseName()
+    bem_ico = cfgGet(effective_config, ['bem', 'ico'], 4)
     bem_config = moduleConfigJson(effective_config, 'bem')
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
@@ -1160,16 +1211,24 @@ process generate_bem {
         --subject_dir "${subject_dir}" \\
         --config '${bem_config}' \\
         --output_dir "${fs_subjects_dir}/${subject_basename}/bem"
+    ln -s "${fs_subjects_dir}/${subject_basename}/bem/${subject_basename}_ico${bem_ico}_watershed_bem.fif" bem-surfaces-output.guard
+    ln -s "${fs_subjects_dir}/${subject_basename}/bem/${subject_basename}_ico${bem_ico}_watershed_bem-sol.fif" bem-solution-output.guard
     """
 
     stub:
     script_name = "${megflowCodeDir(effective_config)}/generate_bem.py"
     code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/utils.py"])
+    subject_basename = file(subject_dir).getBaseName()
+    bem_ico = cfgGet(effective_config, ['bem', 'ico'], 4)
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_RECONSTRUCTION_INPUT=${reconstruction_hash}
     mkdir -p "${subject_dir}/bem"
     touch "${subject_dir}/bem/stub-bem.done"
+    touch "${subject_dir}/bem/${subject_basename}_ico${bem_ico}_watershed_bem.fif"
+    touch "${subject_dir}/bem/${subject_basename}_ico${bem_ico}_watershed_bem-sol.fif"
+    ln -s "${subject_dir}/bem/${subject_basename}_ico${bem_ico}_watershed_bem.fif" bem-surfaces-output.guard
+    ln -s "${subject_dir}/bem/${subject_basename}_ico${bem_ico}_watershed_bem-sol.fif" bem-solution-output.guard
     """
 }
 
@@ -1224,6 +1283,9 @@ process score_meg_quality {
 
     output:
     tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), path("*.summary.json"), path("*.component_scores.csv"), path("*.normative_quality_score.png"), emit: qc_subjects
+    path "qc-summary-output.guard", emit: qc_summary_cache_guard
+    path "qc-components-output.guard", emit: qc_components_cache_guard
+    path "qc-plot-output.guard", emit: qc_plot_cache_guard
 
     script:
     raw_subject_basename = file(orig_raw_path).getBaseName()
@@ -1231,7 +1293,9 @@ process score_meg_quality {
     qc_code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/tools/megqc/score_meg_reference_quota_standalone.py"])
     raw_input_hash = fileStatFingerprint(orig_raw_path)
     qc_output_dir = "${preproc_dir}/quality_control/${raw_subject_basename}"
+    qc_output_stem = megInputStem(orig_raw_path)
     megqc_config = moduleConfig(effective_config, 'megqc')
+    qc_model = cfgText(megqc_config, ['model'], 'lowcost_quota_T4_S2_Stat1_Fr1')
     qc_preproc_config = configJson([preproc: cfgGet(megqc_config, ['preproc'], [])])
     qc_meg_vendor = cfgText(megqc_config, ['meg_vendor'], 'auto')
     """
@@ -1258,9 +1322,12 @@ process score_meg_quality {
         --omit_bad_channels "${cfgBool(megqc_config, ['omit_bad_channels'], false)}" \\
         --n_jobs ${task.cpus} \\
         --seg_length ${cfgGet(megqc_config, ['seg_length'], 100)}
-    cp "${qc_output_dir}"/*.summary.json .
-    cp "${qc_output_dir}"/*.component_scores.csv .
-    cp "${qc_output_dir}"/*.normative_quality_score.png .
+    cp "${qc_output_dir}/${qc_output_stem}.${qc_model}.summary.json" .
+    cp "${qc_output_dir}/${qc_output_stem}.${qc_model}.component_scores.csv" .
+    cp "${qc_output_dir}/${qc_output_stem}.${qc_model}.normative_quality_score.png" .
+    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.summary.json" qc-summary-output.guard
+    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.component_scores.csv" qc-components-output.guard
+    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.normative_quality_score.png" qc-plot-output.guard
     """
 
     stub:
@@ -1268,12 +1335,24 @@ process score_meg_quality {
     script_name = "${megflowCodeDir(effective_config)}/meg_quality_control.py"
     qc_code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/tools/megqc/score_meg_reference_quota_standalone.py"])
     raw_input_hash = fileStatFingerprint(orig_raw_path)
+    qc_output_dir = "${preproc_dir}/quality_control/${raw_subject_basename}"
+    qc_output_stem = megInputStem(orig_raw_path)
+    qc_model = cfgText(effective_config, ['megqc', 'model'], 'lowcost_quota_T4_S2_Stat1_Fr1')
+    qc_stub_score = cfgGet(effective_config, ['test_stub_qc_score'], 100.0)
     """
     # MEGFLOW_CODE_SHA256=${qc_code_hash}
     # MEGFLOW_RAW_INPUT=${raw_input_hash}
-    printf '{"score_0_100": 100.0}\n' > "${raw_subject_basename}.summary.json"
-    printf 'metric,score\nstub,100\n' > "${raw_subject_basename}.component_scores.csv"
-    touch "${raw_subject_basename}.normative_quality_score.png"
+    ${stubFailureCommand(effective_config, 'score_meg_quality')}
+    mkdir -p "${qc_output_dir}"
+    printf '{"score_0_100": %s}\n' "${qc_stub_score}" > "${qc_output_stem}.${qc_model}.summary.json"
+    printf 'metric,score\nstub,100\n' > "${qc_output_stem}.${qc_model}.component_scores.csv"
+    touch "${qc_output_stem}.${qc_model}.normative_quality_score.png"
+    cp "${qc_output_stem}.${qc_model}.summary.json" "${qc_output_dir}/"
+    cp "${qc_output_stem}.${qc_model}.component_scores.csv" "${qc_output_dir}/"
+    cp "${qc_output_stem}.${qc_model}.normative_quality_score.png" "${qc_output_dir}/"
+    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.summary.json" qc-summary-output.guard
+    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.component_scores.csv" qc-components-output.guard
+    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.normative_quality_score.png" qc-plot-output.guard
     """
 }
 
@@ -1286,6 +1365,7 @@ process meg_basic_preproc {
 
     output:
     tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val("${preproc_dir}/${raw_subject_basename}/${raw_subject_basename}_preproc-raw.fif"), emit: preproc_subjects
+    path "preproc-output.guard", emit: preproc_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/meg_preproc_osl.py"
@@ -1307,6 +1387,7 @@ process meg_basic_preproc {
         --preproc_dir "${preproc_dir}" \\
         --seed ${osl_seed} \\
         --config '${preproc_config}'
+    ln -s "${preproc_dir}/${raw_subject_basename}/${raw_subject_basename}_preproc-raw.fif" preproc-output.guard
     """
 
     stub:
@@ -1317,8 +1398,10 @@ process meg_basic_preproc {
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_RAW_INPUT=${raw_input_hash}
+    ${stubFailureCommand(effective_config, 'meg_basic_preproc')}
     mkdir -p "${preproc_dir}/${raw_subject_basename}"
     printf 'stub preproc %s\n' "${orig_raw_path}" > "${preproc_dir}/${raw_subject_basename}/${raw_subject_basename}_preproc-raw.fif"
+    ln -s "${preproc_dir}/${raw_subject_basename}/${raw_subject_basename}_preproc-raw.fif" preproc-output.guard
     """
 }
 
@@ -1330,6 +1413,8 @@ process detect_artifacts {
 
     output:
     tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val(preproc_raw_path), val(preproc_hash), val("${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_channels.txt"), val("${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_segments.txt"), emit: artifacts
+    path "bad-channels-output.guard", emit: bad_channels_cache_guard
+    path "bad-segments-output.guard", emit: bad_segments_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/meg_detect_artifacts.py"
@@ -1345,6 +1430,8 @@ process detect_artifacts {
         --input "${preproc_raw_path}" \\
         --output "${preproc_dir}/artifact_report/${raw_subject_parent}" \\
         --config '${artifact_config}'
+    ln -s "${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_channels.txt" bad-channels-output.guard
+    ln -s "${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_segments.txt" bad-segments-output.guard
     """
 
     stub:
@@ -1355,9 +1442,12 @@ process detect_artifacts {
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_PREPROC_INPUT=${preproc_hash}
+    ${stubFailureCommand(effective_config, 'detect_artifacts')}
     mkdir -p "${preproc_dir}/artifact_report/${raw_subject_parent}"
     : > "${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_channels.txt"
     : > "${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_segments.txt"
+    ln -s "${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_channels.txt" bad-channels-output.guard
+    ln -s "${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_segments.txt" bad-segments-output.guard
     """
 }
 
@@ -1370,6 +1460,8 @@ process run_ica {
 
     output:
     tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash), val("${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/ica_sources.fif"), val("${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_ica.fif"), emit: ica_subjects
+    path "ica-sources-output.guard", emit: ica_sources_cache_guard
+    path "ica-decomposition-output.guard", emit: ica_decomposition_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/run_ica.py"
@@ -1391,6 +1483,8 @@ process run_ica {
         --fname_bad_segments "${bad_segments}" \\
         --seed ${ica_seed} \\
         --compute_explained_variance ${compute_explained_variance}
+    ln -s "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/ica_sources.fif" ica-sources-output.guard
+    ln -s "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_ica.fif" ica-decomposition-output.guard
     """
 
     stub:
@@ -1401,9 +1495,12 @@ process run_ica {
     ica_output_dir = processOutputDir('ica')
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
+    ${stubFailureCommand(effective_config, 'run_ica')}
     mkdir -p "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}"
     printf 'stub sources\n' > "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/ica_sources.fif"
     printf 'stub ica\n' > "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_ica.fif"
+    ln -s "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/ica_sources.fif" ica-sources-output.guard
+    ln -s "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_ica.fif" ica-decomposition-output.guard
     """
 }
 
@@ -1411,14 +1508,16 @@ process run_ic_label {
     tag "${dataset_name}:${raw_subject_basename}"
 
     input:
-    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash), val(ica_source), val(ica_file_path), val(ica_hash)
+    tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash), val(ica_source), val(ica_file_path), val(ica_hash), val(ica_label_code_hash)
 
     output:
     tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val(preproc_raw_path), val(bad_channels), val(bad_segments), val(artifact_hash), val(ica_hash), val("${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/marked_components.txt"), emit: labelled_subjects
+    path "ica-label-output.guard", emit: ica_label_cache_guard
+    path "ica-label-scores-output.guard", emit: ica_label_scores_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/run_ica_label.py"
-    code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/utils.py"])
+    code_hash = ica_label_code_hash
     raw_subject_basename = file(preproc_raw_path).getBaseName()
     raw_subject_dir_basename = file(preproc_raw_path).getParent().getName()
     ica_output_dir = processOutputDir('ica')
@@ -1429,21 +1528,31 @@ process run_ic_label {
     python ${script_name} \\
         --raw_data_path "${preproc_raw_path}" \\
         --ica_file "${ica_file_path}" \\
+        --ica_sources_file "${ica_source}" \\
         --output_dir "${preproc_dir}/${ica_output_dir}" \\
+        --refresh-existing \\
         --config '${ic_label_config}'
+    test -f "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/marked_components.txt"
+    test -f "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/ecg_eog_scores.json"
+    ln -s "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/marked_components.txt" ica-label-output.guard
+    ln -s "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/ecg_eog_scores.json" ica-label-scores-output.guard
     """
 
     stub:
     script_name = "${megflowCodeDir(effective_config)}/run_ica_label.py"
-    code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/utils.py"])
+    code_hash = ica_label_code_hash
     raw_subject_basename = file(preproc_raw_path).getBaseName()
     raw_subject_dir_basename = file(preproc_raw_path).getParent().getName()
     ica_output_dir = processOutputDir('ica')
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_ICA_INPUT=${ica_hash}
+    ${stubFailureCommand(effective_config, 'run_ic_label')}
     mkdir -p "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}"
     : > "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/marked_components.txt"
+    printf '{"methods": {}}\n' > "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/ecg_eog_scores.json"
+    ln -s "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/marked_components.txt" ica-label-output.guard
+    ln -s "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}/ecg_eog_scores.json" ica-label-scores-output.guard
     """
 }
 
@@ -1455,6 +1564,7 @@ process apply_ica {
 
     output:
     tuple val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val("${preproc_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_clean_raw.fif"), val("${target_mri_subject_id}"), val("${artifact_hash}|${ica_hash}|${marked_hash}"), emit: clean_subjects
+    path "clean-raw-output.guard", emit: clean_raw_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/apply_ica.py"
@@ -1474,6 +1584,7 @@ process apply_ica {
         --output_dir "${preproc_dir}/${ica_output_dir}/${raw_subject_dir_basename}" \\
         --fname_bad_channels "${bad_channels}" \\
         --fname_bad_segments "${bad_segments}"
+    ln -s "${preproc_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_clean_raw.fif" clean-raw-output.guard
     """
 
     stub:
@@ -1486,9 +1597,11 @@ process apply_ica {
     stub_delay_sec = cfgGet(effective_config, ['test_stub_delay_sec'], 0)
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
+    ${stubFailureCommand(effective_config, 'apply_ica')}
     sleep ${stub_delay_sec}
     mkdir -p "${preproc_dir}/${raw_subject_dir_basename}"
     printf 'stub clean %s\n' "${orig_raw_path}" > "${preproc_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_clean_raw.fif"
+    ln -s "${preproc_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_clean_raw.fif" clean-raw-output.guard
     """
 }
 
@@ -1500,6 +1613,8 @@ process epochs {
 
     output:
     tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val("${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif"), val(epoch_analysis_raw_path), val(clean_hash), val(events_hash), emit: epoch_subjects
+    path "epoch-output.guard", emit: epoch_cache_guard
+    path "epoch-analysis-output.guard", emit: epoch_analysis_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/epochs.py"
@@ -1523,6 +1638,12 @@ process epochs {
         --output_analysis_raw_file "${epoch_analysis_raw_path}" \\
         --output_dir "${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}" \\
         --config '${epoch_config}'
+    ln -s "${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif" epoch-output.guard
+    if [ "${epoch_analysis_raw_path}" != "${analysis_raw_path}" ]; then
+        ln -s "${epoch_analysis_raw_path}" epoch-analysis-output.guard
+    else
+        ln -s "${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif" epoch-analysis-output.guard
+    fi
     """
 
     stub:
@@ -1537,10 +1658,17 @@ process epochs {
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_EVENTS_INPUT=${events_hash}
+    ${stubFailureCommand(effective_config, 'epochs')}
     mkdir -p "${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}"
     printf 'stub epochs %s\n' "${analysis_raw_path}" > "${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif"
     if [ "${epoch_analysis_raw_path}" != "${analysis_raw_path}" ]; then
         printf 'stub analysis raw %s\n' "${analysis_raw_path}" > "${epoch_analysis_raw_path}"
+    fi
+    ln -s "${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif" epoch-output.guard
+    if [ "${epoch_analysis_raw_path}" != "${analysis_raw_path}" ]; then
+        ln -s "${epoch_analysis_raw_path}" epoch-analysis-output.guard
+    else
+        ln -s "${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif" epoch-analysis-output.guard
     fi
     """
 }
@@ -1553,6 +1681,9 @@ process compute_covariance {
 
     output:
     tuple val(subject_key), val(output_dir), val(preproc_dir), val(effective_config), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif"), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json"), val(needs_lcmv), val(clean_hash), val(source_data_hash), val(noise_key), val(covariance_input_hash), emit: cov_subjects
+    path "noise-covariance-output.guard", emit: noise_covariance_cache_guard
+    path "data-covariance-output.guard", emit: data_covariance_cache_guard
+    path "resolved-rank-output.guard", emit: resolved_rank_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/compute_covariance.py"
@@ -1600,6 +1731,13 @@ process compute_covariance {
         echo "LCMV data covariance output is missing or empty" >&2
         exit 2
     fi
+    ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" noise-covariance-output.guard
+    ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json" resolved-rank-output.guard
+    if [[ "${needs_lcmv}" == "true" ]]; then
+        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif" data-covariance-output.guard
+    else
+        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" data-covariance-output.guard
+    fi
     """
 
     stub:
@@ -1613,6 +1751,7 @@ process compute_covariance {
     # MEGFLOW_EVENTS_INPUT=${events_hash}
     # MEGFLOW_COVARIANCE_INPUT=${covariance_input_hash}
     set -euo pipefail
+    ${stubFailureCommand(effective_config, 'compute_covariance')}
     mkdir -p "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}"
     printf 'stub noise covariance %s\n' "${noise_data_file}" > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"
     printf '{"rank":{"meg":1},"channels":[],"source_data_mode":"%s"}\n' "${source_data_mode}" > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json"
@@ -1620,6 +1759,13 @@ process compute_covariance {
         printf 'stub LCMV data covariance %s\n' "${source_data_file}" > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif"
     else
         rm -f "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif"
+    fi
+    ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" noise-covariance-output.guard
+    ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json" resolved-rank-output.guard
+    if [[ "${needs_lcmv}" == "true" ]]; then
+        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif" data-covariance-output.guard
+    else
+        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" data-covariance-output.guard
     fi
     """
 }
@@ -1633,6 +1779,7 @@ process coregistration {
 
     output:
     tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val(target_mri_subject_id), val("${preproc_dir}/${trans_output_dir}/${raw_subject_dir_basename}/coreg-trans.fif"), val(clean_hash), val(anatomy_hash), emit: trans_subjects
+    path "coregistration-output.guard", emit: coregistration_cache_guard
 
     script:
     script_name = "${megflowCodeDir(effective_config)}/coregistration.py"
@@ -1655,6 +1802,7 @@ process coregistration {
         --visualize ${coreg_visualize} \\
         --output_dir "${preproc_dir}/${trans_output_dir}/${raw_subject_dir_basename}" \\
         --config '${coreg_config}'${supplied_trans_arg}
+    ln -s "${preproc_dir}/${trans_output_dir}/${raw_subject_dir_basename}/coreg-trans.fif" coregistration-output.guard
     """
 
     stub:
@@ -1665,8 +1813,10 @@ process coregistration {
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_ANATOMY_INPUT=${anatomy_hash}
+    ${stubFailureCommand(effective_config, 'coregistration')}
     mkdir -p "${preproc_dir}/${trans_output_dir}/${raw_subject_dir_basename}"
     printf 'stub trans %s\n' "${clean_raw_path}" > "${preproc_dir}/${trans_output_dir}/${raw_subject_dir_basename}/coreg-trans.fif"
+    ln -s "${preproc_dir}/${trans_output_dir}/${raw_subject_dir_basename}/coreg-trans.fif" coregistration-output.guard
     """
 }
 
@@ -1678,6 +1828,7 @@ process forward_solution {
 
     output:
     tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val("${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif"), val(epoch_path), val(analysis_raw_path), val(trans_hash), val(epoch_clean_hash), val(anatomy_hash), val(epoch_events_hash), val(epoch_hash), val(analysis_hash), emit: fwd_subjects
+    path "forward-solution-output.guard", emit: forward_solution_cache_guard
 
     script:
     dataset_name = key[0]
@@ -1703,6 +1854,7 @@ process forward_solution {
         --trans_file "${trans_path}" \\
         --mri_subject_dir "${mri_subject_dir}" \\
         --config '${fwd_config}'
+    ln -s "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif" forward-solution-output.guard
     """
 
     stub:
@@ -1717,8 +1869,10 @@ process forward_solution {
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_ANATOMY_INPUT=${anatomy_hash}
     # MEGFLOW_EPOCH_INPUT=${epoch_events_hash}|${epoch_hash}|${analysis_hash}
+    ${stubFailureCommand(effective_config, 'forward_solution')}
     mkdir -p "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}"
     printf 'stub forward %s %s\n' "${epoch_path}" "${trans_path}" > "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif"
+    ln -s "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif" forward-solution-output.guard
     """
 }
 
@@ -1730,6 +1884,7 @@ process source_imaging {
 
     output:
     tuple val(key), val(output_dir), val(preproc_dir), val("${preproc_dir}/${src_output_dir}/${raw_subject_dir_basename}"), emit: source_subjects
+    path "source-imaging-output.guard", emit: source_imaging_cache_guard
 
     script:
     dataset_name = key[0]
@@ -1777,6 +1932,7 @@ process source_imaging {
         --noise_covariance_file "${bl_cov_file}" \\
         --resolved_rank_file "${resolved_rank_file}" \\
         --config '${src_config}' ${data_covariance_arg}
+    ln -s "${preproc_dir}/${src_output_dir}/${raw_subject_dir_basename}" source-imaging-output.guard
     """
 
     stub:
@@ -1833,6 +1989,7 @@ process source_imaging {
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     set -euo pipefail
+    ${stubFailureCommand(effective_config, 'source_imaging')}
     test -f "${epoch_path}"
     test -f "${source_input_file}"
     test -f "${fwd_file}"
@@ -1845,6 +2002,7 @@ process source_imaging {
     cat > "${preproc_dir}/${src_output_dir}/${raw_subject_dir_basename}/routing.json" <<'EOF_ROUTING'
 ${routing_json}
 EOF_ROUTING
+    ln -s "${preproc_dir}/${src_output_dir}/${raw_subject_dir_basename}" source-imaging-output.guard
     """
 }
 
@@ -1972,6 +2130,12 @@ Map parseMegPipelineSteps(String stepsRaw) {
             throw new IllegalArgumentException("Unknown steps '${primary}'. Use: report, anatomy, all, meg_all, meg_artifacts, meg_ica, meg_epochs (aliases: meg, artifacts, ica, epochs).")
     }
 
+    if (withAnatomy && !(primary in ['meg_artifacts', 'meg_ica', 'meg_epochs'])) {
+        throw new IllegalArgumentException(
+            "with_anatomy is only supported with meg_artifacts, meg_ica, or meg_epochs"
+        )
+    }
+
     if (skipIca && megStage != 2) {
         throw new IllegalArgumentException("skip_ica is only supported with meg_epochs (e.g. steps=meg_epochs,skip_ica). Full all/meg_all requires ICA-clean raw for forward/source.")
     }
@@ -2089,6 +2253,7 @@ workflow {
         )
     }
     def implementationFingerprints = [:]
+    def icaLabelFingerprints = [:]
     log.info "MEGFlow profile datasets: ${datasetProfiles.collect { it.dataset_name }.join(', ')}"
     log.info "Corpus mode: ${corpusMode}"
     log.info "Anatomy process plan: enabled=${anatomyPlan.enabled}, methods=${anatomyPlan.methods ?: 'none'}, datasets=${anatomyPlan.datasetNames ?: 'none'}"
@@ -2435,7 +2600,15 @@ workflow {
     native_ica_with_hash_ch = native_ica.ica_subjects
         .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_source, ica_file_path ->
             def icaHash = fileStatFingerprint(ica_file_path)
-            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_source, ica_file_path, icaHash)
+            def icaLabelCodeHash
+            synchronized (icaLabelFingerprints) {
+                if (!icaLabelFingerprints.containsKey(effective_config.code_dir)) {
+                    icaLabelFingerprints[effective_config.code_dir] =
+                        icaLabelImplementationFingerprint(effective_config.code_dir)
+                }
+                icaLabelCodeHash = icaLabelFingerprints[effective_config.code_dir]
+            }
+            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_source, ica_file_path, icaHash, icaLabelCodeHash)
         }
     native_labels = run_ic_label(native_ica_with_hash_ch)
     native_labelled_with_hash = native_labels.labelled_subjects
@@ -2591,7 +2764,12 @@ workflow {
             asMap(effective_config._steps).megStage >= 3
         }
     native_fwd_inputs = native_trans_with_hash
-        .join(native_source_epoch_subject_ch, by: 0, failOnDuplicate: true, failOnMismatch: true)
+        .join(
+            native_source_epoch_subject_ch,
+            by: 0,
+            failOnDuplicate: true,
+            failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')
+        )
         .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, epoch_output_dir, epoch_preproc_dir, epoch_fs_subjects_dir, epoch_effective_config, epoch_path, analysis_raw_path, epoch_clean_hash, epoch_events_hash, epoch_hash, analysis_hash ->
             if (output_dir != epoch_output_dir || preproc_dir != epoch_preproc_dir || fs_subjects_dir != epoch_fs_subjects_dir) {
                 throw new IllegalStateException("Forward routing path mismatch for ${key}")
@@ -2618,7 +2796,12 @@ workflow {
             tuple(key, output_dir, preproc_dir, effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash, covarianceHash, dataCovarianceHash, resolvedRankHash)
         }
     native_source_inputs = native_fwds_with_hash_ch
-        .join(native_cov_with_hash_ch, by: 0, failOnDuplicate: true, failOnMismatch: true)
+        .join(
+            native_cov_with_hash_ch,
+            by: 0,
+            failOnDuplicate: true,
+            failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')
+        )
         .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, fwd_hash, cov_output_dir, cov_preproc_dir, cov_effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, cov_clean_hash, covariance_source_hash, noise_key, covariance_input_hash, covariance_hash, data_covariance_hash, resolved_rank_hash ->
             if (output_dir != cov_output_dir || preproc_dir != cov_preproc_dir) {
                 throw new IllegalStateException("Source routing path mismatch for ${key}")

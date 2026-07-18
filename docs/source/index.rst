@@ -80,7 +80,7 @@ Core Capabilities
       :class-card: megflow-feature-card
 
       Static HTML reports bundle subject pages, figures, sidecars, CSV files,
-      JSON summaries, workflow metadata, and the effective config snapshot.
+      JSON summaries, workflow metadata, and a config snapshot when available.
 
 Report Preview
 --------------

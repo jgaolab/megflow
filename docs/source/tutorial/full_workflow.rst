@@ -85,10 +85,11 @@ Example command:
    docker run --rm -it \
      -v /path/to/bids_or_raw_meg:/input \
      -v /path/to/output:/output \
-     -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
+     -v /path/to/my_nextflow.config:/config/project.config:ro \
      cmrlab/megflow:1.0.0 \
-     -i /input \
-     -o /output \
+     --config /config/project.config \
+     --input /input \
+     --output /output \
      --steps meg_epochs \
      --resume
 
@@ -110,10 +111,11 @@ Use ``--steps meg_all`` when:
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
-     -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
+     -v /path/to/my_nextflow.config:/config/project.config:ro \
      cmrlab/megflow:1.0.0 \
-     -i /input \
-     -o /output \
+     --config /config/project.config \
+     --input /input \
+     --output /output \
      --fs_subjects_dir /smri \
      --fs_license_file /fs_license.txt \
      --steps meg_all \
@@ -123,7 +125,8 @@ Run Anatomy and Full MEG Together
 ---------------------------------
 
 Use ``--steps all`` only when the structural MRI selection and MEG settings are
-both ready. This mode runs anatomy first, then the full MEG workflow.
+both ready. The anatomy and MEG branches may run concurrently; they join when
+coregistration and forward/source modeling require the reconstructed anatomy.
 
 .. code-block:: bash
 
@@ -132,10 +135,11 @@ both ready. This mode runs anatomy first, then the full MEG workflow.
      -v /path/to/output:/output \
      -v /path/to/smri:/smri \
      -v /path/to/license.txt:/fs_license.txt \
-     -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
+     -v /path/to/my_nextflow.config:/config/project.config:ro \
      cmrlab/megflow:1.0.0 \
-     -i /input \
-     -o /output \
+     --config /config/project.config \
+     --input /input \
+     --output /output \
      --fs_subjects_dir /smri \
      --fs_license_file /fs_license.txt \
      --steps all \
@@ -172,6 +176,9 @@ Full Workflow Checklist
      - Dataset-specific detail to confirm
    * - MEG import
      - Subject/session/task/run filters and raw-file exclusion keywords.
+   * - NormMEG-QC
+     - Confirm the reference device/category, fixed reference preprocessing,
+       ``min_score`` processing gate, and ``alarm_score`` report threshold.
    * - Continuous preprocessing
      - Line-noise frequency, sampling rate, filtering range, and whether
        Maxwell/tSSS is required for the device.

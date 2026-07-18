@@ -166,9 +166,13 @@ Then run the first QC pass with:
    docker run --rm -it \
      -v /path/to/bids:/input \
      -v /path/to/output:/output \
-     -v /path/to/my_nextflow.config:/program/nextflow/nextflow.config \
+     -v /path/to/my_nextflow.config:/config/project.config:ro \
      cmrlab/megflow:1.0.0 \
-     -i /input -o /output --steps meg_ica --resume
+     --config /config/project.config \
+     --input /input \
+     --output /output \
+     --steps meg_ica \
+     --resume
 
 The Docker entrypoint automatically prepares the mounted output directory and
 runs the pipeline as the host UID/GID inferred from ``/input``. The output

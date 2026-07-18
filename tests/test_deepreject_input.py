@@ -4,9 +4,11 @@ import sys
 import types
 from argparse import Namespace
 from pathlib import Path
+from unittest import mock
 
 import mne
 import numpy as np
+from mne.io import RawArray
 
 MEGFLOW_DIR = Path(__file__).resolve().parents[1] / "megflow"
 if str(MEGFLOW_DIR) not in sys.path:
@@ -19,11 +21,18 @@ osl_preprocessing = types.ModuleType("osl_ephys.preprocessing")
 osl_preprocessing.osl_wrappers = osl_wrappers
 osl_ephys = types.ModuleType("osl_ephys")
 osl_ephys.preprocessing = osl_preprocessing
-sys.modules.setdefault("osl_ephys", osl_ephys)
-sys.modules.setdefault("osl_ephys.preprocessing", osl_preprocessing)
-sys.modules.setdefault("osl_ephys.preprocessing.osl_wrappers", osl_wrappers)
-
-from meg_detect_artifacts import _deepreject_input_preprocessing_summary, main as detect_artifacts_main
+with mock.patch.dict(
+    sys.modules,
+    {
+        "osl_ephys": osl_ephys,
+        "osl_ephys.preprocessing": osl_preprocessing,
+        "osl_ephys.preprocessing.osl_wrappers": osl_wrappers,
+    },
+):
+    from meg_detect_artifacts import (
+        _deepreject_input_preprocessing_summary,
+        main as detect_artifacts_main,
+    )
 
 
 class _RawInfoOnly:
@@ -75,7 +84,7 @@ class ArtifactMaskGenerationTests(unittest.TestCase):
             output_dir.mkdir()
             raw_file = tmpdir / "synthetic_raw.fif"
             info = mne.create_info(["MEG 001", "MEG 002"], 100.0, ch_types=["mag", "mag"])
-            raw = mne.io.RawArray(np.zeros((2, 1000)), info, verbose=False)
+            raw = RawArray(np.zeros((2, 1000)), info, verbose=False)
             raw.save(raw_file, overwrite=True, verbose=False)
 
             (output_dir / "synthetic_raw_bad_channels.txt").write_text("MEG 002\n")

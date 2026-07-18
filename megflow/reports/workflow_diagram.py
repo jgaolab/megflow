@@ -149,6 +149,70 @@ def _parsed_int(parsed: dict[str, Any], snake_key: str, default: int) -> int:
         return default
 
 
+def _bool_value(value: Any, default: bool) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return default
+    normalized = str(value).strip().lower()
+    if normalized in {"true", "1", "yes", "y"}:
+        return True
+    if normalized in {"false", "0", "no", "n"}:
+        return False
+    return default
+
+
+def _megqc_enabled_from_manifest(
+    manifest: dict[str, Any] | None, default: bool = True
+) -> bool:
+    if not isinstance(manifest, dict):
+        return default
+    snapshot = manifest.get("params_snapshot")
+    if not isinstance(snapshot, dict):
+        return default
+    if "megqc_enabled" in snapshot:
+        return _bool_value(snapshot.get("megqc_enabled"), default)
+    effective = snapshot.get("effective_config")
+    if isinstance(effective, dict):
+        megqc = effective.get("megqc")
+        if isinstance(megqc, dict) and "enabled" in megqc:
+            return _bool_value(megqc.get("enabled"), default)
+    return default
+
+
+def _snapshot_with_effective_values(snapshot: dict[str, Any]) -> dict[str, Any]:
+    normalized = dict(snapshot)
+    effective = snapshot.get("effective_config")
+    if not isinstance(effective, dict):
+        return normalized
+
+    def add(key: str, *path: str) -> None:
+        if key in normalized:
+            return
+        value: Any = effective
+        for part in path:
+            if not isinstance(value, dict) or part not in value:
+                return
+            value = value[part]
+        normalized[key] = value
+
+    add("dataset_format", "dataset_format")
+    add("is_bids", "is_bids")
+    add("anatomy_preprocess_method", "anatomy", "method")
+    add("megqc_enabled", "megqc", "enabled")
+    add("megqc_min_score", "megqc", "min_score")
+    add("megqc_alarm_score", "megqc", "alarm_score")
+    add("megqc_meg_vendor", "megqc", "meg_vendor")
+    add("megqc_category", "megqc", "category")
+    add("megqc_reference_scope", "megqc", "reference_scope")
+    add("megqc_preproc_config", "megqc", "preproc")
+    add("megqc_keep_bad_annotations", "megqc", "keep_bad_annotations")
+    add("megqc_omit_bad_channels", "megqc", "omit_bad_channels")
+    add("covar_type", "covariance", "type")
+    add("src_type", "source", "type")
+    return normalized
+
+
 def parse_meg_steps_python(steps_raw: str) -> dict[str, Any]:
     """Mirror nextflow parseMegPipelineSteps (subset sufficient for workflow UI)."""
     parts = [p.strip().lower() for p in steps_raw.split(",") if p.strip()]
@@ -223,10 +287,7 @@ def qc_completeness_scope_from_manifest(manifest: dict[str, Any] | None) -> dict
         ms = _parsed_int(parsed, "meg_stage", -99)
         return {"meg_stage": ms, "skip_ica": _parsed_bool(parsed, "skip_ica"), "run_meg": False, "megqc_enabled": False}
     ms = _parsed_int(parsed, "meg_stage", 3)
-    snap = manifest.get("params_snapshot") if isinstance(manifest, dict) else {}
-    megqc_enabled = True
-    if isinstance(snap, dict) and snap.get("megqc_enabled") is not None:
-        megqc_enabled = str(snap.get("megqc_enabled")).strip().lower() in {"true", "1", "yes", "y"}
+    megqc_enabled = _megqc_enabled_from_manifest(manifest)
     return {
         "meg_stage": ms,
         "skip_ica": _parsed_bool(parsed, "skip_ica"),
@@ -301,10 +362,7 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
     meg_stage = _parsed_int(parsed, "meg_stage", -99)
     run_meg = _parsed_bool(parsed, "run_meg")
     skip_ica = _parsed_bool(parsed, "skip_ica")
-    snap = manifest.get("params_snapshot") if isinstance(manifest, dict) else {}
-    megqc_enabled = True
-    if isinstance(snap, dict) and snap.get("megqc_enabled") is not None:
-        megqc_enabled = str(snap.get("megqc_enabled")).strip().lower() in {"true", "1", "yes", "y"}
+    megqc_enabled = _megqc_enabled_from_manifest(manifest)
 
     if run_meg:
         if megqc_enabled:
@@ -314,6 +372,7 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
                     "label": "Quality score",
                     "lane": "meg",
                     "plan": "run",
+                    "depends_on": [],
                 }
             )
         nodes.append(
@@ -322,9 +381,18 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
                 "label": "Basic preprocessing",
                 "lane": "meg",
                 "plan": "run",
+                "depends_on": ["quality_score"] if megqc_enabled else [],
             }
         )
-        nodes.append({"key": "artifacts", "label": "Artifacts", "lane": "meg", "plan": "run"})
+        nodes.append(
+            {
+                "key": "artifacts",
+                "label": "Artifacts",
+                "lane": "meg",
+                "plan": "run",
+                "depends_on": ["basic_preproc"],
+            }
+        )
         if meg_stage >= 1 and not skip_ica:
             nodes.append(
                 {
@@ -332,15 +400,56 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
                     "label": "ICA",
                     "lane": "meg",
                     "plan": "run",
+                    "depends_on": ["artifacts"],
                 }
             )
         if meg_stage >= 2:
-            nodes.append({"key": "epochs", "label": "Epochs", "lane": "meg", "plan": "run"})
+            nodes.append(
+                {
+                    "key": "epochs",
+                    "label": "Epochs",
+                    "lane": "meg",
+                    "plan": "run",
+                    "depends_on": ["basic_preproc"] if skip_ica else ["ica"],
+                }
+            )
         if meg_stage >= 3:
-            nodes.append({"key": "covariance", "label": "Covariance", "lane": "meg", "plan": "run"})
-            nodes.append({"key": "coregistration", "label": "Coregistration", "lane": "meg", "plan": "run"})
-            nodes.append({"key": "headmodel", "label": "Head model", "lane": "meg", "plan": "run"})
-            nodes.append({"key": "source", "label": "Source localization", "lane": "meg", "plan": "run"})
+            nodes.append(
+                {
+                    "key": "covariance",
+                    "label": "Covariance",
+                    "lane": "meg",
+                    "plan": "run",
+                    "depends_on": ["epochs"],
+                }
+            )
+            nodes.append(
+                {
+                    "key": "coregistration",
+                    "label": "Coregistration",
+                    "lane": "meg",
+                    "plan": "run",
+                    "depends_on": ["ica"],
+                }
+            )
+            nodes.append(
+                {
+                    "key": "headmodel",
+                    "label": "Head model",
+                    "lane": "meg",
+                    "plan": "run",
+                    "depends_on": ["epochs", "coregistration"],
+                }
+            )
+            nodes.append(
+                {
+                    "key": "source",
+                    "label": "Source localization",
+                    "lane": "meg",
+                    "plan": "run",
+                    "depends_on": ["covariance", "headmodel"],
+                }
+            )
 
     pl_raw = manifest.get("pipeline_steps_raw")
     if manifest.get("report_only") and pl_raw:
@@ -587,6 +696,7 @@ def _workflow_detail_groups(manifest: dict[str, Any]) -> list[tuple[str, list[tu
 
     snap = manifest.get("params_snapshot")
     if isinstance(snap, dict):
+        snap = _snapshot_with_effective_values(snap)
         input_rows = _snapshot_rows(snap, _PARAMS_DATA_KEYS)
         path_rows = _snapshot_rows(snap, _PARAMS_PATH_KEYS)
         if input_rows:
@@ -637,10 +747,10 @@ def _nextflow_config_hint_html(ctx: dict[str, Any]) -> str:
         )
     return (
         '<p class="small workflow-config-hint workflow-config-hint-missing">No nextflow.config was bundled. '
-        "The pipeline tries to copy <code>nextflow.config</code> / <code>run_nextflow.config</code> "
-        "from the launch directory, then from the script directory, into <code>preprocessed/logs/</code> "
-        "(warnings only if nothing is found). Regenerate this report after a run, or place a config "
-        "beside the dataset report root.</p>"
+        "The report checks <code>preprocessed/logs/</code>, the dataset output root, and the manifest "
+        "launch directory for <code>run_nextflow.config</code> or <code>nextflow.config</code>. "
+        "Docker runs normally copy the runtime config to the output root. Regenerate this report "
+        "after retaining a config in one of those locations.</p>"
     )
 
 
@@ -722,18 +832,29 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
             f'<text x="{left + 10:.1f}" y="{y - 7:.1f}" class="wf-lane-label">{html.escape(label)}</text>'
         )
 
-    def draw_edges(row_positions: list[tuple[dict[str, Any], float, float]]) -> None:
-        for i in range(1, len(row_positions)):
-            _, prev_x, prev_y = row_positions[i - 1]
-            _, x, y = row_positions[i]
-            cy = y + box_h / 2
-            x1 = prev_x + box_w + 3
-            x2 = x - 3
-            mx = (x1 + x2) / 2
-            parts.append(
-                f'<path d="M{x1:.1f},{cy:.1f} C{mx:.1f},{cy:.1f} {mx:.1f},{cy:.1f} {x2:.1f},{cy:.1f}" '
-                f'class="wf-edge" marker-end="url(#{mid}-arrow)" />'
-            )
+    def draw_dependency_edges(row_positions: list[tuple[dict[str, Any], float, float]]) -> None:
+        row_index = {node["key"]: index for index, (node, _, _) in enumerate(row_positions)}
+        for target, target_x, target_y in row_positions:
+            for source_key in target.get("depends_on", []):
+                if source_key not in pos_by_key or source_key not in row_index:
+                    continue
+                source, source_x, source_y = pos_by_key[source_key]
+                x1 = source_x + box_w + 3
+                x2 = target_x - 3
+                cy = target_y + box_h / 2
+                span = max(1, row_index[target["key"]] - row_index[source_key])
+                if span == 1:
+                    control_y = cy
+                else:
+                    control_y = target_y + box_h + 18 + (span - 2) * 10
+                mx = (x1 + x2) / 2
+                parts.append(
+                    f'<path data-from="{html.escape(str(source["key"]))}" '
+                    f'data-to="{html.escape(str(target["key"]))}" '
+                    f'd="M{x1:.1f},{cy:.1f} C{mx:.1f},{control_y:.1f} '
+                    f'{mx:.1f},{control_y:.1f} {x2:.1f},{cy:.1f}" '
+                    f'class="wf-edge" marker-end="url(#{mid}-arrow)" />'
+                )
 
     def draw_branch_edge() -> None:
         if not anatomy_pos or not meg_pos:
@@ -749,7 +870,8 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
         y2 = ty - 7
         mid_y = (y1 + y2) / 2
         parts.append(
-            f'<path d="M{x1:.1f},{y1:.1f} C{x1:.1f},{mid_y:.1f} {x2:.1f},{mid_y:.1f} {x2:.1f},{y2:.1f}" '
+            f'<path data-from="anatomy_structural" data-to="{html.escape(target_key)}" '
+            f'd="M{x1:.1f},{y1:.1f} C{x1:.1f},{mid_y:.1f} {x2:.1f},{mid_y:.1f} {x2:.1f},{y2:.1f}" '
             f'class="wf-edge wf-edge-branch" marker-end="url(#{mid}-arrow)" />'
         )
 
@@ -786,8 +908,8 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
         draw_lane(anatomy_pos, "Anatomy")
     if meg_nodes:
         draw_lane(meg_pos, "MEG")
-    draw_edges(anatomy_pos)
-    draw_edges(meg_pos)
+    draw_dependency_edges(anatomy_pos)
+    draw_dependency_edges(meg_pos)
     draw_branch_edge()
     for node, x, y in [*anatomy_pos, *meg_pos]:
         draw_node(node, x, y)

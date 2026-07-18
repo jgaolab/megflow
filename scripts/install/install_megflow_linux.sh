@@ -175,7 +175,7 @@ run_apptainer_flow() {
   log "Running '-h' to validate installation (help output should print below)..."
   if ! "${appt}" run "${SIF_PATH}" -h; then
     log "Primary validation via '${appt} run ... -h' failed; trying '${appt} exec ... -h'."
-    "${appt}" exec "${SIF_PATH}" -h || {
+    "${appt}" exec "${SIF_PATH}" /program/nextflow/run.sh -h || {
       log "Validation failed for Apptainer/Singularity image."
       exit 1
     }

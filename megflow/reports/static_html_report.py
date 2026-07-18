@@ -2614,10 +2614,28 @@ def direction_label(mode: str, direction: str = "") -> str:
 
 
 def find_quality_score_files(qc_dir: Path) -> tuple[Path | None, Path | None, Path | None]:
-    summary_file = next(iter(sorted(qc_dir.glob("*.summary.json"))), None)
-    component_file = next(iter(sorted(qc_dir.glob("*.component_scores.csv"))), None)
-    quality_score_plot = next(iter(sorted(qc_dir.glob("*.normative_quality_score.png"))), None)
-    return summary_file, component_file, quality_score_plot
+    summaries = sorted(
+        qc_dir.glob("*.summary.json"),
+        key=lambda path: (path.stat().st_mtime_ns, path.name),
+        reverse=True,
+    )
+    for summary_file in summaries:
+        prefix = summary_file.name[: -len(".summary.json")]
+        component_file = qc_dir / f"{prefix}.component_scores.csv"
+        quality_score_plot = qc_dir / f"{prefix}.normative_quality_score.png"
+        if component_file.is_file() and quality_score_plot.is_file():
+            return summary_file, component_file, quality_score_plot
+    if not summaries:
+        return None, None, None
+    summary_file = summaries[0]
+    prefix = summary_file.name[: -len(".summary.json")]
+    component_file = qc_dir / f"{prefix}.component_scores.csv"
+    quality_score_plot = qc_dir / f"{prefix}.normative_quality_score.png"
+    return (
+        summary_file,
+        component_file if component_file.is_file() else None,
+        quality_score_plot if quality_score_plot.is_file() else None,
+    )
 
 
 def read_quality_components(component_file: Path | None, max_rows: int = 24) -> list[dict[str, Any]]:
@@ -4216,10 +4234,28 @@ def collect_subject_data(
     covariance_dir = preprocessed_dir / "covariance" / subject
     source_dir = preprocessed_dir / "source_recon" / subject
     fwd_dir = preprocessed_dir / "forward_solution" / subject
+    scope = qc_scope if qc_scope is not None else qc_completeness_scope_from_manifest(None)
 
     raw_files = sorted(subject_dir.glob("*_preproc-raw.fif")) if subject_dir.exists() else []
     raw_info = read_raw_info(raw_files[0]) if raw_files else {}
-    quality_score_data = collect_quality_score_data(subject, preprocessed_dir, output_root, subject_slug)
+    if expected_steps_for_scope(scope).get("quality_score", True):
+        quality_score_data = collect_quality_score_data(
+            subject, preprocessed_dir, output_root, subject_slug
+        )
+    else:
+        quality_score_data = {
+            "exists": False,
+            "raw_file": "",
+            "score_0_100": None,
+            "score_scale": "0-100; higher is better",
+            "score_higher_is_better": True,
+            "processing_min_score": None,
+            "passed_processing_threshold": None,
+            "error": "",
+            "family_scores": [],
+            "components": [],
+            "files": {},
+        }
     if not raw_info and quality_score_data.get("raw_file"):
         raw_path = Path(str(quality_score_data["raw_file"]))
         raw_info = read_raw_info(raw_path) if raw_path.is_file() else {"raw_file": str(raw_path)}
@@ -4530,7 +4566,8 @@ def collect_subject_data(
     for file_path in sorted(fwd_dir.glob("headmodel_*.png")):
         rel = copy_asset(file_path, output_root, subject_slug, "headmodel")
         headmodel_data["assets"].append({"title": file_path.stem, "rel_path": rel})
-    headmodel_data["exists"] = bool(headmodel_data["assets"])
+    forward_files = sorted(fwd_dir.glob("*-fwd.fif"))
+    headmodel_data["exists"] = bool(forward_files)
     summary["headmodel"] = headmodel_data
     summary["steps"]["headmodel"] = headmodel_data["exists"]
 
@@ -4541,7 +4578,11 @@ def collect_subject_data(
         if file_path.exists():
             rel = copy_asset(file_path, output_root, subject_slug, "covariance")
             covariance_data["assets"].append({"title": file_name, "rel_path": rel})
-    covariance_data["exists"] = bool(covariance_data["assets"])
+    noise_covariance_file = covariance_dir / "bl-cov.fif"
+    resolved_rank_file = covariance_dir / "resolved-rank.json"
+    covariance_data["exists"] = (
+        noise_covariance_file.is_file() and resolved_rank_file.is_file()
+    )
     summary["covariance"] = covariance_data
     summary["steps"]["covariance"] = covariance_data["exists"]
 
@@ -4553,11 +4594,12 @@ def collect_subject_data(
         rel = copy_asset(reject_log, output_root, subject_slug, "epochs")
         summary["files"].append({"label": "Epoch reject log", "path": rel})
         epochs_data["log_rel_path"] = rel
+    epoch_files = sorted(epochs_dir.glob("*-epo.fif"))
     epoch_pngs = sorted(epochs_dir.glob("*.png"))
     for file_path in epoch_pngs:
         rel = copy_asset(file_path, output_root, subject_slug, "epochs")
         epochs_data["assets"].append({"title": file_path.name, "rel_path": rel})
-    epochs_data["exists"] = epochs_dir.exists() and (bool(epoch_pngs) or bool(reject_log))
+    epochs_data["exists"] = bool(epoch_files)
     summary["epochs"] = epochs_data
     summary["steps"]["epochs"] = epochs_data["exists"]
 
@@ -4567,11 +4609,14 @@ def collect_subject_data(
     for file_path in pick_evenly_spaced(png_files, 8):
         rel = copy_asset(file_path, output_root, subject_slug, "source")
         source_data["assets"].append({"title": file_path.name, "rel_path": rel})
-    source_data["exists"] = bool(png_files)
+    source_estimate_files = [
+        *sorted(source_dir.glob("*.stc")),
+        *sorted(source_dir.glob("*.h5")),
+    ]
+    source_data["exists"] = bool(source_estimate_files)
     summary["source"] = source_data
     summary["steps"]["source"] = source_data["exists"]
 
-    scope = qc_scope if qc_scope is not None else qc_completeness_scope_from_manifest(None)
     summary["expected_steps"] = expected_steps_for_scope(scope)
     if quality_score_data.get("passed_processing_threshold") is False:
         for step_key in summary["expected_steps"]:
@@ -4599,26 +4644,27 @@ def collect_subject_data(
 
     qc_score = quality_score_data.get("score_0_100")
     qc_alarm_threshold = thresholds.get("megqc_alarm_score", DEFAULT_THRESHOLDS["megqc_alarm_score"])
-    if not quality_score_data.get("exists"):
-        alarms.append(
-            {"category": NMDQ_FULL_NAME, "severity": "warn", "message": f"{NMDQ_FULL_NAME} is missing."}
-        )
-    elif qc_score is None:
-        error = quality_score_data.get("error") or "Score could not be computed."
-        alarms.append(
-            {"category": NMDQ_FULL_NAME, "severity": "danger", "message": f"{NMDQ_FULL_NAME} failed: {error}"}
-        )
-    elif float(qc_score) < float(qc_alarm_threshold):
-        alarms.append(
-            {
-                "category": NMDQ_FULL_NAME,
-                "severity": "warn",
-                "message": (
-                    f"{NMDQ_FULL_NAME} {fmt_float(qc_score, 1)} is below "
-                    f"the warning threshold {fmt_float(qc_alarm_threshold, 1)}. Higher is better."
-                ),
-            }
-        )
+    if expected_steps.get("quality_score", True):
+        if not quality_score_data.get("exists"):
+            alarms.append(
+                {"category": NMDQ_FULL_NAME, "severity": "warn", "message": f"{NMDQ_FULL_NAME} is missing."}
+            )
+        elif qc_score is None:
+            error = quality_score_data.get("error") or "Score could not be computed."
+            alarms.append(
+                {"category": NMDQ_FULL_NAME, "severity": "danger", "message": f"{NMDQ_FULL_NAME} failed: {error}"}
+            )
+        elif float(qc_score) < float(qc_alarm_threshold):
+            alarms.append(
+                {
+                    "category": NMDQ_FULL_NAME,
+                    "severity": "warn",
+                    "message": (
+                        f"{NMDQ_FULL_NAME} {fmt_float(qc_score, 1)} is below "
+                        f"the warning threshold {fmt_float(qc_alarm_threshold, 1)}. Higher is better."
+                    ),
+                }
+            )
     if quality_score_data.get("passed_processing_threshold") is False:
         min_score = quality_score_data.get("processing_min_score")
         if min_score not in (None, ""):

@@ -17,6 +17,7 @@ if str(REPORTS_DIR) not in sys.path:
 import corpus_static_html_report as corpus_report
 import report_layout
 import static_html_report as static_report
+import workflow_diagram as workflow_report
 
 
 class ReportDirectoryLifecycleTests(unittest.TestCase):
@@ -136,6 +137,187 @@ class StaticIcaAlertConfigurationTests(unittest.TestCase):
             disabled_messages = {alarm["message"] for alarm in disabled_summary["alarms"]}
             self.assertNotIn("No ECG-related components detected.", disabled_messages)
             self.assertNotIn("No EOG-related components detected.", disabled_messages)
+
+
+class StaticManifestScopeTests(unittest.TestCase):
+    def test_nested_effective_config_disables_normmeg_qc_expectations(self):
+        manifest = {
+            "parsed": {
+                "primary": "meg_all",
+                "meg_stage": 3,
+                "run_meg": True,
+                "run_anatomy": False,
+                "skip_ica": False,
+            },
+            "params_snapshot": {
+                "effective_config": {"megqc": {"enabled": False}}
+            },
+        }
+
+        scope = static_report.qc_completeness_scope_from_manifest(manifest)
+        nodes, _ = static_report.build_workflow_nodes(manifest, "manifest")
+
+        self.assertFalse(scope["megqc_enabled"])
+        self.assertNotIn("quality_score", {node["key"] for node in nodes})
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            summary = static_report.collect_subject_data(
+                "sub-01_task-rest_meg",
+                Path(tmpdir) / "run",
+                Path(tmpdir) / "static",
+                dict(static_report.DEFAULT_THRESHOLDS),
+                qc_scope=scope,
+            )
+
+        quality_categories = {
+            alarm["category"]
+            for alarm in summary["alarms"]
+            if alarm["category"] == static_report.NMDQ_FULL_NAME
+        }
+        self.assertEqual(quality_categories, set())
+
+    def test_disabled_normmeg_qc_ignores_stale_score_sidecars(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            subject = "sub-01_task-rest_meg"
+            qc_dir = root / "run" / "preprocessed" / "quality_control" / subject
+            qc_dir.mkdir(parents=True)
+            (qc_dir / "old-model.summary.json").write_text(
+                json.dumps({"score_0_100": 91.0}), encoding="utf-8"
+            )
+
+            summary = static_report.collect_subject_data(
+                subject,
+                root / "run",
+                root / "static",
+                dict(static_report.DEFAULT_THRESHOLDS),
+                qc_scope={
+                    "meg_stage": 3,
+                    "skip_ica": False,
+                    "run_meg": True,
+                    "megqc_enabled": False,
+                },
+            )
+
+        self.assertFalse(summary["quality_score"]["exists"])
+        self.assertFalse(summary["steps"]["quality_score"])
+        self.assertIsNone(summary["quality_score"]["score_0_100"])
+
+    def test_completion_uses_derivatives_when_optional_figures_are_disabled(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            report_root = root / "run"
+            preprocessed = report_root / "preprocessed"
+            subject = "sub-01_task-test_meg"
+
+            epoch_dir = preprocessed / "epochs" / subject
+            covariance_dir = preprocessed / "covariance" / subject
+            forward_dir = preprocessed / "forward_solution" / subject
+            source_dir = preprocessed / "source_recon" / subject
+            for directory in (epoch_dir, covariance_dir, forward_dir, source_dir):
+                directory.mkdir(parents=True)
+
+            (epoch_dir / "test-epo.fif").touch()
+            (covariance_dir / "bl-cov.fif").touch()
+            (covariance_dir / "resolved-rank.json").write_text(
+                json.dumps({"rank": {"meg": 50}}), encoding="utf-8"
+            )
+            (forward_dir / "test-ico4-fwd.fif").touch()
+            (source_dir / "test_evoked_dSPM-ico4-stc.h5").touch()
+
+            summary = static_report.collect_subject_data(
+                subject,
+                report_root,
+                root / "static",
+                dict(static_report.DEFAULT_THRESHOLDS),
+                qc_scope={
+                    "meg_stage": 3,
+                    "skip_ica": False,
+                    "run_meg": True,
+                    "megqc_enabled": False,
+                },
+            )
+
+        for step in ("epochs", "covariance", "headmodel", "source"):
+            self.assertTrue(summary["steps"][step], step)
+
+    def test_workflow_details_read_nested_effective_configuration(self):
+        manifest = {
+            "steps_raw": "all",
+            "parsed": {
+                "primary": "all",
+                "meg_stage": 3,
+                "run_meg": True,
+                "run_anatomy": True,
+                "skip_ica": False,
+            },
+            "params_snapshot": {
+                "dataset_dir": "/data/study",
+                "effective_config": {
+                    "dataset_format": "bids",
+                    "is_bids": True,
+                    "anatomy": {"method": "deepprep"},
+                    "megqc": {
+                        "enabled": False,
+                        "min_score": 50.0,
+                        "alarm_score": 70.0,
+                    },
+                    "covariance": {"type": "raw"},
+                    "source": {"type": "epochs"},
+                },
+            },
+        }
+
+        groups = {
+            title: dict(rows)
+            for title, rows in workflow_report._workflow_detail_groups(manifest)
+        }
+
+        self.assertEqual(groups["Input data"]["dataset_format"], "bids")
+        self.assertEqual(groups["Input data"]["is_bids"], "yes")
+        self.assertEqual(groups["Normative QC"]["megqc_enabled"], "no")
+        self.assertEqual(groups["Normative QC"]["megqc_min_score"], "50.0")
+        self.assertEqual(groups["Anatomy"]["anatomy_preprocess_method"], "deepprep")
+        self.assertEqual(groups["Source model"]["covar_type"], "raw")
+        self.assertEqual(groups["Source model"]["src_type"], "epochs")
+
+    def test_missing_config_hint_does_not_claim_a_nonexistent_snapshot_copy(self):
+        rendered = workflow_report._nextflow_config_hint_html(
+            {"nextflow_config_bundled": False}
+        )
+
+        self.assertNotIn("into <code>preprocessed/logs/</code>", rendered)
+        self.assertIn("dataset output root", rendered)
+
+    def test_full_workflow_diagram_uses_actual_branch_dependencies(self):
+        manifest = {
+            "steps_raw": "meg_all",
+            "parsed": {
+                "primary": "meg_all",
+                "meg_stage": 3,
+                "run_meg": True,
+                "run_anatomy": False,
+                "skip_ica": False,
+            },
+            "params_snapshot": {
+                "effective_config": {"megqc": {"enabled": False}}
+            },
+        }
+
+        nodes, _ = workflow_report.build_workflow_nodes(manifest, "manifest")
+        dependencies = {
+            node["key"]: set(node.get("depends_on", [])) for node in nodes
+        }
+
+        self.assertEqual(dependencies["covariance"], {"epochs"})
+        self.assertEqual(dependencies["coregistration"], {"ica"})
+        self.assertEqual(dependencies["headmodel"], {"epochs", "coregistration"})
+        self.assertEqual(dependencies["source"], {"covariance", "headmodel"})
+
+        rendered = workflow_report._render_svg(nodes, lambda _node: "done")
+        self.assertIn('data-from="epochs" data-to="covariance"', rendered)
+        self.assertIn('data-from="coregistration" data-to="headmodel"', rendered)
+        self.assertNotIn('data-from="covariance" data-to="coregistration"', rendered)
 
 
 class CorpusDatasetStepsTests(unittest.TestCase):
@@ -346,6 +528,30 @@ class StaticQualityScoreTests(unittest.TestCase):
             found = static_report.find_quality_score_files(qc_dir)
 
             self.assertEqual(found, (summary, components, figure))
+
+    def test_quality_score_files_select_the_newest_complete_model_triplet(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            qc_dir = Path(tmpdir)
+            old_paths = [
+                qc_dir / "recording.aaa-old.summary.json",
+                qc_dir / "recording.aaa-old.component_scores.csv",
+                qc_dir / "recording.aaa-old.normative_quality_score.png",
+            ]
+            new_paths = [
+                qc_dir / "recording.zzz-new.summary.json",
+                qc_dir / "recording.zzz-new.component_scores.csv",
+                qc_dir / "recording.zzz-new.normative_quality_score.png",
+            ]
+            for path in [*old_paths, *new_paths]:
+                path.touch()
+            for path in old_paths:
+                os.utime(path, (1, 1))
+            for path in new_paths:
+                os.utime(path, (2, 2))
+
+            found = static_report.find_quality_score_files(qc_dir)
+
+            self.assertEqual(found, tuple(new_paths))
 
 
 class StaticArtifactOverviewTests(unittest.TestCase):

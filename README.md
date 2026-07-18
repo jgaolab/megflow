@@ -163,7 +163,7 @@ The table above uses **basic preprocessing** for the first MEG-only signal steps
 Optional **Maxwell / tSSS** for MEGIN/Elekta data is configured as an OSL
 `maxwell_filter` stage; a positive `st_duration` enables tSSS. Use the
 three-level [`nextflow_maxwell_tsss_example.config`](nextflow/nextflow_maxwell_tsss_example.config)
-and the [configuration reference](docs/source/reference/configuration.rst#maxwell-filtering-and-tsss)
+and the [configuration reference](docs/source/reference/configuration_preprocessing.rst#maxwell-filtering-and-tsss)
 for calibration, cross-talk, ordering, bad-channel, and dataset/recording
 override requirements. Maxwell/tSSS remains disabled in the shared defaults.
 For **CTF** runs, if a matching `*_headshape.pos` is present next to the raw
@@ -258,6 +258,23 @@ bash run_MultiDatasets_sourcecode.sh
 
 Set `params.megflow.defaults.steps` in your `nextflow.config` for a project default. For Docker runs, the entrypoint's `--steps` option writes this override into the runtime config.
 
+### Validation
+
+Run the same validation gates used by GitHub Actions from an activated MEGFlow
+environment:
+
+```bash
+export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
+bash scripts/validation/run_validation.sh all
+```
+
+Use `routing` for Nextflow 24.10.3 DAG, resume, failure, report, and config
+contracts, or `scientific` for real synthetic MNE/OSL filtering, epochs,
+covariance, source-call, MEGQC, DeepReject-input, and report tests. Requested
+gates fail when dependencies are missing, no tests are discovered, or any test
+is skipped. GitHub runs both gates for every push and pull request; its pinned
+lightweight scientific dependencies are in `requirements_validation.txt`.
+
 ### Resume and interactive edits
 
 MEGFlow relies on Nextflow `-resume` for normal task caching. Unchanged tasks
@@ -268,14 +285,24 @@ Sidecar hashes are used for downstream invalidation. For example, editing
 bad-channel/bad-segment files changes the hash that ICA receives, so downstream
 tasks recompute even when the upstream artifact-detection task itself is cached.
 Editable sidecars are hashed from their published locations, so interactive
-report edits are preserved. Deleting published results is handled separately
-from normal `-resume` and should be guarded explicitly before a resumed run.
+report edits are preserved. Required published outputs also have task-local
+cache guards. If a QC, preprocessing, artifact, ICA, epoch, covariance,
+coregistration, forward, source, or anatomy result is deleted, a resumed run
+invalidates its producing task and restores that output while unrelated
+recordings remain cached. Static reports do not use resume cache and are
+regenerated on every completed or lenient run.
 
 ### Workflow provenance in the static HTML report
 
 Every run writes `preprocessed/logs/megflow_run_manifest.json`. The static HTML report reads this manifest to draw the dataset-level **Workflow** diagram and to show the run mode, runtime, input data, paths, and only the parameters relevant to the selected stage.
 
-The report also bundles a plain-text config snapshot at `static_html_report/data/nextflow.config.txt` when one can be found. The workflow first snapshots the actual Nextflow config files reported by `workflow.configFiles`; this covers custom local `-c /path/to/config` runs and Docker runs that use `/program/nextflow/run_nextflow.config`. It then falls back to `nextflow.config` / `run_nextflow.config` under the launch directory or project directory.
+The report also bundles a plain-text config snapshot at
+`static_html_report/data/nextflow.config.txt` when one can be found. It checks
+`preprocessed/logs/`, the dataset output root, and the manifest launch directory
+for `run_nextflow.config` or `nextflow.config`. Docker runs copy their runtime
+config to `<output>/nextflow.config`, so it is normally available there; custom
+source launchers should retain their project config alongside the output when a
+portable snapshot is required.
 
 For `--steps report`, MEGFlow regenerates only the static report. If an earlier `megflow_run_manifest.json` exists, the report build uses it to keep the previous pipeline workflow in the diagram and marks the current run as report-only in the generated report bundle, but it restores the original `preprocessed/logs/megflow_run_manifest.json` afterward so the preprocessing provenance is not overwritten.
 
@@ -314,17 +341,17 @@ directory as one dataset, isolates each dataset's outputs under
 that links back to each dataset report.
 
 ```groovy
-params.megflow.corpus_root = "/data/liaopan/datasets"
+params.megflow.corpus_root = "/data/corpus"
 params.megflow.dataset_include = ["WAND_Extracted", "SMN4Lang", "MEG-MASC"]
 params.megflow.datasets = [
   WAND_Extracted: [
-    fs_subjects_dir: "/data/liaopan/datasets/WAND_Extracted/smri",
+    fs_subjects_dir: "/data/corpus/WAND_Extracted/smri",
     meg_import: [task: ["visual"], subject_id: "first:10"],
     megqc: [meg_vendor: "ctf"],
     epochs: [event_source: "find_events", find_events: [stim_channel: "UPPT001"]]
   ],
   SMN4Lang: [
-    fs_subjects_dir: "/data/liaopan/datasets/SMN4Lang_smri",
+    fs_subjects_dir: "/data/corpus/SMN4Lang_smri",
     meg_import: [task: ["RDR"], subject_id: "first:10"],
     megqc: [meg_vendor: "elekta"],
     epochs: [event_source: "event_file", event_time_shift_sec: -10.6105]
@@ -383,7 +410,10 @@ The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.s
 - **Corpus mode** uses `--corpus`; in that mode `-i` / `--input` points to a directory whose immediate children are datasets, and `--fs_subjects_dir` is used as the base directory for per-dataset FreeSurfer outputs. Named profiles, `dataset_include`, `dataset_exclude`, and dataset-level module overrides from the mounted config are preserved.
 - You can instead set **`params.megflow.defaults.steps = '...'`** inside the Nextflow file you mount at **`/program/nextflow/nextflow.config`**; a container **`--steps`** / **`-s`** argument **overrides** that for the run.
 - **`-s`** here is the **MEGFlow** flag (input path is **`-i`**), not Docker’s **`-i`** (interactive). Typical pattern: `docker run ... cmrlab/megflow:<tag> -i /input -o /output ... --steps all`.
-- The Docker entrypoint copies the mounted config to `/program/nextflow/run_nextflow.config`, applies command-line path overrides, runs Nextflow with that file, then copies it to `<output>/nextflow.config` and snapshots it into `preprocessed/logs/` for the static HTML report.
+- The Docker entrypoint copies the mounted config to
+  `/program/nextflow/run_nextflow.config`, applies command-line path overrides,
+  runs Nextflow with that file, and copies it to `<output>/nextflow.config` for
+  provenance and static-report packaging.
 - The Docker entrypoint starts as root only long enough to prepare mounted output permissions, then drops to the host UID/GID inferred from `/input`; report-only runs that only mount `/output` infer ownership from `/output`.
 
 **Docker output ownership**
@@ -487,7 +517,9 @@ each page then reads the selected dataset's `preprocessed/` tree.
 Use the `-r` flag and map port `8501`:
 
 ```bash
-docker run --rm -it -p 8501:8501 -v /data/liaopan/datasets/SMN4Lang/g:/output cmrlab/megflow:<version> -r
+docker run --rm -it -p 8501:8501 \
+  -v /data/studies/LanguageStudy/megflow:/output \
+  cmrlab/megflow:<version> -r
 ```
 
 **Access via browser:**

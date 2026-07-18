@@ -211,7 +211,7 @@ Report Contents
    * - ``data/subjects/<recording>.json``
      - Machine-readable per-recording summary.
    * - ``data/nextflow.config.txt``
-     - Effective Nextflow config snapshot when MEGFlow can locate one.
+     - Nextflow runtime/project config snapshot when MEGFlow can locate one.
    * - ``data/megflow_run_manifest.json``
      - Workflow mode and run metadata used to render the workflow diagram.
    * - ``files/<recording>/errors/*.txt``
@@ -225,6 +225,10 @@ When dataset reports are bundled into a corpus report, the sticky navigation
 follows the report hierarchy. Dataset-level pages link to ``Corpus overview``;
 subject pages link to their local ``Dataset overview`` so reviewing one subject
 does not unexpectedly leave the current dataset.
+
+Completion states are determined from required derivatives such as Epochs FIF,
+forward FIF, covariance/rank files, and source-estimate files. Optional PNG
+visualizations do not decide whether those processing stages completed.
 
 Task Log Bundling
 -----------------

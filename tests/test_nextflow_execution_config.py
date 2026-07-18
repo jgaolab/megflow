@@ -17,6 +17,11 @@ MAXWELL_TSSS_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_maxwell_tsss_example.c
 MULTI_DATASET_SOURCE_RUNNER = REPO_ROOT / "run_MultiDatasets_sourcecode.sh"
 OPM_COG_RUNNER = REPO_ROOT / "run_OPM_COG.sh"
 MEGQC_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_megqc.config"
+PROFILE_INTEGRATION_TEST = REPO_ROOT / "tests" / "test_nextflow_profile_integration.py"
+VALIDATION_RUNNER = REPO_ROOT / "scripts" / "validation" / "run_validation.sh"
+VALIDATION_UNITTEST_GATE = REPO_ROOT / "scripts" / "validation" / "run_unittest_gate.py"
+VALIDATION_REQUIREMENTS = REPO_ROOT / "requirements_validation.txt"
+VALIDATION_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "validation.yml"
 DATASET_CONFIGS = (
     REPO_ROOT / "nextflow" / "nextflow_for_holmes.config",
     MEGQC_CONFIG,
@@ -52,6 +57,46 @@ def packaged_docker_runner() -> Path:
 
 
 class NextflowExecutionConfigTests(unittest.TestCase):
+    def test_profile_integration_uses_a_test_local_nextflow_launch_directory(self):
+        text = PROFILE_INTEGRATION_TEST.read_text(encoding="utf-8")
+        self.assertIn("cwd=output_dir", text)
+        self.assertNotIn("cwd=REPO_ROOT", text)
+
+    def test_validation_entrypoints_share_explicit_non_skipping_gates(self):
+        self.assertTrue(VALIDATION_RUNNER.is_file())
+        self.assertTrue(VALIDATION_UNITTEST_GATE.is_file())
+        self.assertTrue(VALIDATION_REQUIREMENTS.is_file())
+        self.assertTrue(VALIDATION_WORKFLOW.is_file())
+
+        runner = VALIDATION_RUNNER.read_text(encoding="utf-8")
+        for mode in ("routing", "scientific", "all"):
+            self.assertIn(f"{mode})", runner)
+        self.assertIn("MEGFLOW_NEXTFLOW", runner)
+        self.assertIn("command -v python3", runner)
+        self.assertIn("test_nextflow_profile_integration", runner)
+        self.assertIn("test_validation_runner", runner)
+        self.assertIn("test_mne_config_contract", runner)
+        unittest_gate = VALIDATION_UNITTEST_GATE.read_text(encoding="utf-8")
+        self.assertIn("Unexpected skipped tests", unittest_gate)
+
+        requirements = VALIDATION_REQUIREMENTS.read_text(encoding="utf-8")
+        for pinned_dependency in (
+            "h5py==3.12.1",
+            "scikit-learn==1.6.1",
+            "Sphinx==7.3.7",
+        ):
+            self.assertIn(pinned_dependency, requirements)
+
+        workflow = VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertRegex(workflow, r"(?m)^  push:\s*$")
+        self.assertNotIn("branches: [main, master]", workflow)
+        self.assertIn("run_validation.sh routing", workflow)
+        self.assertIn("run_validation.sh scientific", workflow)
+        self.assertIn(
+            "python -m pip install --no-deps -e ./megflow/tools/osl-ephys",
+            workflow,
+        )
+
     def test_every_process_selector_matches_current_pipeline(self):
         names = process_names()
         self.assertTrue(names)
@@ -297,7 +342,12 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("--forward_file \"${fwd_file}\"", text)
         self.assertIn("--noise_covariance_file \"${bl_cov_file}\"", text)
         self.assertNotIn("new File(raw_data_file).exists()", text)
-        self.assertIn("failOnMismatch: true", text)
+        self.assertEqual(
+            text.count(
+                "failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')"
+            ),
+            2,
+        )
         self.assertIn("Source routing clean lineage mismatch", text)
 
     def test_reports_use_a_value_barrier_and_never_resume_from_cache(self):
@@ -412,6 +462,42 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("val(epoch_hash)", text)
         self.assertIn("val(anatomy_hash)", text)
         self.assertIn("_implementation_fingerprint", text)
+
+    def test_published_process_outputs_have_task_local_resume_guards(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("String megInputStem(def pathValue)", text)
+        self.assertIn("endsWith('.fif.gz')", text)
+        guards = (
+            "pseudomri-output.guard",
+            "freesurfer-reconstruction.guard",
+            "freesurfer-head-surface.guard",
+            "deepprep-reconstruction.guard",
+            "mkheadsurf-output.guard",
+            "bem-surfaces-output.guard",
+            "bem-solution-output.guard",
+            "qc-summary-output.guard",
+            "qc-components-output.guard",
+            "qc-plot-output.guard",
+            "preproc-output.guard",
+            "bad-channels-output.guard",
+            "bad-segments-output.guard",
+            "ica-sources-output.guard",
+            "ica-decomposition-output.guard",
+            "ica-label-output.guard",
+            "clean-raw-output.guard",
+            "epoch-output.guard",
+            "epoch-analysis-output.guard",
+            "noise-covariance-output.guard",
+            "data-covariance-output.guard",
+            "resolved-rank-output.guard",
+            "coregistration-output.guard",
+            "forward-solution-output.guard",
+            "source-imaging-output.guard",
+        )
+        for guard in guards:
+            with self.subTest(guard=guard):
+                self.assertIn(f'path "{guard}"', text)
+                self.assertGreaterEqual(text.count(guard), 3)
 
     def test_profile_validation_guards_ambiguous_and_colliding_outputs(self):
         text = PIPELINE.read_text(encoding="utf-8")

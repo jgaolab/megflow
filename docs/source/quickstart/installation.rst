@@ -46,6 +46,19 @@ On Linux, the installer can use Docker or Apptainer/Singularity:
    bash scripts/install/install_megflow_linux.sh 1.0.0 docker
    bash scripts/install/install_megflow_linux.sh 1.0.0 apptainer
 
+The first Linux argument is the image tag and the optional second argument is
+``auto``, ``docker``, or ``apptainer``. With no arguments, the installer uses
+``latest`` and ``auto``; with only ``1.0.0``, runtime selection remains
+automatic. In ``auto`` mode, a usable Docker daemon is preferred and the
+installer otherwise selects Apptainer/Singularity.
+
+When Apptainer or Singularity is already available, the installer pulls a SIF
+from ``docker://cmrlab/megflow:<version>`` and runs the image entrypoint with
+``-h``. If neither runtime is installed, package-manager installation is
+best-effort because package availability differs among Linux distributions and
+HPC sites. Install the runtime through the site's supported repository first
+when the automatic attempt is unavailable.
+
 See ``scripts/install/README.md`` for installer options and troubleshooting.
 
 Manual Docker Installation

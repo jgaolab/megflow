@@ -4,6 +4,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 $Image = "cmrlab/megflow:$ImageTag"
+$script:DockerCommand = $null
 
 function Write-Log {
     param([string]$Message)
@@ -16,8 +17,37 @@ function Test-Input {
     }
 }
 
+function Resolve-DockerCommand {
+    $Command = Get-Command docker -ErrorAction SilentlyContinue
+    if ($Command) {
+        return $Command.Source
+    }
+
+    $DefaultDockerCli = Join-Path $env:ProgramFiles "Docker\Docker\resources\bin\docker.exe"
+    if (Test-Path $DefaultDockerCli) {
+        return $DefaultDockerCli
+    }
+
+    return $null
+}
+
+function Test-DockerDaemon {
+    & $script:DockerCommand info *> $null
+    return $LASTEXITCODE -eq 0
+}
+
+function Invoke-Docker {
+    param([string[]]$Arguments)
+
+    & $script:DockerCommand @Arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "Docker command failed with exit code ${LASTEXITCODE}: docker $($Arguments -join ' ')"
+    }
+}
+
 function Ensure-DockerDesktop {
-    if (Get-Command docker -ErrorAction SilentlyContinue) {
+    $script:DockerCommand = Resolve-DockerCommand
+    if ($script:DockerCommand) {
         Write-Log "Docker CLI is already installed."
     }
     else {
@@ -26,26 +56,34 @@ function Ensure-DockerDesktop {
             throw "winget not found. Please install Docker Desktop manually and retry."
         }
         winget install --id Docker.DockerDesktop --accept-package-agreements --accept-source-agreements
+        if ($LASTEXITCODE -ne 0) {
+            throw "winget failed to install Docker Desktop (exit code ${LASTEXITCODE})."
+        }
+
+        $script:DockerCommand = Resolve-DockerCommand
+        if (-not $script:DockerCommand) {
+            throw "Docker Desktop was installed, but docker.exe was not found. Restart PowerShell and retry."
+        }
     }
 
-    try {
-        docker info | Out-Null
-    }
-    catch {
+    if (-not (Test-DockerDaemon)) {
         Write-Log "Docker daemon is not ready. Trying to launch Docker Desktop."
-        Start-Process "C:\Program Files\Docker\Docker\Docker Desktop.exe" -ErrorAction SilentlyContinue
+        $DockerDesktop = Join-Path $env:ProgramFiles "Docker\Docker\Docker Desktop.exe"
+        if (-not (Test-Path $DockerDesktop)) {
+            throw "Docker Desktop executable was not found at: $DockerDesktop"
+        }
+        Start-Process $DockerDesktop
         for ($i = 0; $i -lt 30; $i++) {
             Start-Sleep -Seconds 2
-            try {
-                docker info | Out-Null
+            if (Test-DockerDaemon) {
                 break
-            }
-            catch {
             }
         }
     }
 
-    docker info | Out-Null
+    if (-not (Test-DockerDaemon)) {
+        throw "Docker is still not ready. Start Docker Desktop manually and retry."
+    }
 }
 
 Test-Input
@@ -53,9 +91,9 @@ Write-Log "Target image: $Image"
 Ensure-DockerDesktop
 
 Write-Log "Pulling MEGFlow Docker image..."
-docker pull $Image
+Invoke-Docker -Arguments @("pull", $Image)
 
 Write-Log "Running '-h' to validate installation (help output should print below)..."
-docker run --rm $Image -h
+Invoke-Docker -Arguments @("run", "--rm", $Image, "-h")
 
 Write-Log "Validation completed."

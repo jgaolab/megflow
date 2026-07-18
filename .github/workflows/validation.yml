@@ -1,9 +1,9 @@
 name: MEGFlow validation
 
 on:
-  pull_request:
   push:
-    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
 
 jobs:
   nextflow-routing:
@@ -34,21 +34,28 @@ jobs:
           MEGFLOW_NEXTFLOW: ${{ runner.temp }}/megflow-bin/nextflow
           NXF_ANSI_LOG: "false"
           NXF_VER: 24.10.3
-          PYTHONPATH: tests
-        run: |
-          python -m unittest test_nextflow_execution_config -v
-          python -m unittest test_nextflow_profile_integration -v
+        run: bash scripts/validation/run_validation.sh routing
 
-      - name: Parse shipped Nextflow configs
-        env:
-          NEXTFLOW: ${{ runner.temp }}/megflow-bin/nextflow
-          NXF_ANSI_LOG: "false"
-          NXF_VER: 24.10.3
-        shell: bash
+  scientific-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: pip
+          cache-dependency-path: requirements_validation.txt
+
+      - name: Install scientific validation dependencies
         run: |
-          for config in nextflow/*.config; do
-            "$NEXTFLOW" -C "$config" config nextflow/megflow.nf -o flat >/dev/null
-          done
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements_validation.txt
+          python -m pip install --no-deps -e ./megflow/tools/osl-ephys
+
+      - name: Run real MNE and OSL scientific contracts
+        run: bash scripts/validation/run_validation.sh scientific
 
   documentation:
     runs-on: ubuntu-latest

@@ -12,17 +12,42 @@ Provide an inteface to label each ICA component into one of seven categories:
 """
 import logging
 import os
+import json
 import yaml
 import argparse
 import mne
-import pandas as pd
+import numpy as np
+from dataclasses import dataclass
+from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from mne_icalabel import label_components
 from tools.ica_classify.ICs_classification import classify_ics
 from utils import set_random_seed
 from collections import defaultdict
 
 set_random_seed(2025)
+
+
+CANONICAL_MEGNET_CLASSES = (
+    "brain_or_other",
+    "heart_beat",
+    "eye_blink",
+    "eye_movement",
+)
+MNE_MEGNET_NATIVE_CLASSES = (
+    "brain_or_other",
+    "eye_movement",
+    "heart_beat",
+    "eye_blink",
+)
+
+
+@dataclass
+class DetectorOutcome:
+    artifact_indices: list
+    ecg_indices: list
+    eog_indices: list
+    probabilities: object
+    detail: dict
 
 
 
@@ -56,19 +81,89 @@ def unique_ints(values, max_value=None):
     return result
 
 
+def should_generate_labels(
+    output_file,
+    *,
+    overwrite_existing=False,
+    refresh_existing=False,
+):
+    return (
+        bool(overwrite_existing)
+        or bool(refresh_existing)
+        or not Path(output_file).exists()
+    )
+
+
+def read_marked_component_indices(output_file):
+    path = Path(output_file)
+    if not path.is_file():
+        return None
+    return sorted(unique_ints(path.read_text(encoding="utf-8").splitlines()))
+
+
+def read_marked_component_metadata(scores_file):
+    path = Path(scores_file)
+    if not path.is_file():
+        return None
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, UnicodeError, json.JSONDecodeError):
+        return None
+    metadata = payload.get("marked_components")
+    return metadata if isinstance(metadata, dict) else None
+
+
+def resolve_marked_component_output(
+    *,
+    auto_indices,
+    existing_indices=None,
+    previous_metadata=None,
+    overwrite_existing=False,
+    refresh_existing=False,
+):
+    auto_indices = sorted(unique_ints(auto_indices))
+    if existing_indices is None or overwrite_existing:
+        return auto_indices, "auto"
+
+    existing_indices = sorted(unique_ints(existing_indices))
+    if refresh_existing and isinstance(previous_metadata, dict):
+        previous_mode = previous_metadata.get("mode")
+        previous_written = previous_metadata.get(
+            "written_indices",
+            previous_metadata.get("auto_indices", []),
+        )
+        previous_written = sorted(unique_ints(previous_written))
+        if previous_mode == "auto" and existing_indices == previous_written:
+            return auto_indices, "auto"
+
+    return existing_indices, "preserved_manual"
+
+
 def append_component_score(scores_dict, kind, component_idx, score=0.5):
     index_key = f"{kind}_indices"
     if component_idx in scores_dict[index_key]:
+        position = scores_dict[index_key].index(component_idx)
+        current_score = (
+            float(scores_dict[kind][position])
+            if position < len(scores_dict[kind])
+            else float("-inf")
+        )
+        if float(score) > current_score:
+            if position < len(scores_dict[kind]):
+                scores_dict[kind][position] = float(score)
+            else:
+                scores_dict[kind].append(float(score))
         return
     scores_dict[index_key].append(int(component_idx))
     scores_dict[kind].append(float(score))
 
 
 def normalize_score_dict(scores_dict, n_components=None):
-    normalized = defaultdict(list)
+    normalized = {}
     for kind in ["ecg", "eog"]:
         indices = scores_dict.get(f"{kind}_indices", [])
         scores = scores_dict.get(kind, [])
+        best_scores = {}
         for pos, component_idx in enumerate(indices):
             try:
                 idx = int(component_idx)
@@ -76,24 +171,193 @@ def normalize_score_dict(scores_dict, n_components=None):
                 continue
             if idx < 0 or (n_components is not None and idx >= n_components):
                 continue
-            if idx in normalized[f"{kind}_indices"]:
-                continue
-            normalized[f"{kind}_indices"].append(idx)
             try:
                 score = float(scores[pos])
             except Exception:
                 score = 0.5
-            normalized[kind].append(score)
+            best_scores[idx] = max(score, best_scores.get(idx, float("-inf")))
+        sorted_indices = sorted(best_scores)
+        normalized[f"{kind}_indices"] = sorted_indices
+        normalized[kind] = [best_scores[idx] for idx in sorted_indices]
     for key, values in scores_dict.items():
         if key not in normalized:
             normalized[key] = values
     return normalized
 
 
+def canonicalize_mne_megnet_probabilities(probabilities):
+    probabilities = np.asarray(probabilities, dtype=np.float32)
+    if probabilities.ndim != 2 or probabilities.shape[1] != 4:
+        raise ValueError("MNE MEGNet probabilities must contain four class columns")
+    native_index = {
+        class_name: index for index, class_name in enumerate(MNE_MEGNET_NATIVE_CLASSES)
+    }
+    return probabilities[
+        :,
+        [native_index[class_name] for class_name in CANONICAL_MEGNET_CLASSES],
+    ]
+
+
+def detector_outcome_from_probabilities(method_name, probabilities, metadata=None):
+    probabilities = np.asarray(probabilities, dtype=np.float32)
+    if probabilities.ndim != 2 or probabilities.shape[1] != 4:
+        raise ValueError("MEGNet probabilities must contain four class columns")
+    if not np.isfinite(probabilities).all():
+        raise ValueError("MEGNet probabilities contain non-finite values")
+
+    label_indices = probabilities.argmax(axis=1)
+    labels = [CANONICAL_MEGNET_CLASSES[index] for index in label_indices.tolist()]
+    artifact_indices = [
+        index for index, label in enumerate(labels) if label != "brain_or_other"
+    ]
+    ecg_indices = [
+        index for index, label in enumerate(labels) if label == "heart_beat"
+    ]
+    eog_indices = [
+        index
+        for index, label in enumerate(labels)
+        if label in {"eye_blink", "eye_movement"}
+    ]
+    detail = {
+        "method": method_name,
+        "status": "succeeded",
+        "class_order": list(CANONICAL_MEGNET_CLASSES),
+        "labels": labels,
+        "probabilities": probabilities.astype(float).tolist(),
+        "artifact_indices": artifact_indices,
+        "ecg_indices": ecg_indices,
+        "eog_indices": eog_indices,
+        "metadata": dict(metadata or {}),
+    }
+    return DetectorOutcome(
+        artifact_indices=artifact_indices,
+        ecg_indices=ecg_indices,
+        eog_indices=eog_indices,
+        probabilities=probabilities,
+        detail=detail,
+    )
+
+
+def run_mne_megnet_detector(raw, ica, predictor=None):
+    if predictor is None:
+        from mne_icalabel.megnet import megnet_label_components
+
+        predictor = megnet_label_components
+    native_probabilities = predictor(raw, ica)
+    probabilities = canonicalize_mne_megnet_probabilities(native_probabilities)
+    try:
+        package_version = version("mne-icalabel")
+    except PackageNotFoundError:
+        package_version = None
+    return detector_outcome_from_probabilities(
+        "mne_icalabel",
+        probabilities,
+        metadata={
+            "backend": "mne_icalabel.megnet",
+            "mne_icalabel_version": package_version,
+            "native_class_order": list(MNE_MEGNET_NATIVE_CLASSES),
+        },
+    )
+
+
+def run_retrained_detector(
+    raw,
+    ica,
+    *,
+    ica_sources_file=None,
+    predictor=None,
+):
+    try:
+        if predictor is None:
+            from tools.megnet_retrained import predict_components
+
+            predictor = predict_components
+        result = predictor(
+            raw,
+            ica,
+            ica_sources_file=ica_sources_file,
+        )
+        return detector_outcome_from_probabilities(
+            "megnet_retrained",
+            result.probabilities,
+            metadata=result.metadata,
+        )
+    except Exception as exc:
+        logging.exception("[MEGNet-Retrained] Inference failed: %s", exc)
+        return DetectorOutcome(
+            artifact_indices=[],
+            ecg_indices=[],
+            eog_indices=[],
+            probabilities=None,
+            detail={
+                "status": "failed",
+                "class_order": list(CANONICAL_MEGNET_CLASSES),
+                "error": {
+                    "type": type(exc).__name__,
+                    "message": str(exc),
+                },
+            },
+        )
+
+
+def _retrained_enabled(config):
+    enabled = config.get("megnet_retrained", False)
+    if not isinstance(enabled, bool):
+        raise TypeError("megnet_retrained must be a boolean")
+    return enabled
+
+
+def run_configured_megnet_detectors(
+    config,
+    raw,
+    ica,
+    *,
+    ica_sources_file=None,
+    mne_predictor=None,
+    retrained_predictor=None,
+):
+    outcomes = {}
+    if config.get("mne_icalabel", True):
+        outcomes["mne_icalabel"] = run_mne_megnet_detector(
+            raw,
+            ica,
+            predictor=mne_predictor,
+        )
+    if _retrained_enabled(config):
+        outcomes["megnet_retrained"] = run_retrained_detector(
+            raw,
+            ica,
+            ica_sources_file=ica_sources_file,
+            predictor=retrained_predictor,
+        )
+    return outcomes
+
+
+def merge_detector_scores(scores_dict, outcome):
+    if outcome.probabilities is None:
+        return
+    for component_idx in outcome.ecg_indices:
+        append_component_score(
+            scores_dict,
+            "ecg",
+            component_idx,
+            outcome.probabilities[component_idx, 1],
+        )
+    for component_idx in outcome.eog_indices:
+        class_idx = int(outcome.probabilities[component_idx].argmax())
+        append_component_score(
+            scores_dict,
+            "eog",
+            component_idx,
+            outcome.probabilities[component_idx, class_idx],
+        )
+
+
 def collect_exclude_indices(
     config,
     n_components,
-    megnet_artifacts=None,
+    mne_icalabel_artifacts=None,
+    megnet_retrained_artifacts=None,
     mne_artifacts=None,
     rules_artifacts=None,
     ic_ecg=None,
@@ -102,8 +366,10 @@ def collect_exclude_indices(
 ):
     exclude_idx = []
 
-    if config.get('ica_label', True):
-        exclude_idx.extend(megnet_artifacts or [])
+    if config.get('mne_icalabel', True):
+        exclude_idx.extend(mne_icalabel_artifacts or [])
+    if _retrained_enabled(config):
+        exclude_idx.extend(megnet_retrained_artifacts or [])
     if config.get('mne_algorithm', True):
         exclude_idx.extend(mne_artifacts or [])
     if config.get('rules_algorithm', True):
@@ -130,7 +396,8 @@ def main():
     #     ic_eog: true
     #     ic_outlier: true # detect artifact ICs by rules.
     #
-    #     ica_label: true # megnet
+    #     mne_icalabel: true # original MEGNet
+    #     megnet_retrained: false
     #     mne_algorithm: true
     #     rules_algorithm: true
     #
@@ -180,7 +447,7 @@ def main():
     # """
 
     # Parse YAML configuration
-    config = yaml.safe_load(args.config)
+    config = yaml.safe_load(args.config) or {}
 
 
     mne_ic_labels = {'y_pred_proba': [], 'labels': [], 'index': []}
@@ -191,17 +458,27 @@ def main():
     raw_basename = Path(raw.filenames[0]).parent.name
 
     artifact_ic_output_file = os.path.join(args.output_dir, raw_basename, "marked_components.txt")
+    scores_output_file = os.path.join(args.output_dir, raw_basename, "ecg_eog_scores.json")
 
     os.makedirs(os.path.dirname(artifact_ic_output_file), exist_ok=True)
+    existing_marked_components = read_marked_component_indices(
+        artifact_ic_output_file
+    )
+    previous_marked_metadata = read_marked_component_metadata(scores_output_file)
 
-    # Check if the file exists
-    if os.path.exists(artifact_ic_output_file):
+    # Standalone runs preserve manual labels unless overwrite is explicit.
+    if not should_generate_labels(
+        artifact_ic_output_file,
+        overwrite_existing=args.overwrite_existing,
+        refresh_existing=args.refresh_existing,
+    ):
         print(f"The file {artifact_ic_output_file} already exists, and the data will not be overwritten.")
     else:
         ic_ecg = []
         ic_eog = []
         ic_outlier = []
-        megnet_artifacts = []
+        mne_icalabel_artifacts = []
+        megnet_retrained_artifacts = []
         mne_artifacts = []
         rules_artifacts = []
         scores_dict = {'ecg': [], 'ecg_indices': [], 'eog': [], 'eog_indices': []}
@@ -315,42 +592,42 @@ def main():
             except Exception as e:
                 logging.error(f"ICA_classify Error:{e}")
 
-        if config.get("ica_label",True):
-            # Label ICA components
-            # warning： RuntimeError: Could not find EEG channels in the provided Raw instance.
-            # The ICLabel model was fitted on EEG data and is not suited for other types of channels.
-            # ic_labels = label_components(raw, ica, method="iclabel")
-            # print("[MNE-ICLabel] Component labels:", ic_labels)
-            ic_labels = label_components(raw, ica, method="megnet")  # slow in cpu.
-            _ic_list = []
-            for idx, ic_l in enumerate(ic_labels["labels"]):
-                if "heart beat" == ic_l:
-                    append_component_score(scores_dict, "ecg", idx, ic_labels["y_pred_proba"][idx])
-                    ic_ecg.append(idx)
-                    megnet_artifacts.append(idx)
-                    _ic_list.append(idx)
-                elif ("eye blink" == ic_l) or ("eye movement" == ic_l):
-                    append_component_score(scores_dict, "eog", idx, ic_labels["y_pred_proba"][idx])
-                    ic_eog.append(idx)
-                    megnet_artifacts.append(idx)
-                    _ic_list.append(idx)
-            print("[MNE-ICLabel] Component labels:", _ic_list)
-
-
-        output_file = os.path.join(args.output_dir, raw_basename, "ecg_eog_scores.json")
-        scores_dict = normalize_score_dict(scores_dict, n_components)
-        pd.Series(dict(scores_dict)).to_json(
-            output_file,
-            orient="index",
-            indent=4,
-            force_ascii=False
+        ica_sources_file = (
+            Path(args.ica_sources_file)
+            if args.ica_sources_file
+            else Path(args.ica_file).parent / "ica_sources.fif"
         )
+        if not ica_sources_file.is_file():
+            ica_sources_file = None
+        megnet_outcomes = run_configured_megnet_detectors(
+            config,
+            raw,
+            ica,
+            ica_sources_file=ica_sources_file,
+        )
+        scores_dict["methods"] = {
+            method_name: outcome.detail
+            for method_name, outcome in megnet_outcomes.items()
+        }
+        for method_name, outcome in megnet_outcomes.items():
+            merge_detector_scores(scores_dict, outcome)
+            ic_ecg.extend(outcome.ecg_indices)
+            ic_eog.extend(outcome.eog_indices)
+            if method_name == "mne_icalabel":
+                mne_icalabel_artifacts.extend(outcome.artifact_indices)
+            elif method_name == "megnet_retrained":
+                megnet_retrained_artifacts.extend(outcome.artifact_indices)
+            print(
+                f"[{method_name}] Component labels: {outcome.artifact_indices} "
+                f"(status={outcome.detail['status']})"
+            )
 
         # marked artifact IC
         exclude_idx = collect_exclude_indices(
             config,
             n_components,
-            megnet_artifacts=megnet_artifacts,
+            mne_icalabel_artifacts=mne_icalabel_artifacts,
+            megnet_retrained_artifacts=megnet_retrained_artifacts,
             mne_artifacts=mne_artifacts,
             rules_artifacts=rules_artifacts,
             ic_ecg=ic_ecg,
@@ -359,9 +636,37 @@ def main():
         )
         print(f"run_ica_label - Exclude ICs:{exclude_idx}")
 
-        with open(artifact_ic_output_file, "w") as f:
-            for idx in exclude_idx:
-                f.write(f"{idx}\n")
+        written_indices, marked_output_mode = resolve_marked_component_output(
+            auto_indices=exclude_idx,
+            existing_indices=existing_marked_components,
+            previous_metadata=previous_marked_metadata,
+            overwrite_existing=args.overwrite_existing,
+            refresh_existing=args.refresh_existing,
+        )
+        scores_dict = normalize_score_dict(scores_dict, n_components)
+        scores_dict["marked_components"] = {
+            "mode": marked_output_mode,
+            "auto_indices": exclude_idx,
+            "written_indices": written_indices,
+        }
+        temporary_scores_file = f"{scores_output_file}.tmp"
+        with open(temporary_scores_file, "w", encoding="utf-8") as handle:
+            json.dump(scores_dict, handle, ensure_ascii=False, indent=4)
+            handle.write("\n")
+        os.replace(temporary_scores_file, scores_output_file)
+
+        if marked_output_mode == "auto" or not os.path.exists(artifact_ic_output_file):
+            temporary_marked_file = f"{artifact_ic_output_file}.tmp"
+            with open(temporary_marked_file, "w", encoding="utf-8") as handle:
+                for idx in written_indices:
+                    handle.write(f"{idx}\n")
+            os.replace(temporary_marked_file, artifact_ic_output_file)
+        else:
+            print(
+                "Existing manually edited ICA components were preserved; "
+                "automatic detector details were refreshed in "
+                f"{scores_output_file}."
+            )
 
         print(f"Labelled ICA saved to {args.output_dir}")
 
@@ -369,7 +674,11 @@ def parse_arguments():
     parser = argparse.ArgumentParser(description="Automatically label ICA components as artifacts using mne-icalabel.")
     parser.add_argument('--raw_data_path', required=True, help='Path to raw data file')
     parser.add_argument('--ica_file', required=True, help='Path to the precomputed ICA file.')
+    parser.add_argument('--ica_sources_file', default=None, help='Optional matching precomputed ICA sources FIF.')
     parser.add_argument('--output_dir', required=True, help='Path to save the ICA-labelled file.(marked_components.txt)')
+    existing_output_group = parser.add_mutually_exclusive_group()
+    existing_output_group.add_argument('--overwrite-existing', action='store_true', help='Recompute and replace any existing ICA label outputs.')
+    existing_output_group.add_argument('--refresh-existing', action='store_true', help='Refresh automatic outputs while preserving detected manual component edits.')
     parser.add_argument('--config', type=str, default="{}", help='YAML configuration parameters')
     return parser.parse_args()
 

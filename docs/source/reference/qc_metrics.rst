@@ -305,7 +305,7 @@ using simple QC alert rules:
    :widths: 30 24 46
 
    * - QC alert
-     - Default threshold
+     - Source / Docker default
      - Severity and meaning
    * - Bad-channel count above threshold
      - ``bad_channel_threshold = 30``
@@ -314,7 +314,7 @@ using simple QC alert rules:
      - ``bad_segment_threshold = 50``
      - Warning. Review raw trace plots and bad-segment annotations.
    * - NMDQ score below warning threshold
-     - ``megqc.alarm_score`` in the config; reported internally as
+     - ``60 / 70`` through ``megqc.alarm_score``; reported internally as
        ``megqc_alarm_score``
      - Warning. The recording has a low NMDQ score but may still have been
        processed if it is above ``megqc.min_score``.
@@ -342,15 +342,18 @@ using simple QC alert rules:
      - Danger. Usually requires reviewing fiducials, head-shape points, or MRI
        subject matching.
    * - Maximum coregistration distance above threshold
-     - ``coreg_max_threshold = 10.0`` mm
+     - ``coreg_max_threshold = 10.0 / 20.0`` mm
      - Danger. Often indicates outlier head-shape points or poor alignment.
    * - Epoch rejection rate above threshold
-     - ``epoch_reject_rate_threshold = 0.30``
+     - ``epoch_reject_rate_threshold = 0.30 / 0.90``
      - Warning. Check event definitions, reject thresholds, and bad annotations.
 
 ``FAIL`` is assigned when a subject has at least one danger alarm or three or
 more alarms. ``WARN`` is assigned when there is at least one warning alarm.
 ``PASS`` means no alarms under the current static thresholds.
+
+The workflow passes the effective config values into report generation, so
+project overrides take precedence over both base profiles.
 
 These two ICA presence checks affect only static-report QC alerts. They do not
 disable ICA fitting, component classification, component removal, or ICA
@@ -382,9 +385,10 @@ The static report writes a dataset dashboard and machine-readable summaries:
      - Per-recording report with artifacts, ICA, coregistration, epochs,
        covariance, head model, source figures, task trace details, and
        packaged sidecars.
-   * - ``static_html_report/files/<recording>/artifacts/artifact_mask_heatmap.png``
+   * - ``static_html_report/files/<recording>/artifacts/artifact_mask_heatmap.jpg``
      - Artifact mask heatmap showing bad-channel rows and bad-segment time
-       spans when artifact image generation is enabled.
+       spans. It is generated and packaged even when detailed artifact image
+       generation is disabled.
    * - ``static_html_report/files/<recording>/quality_score/*.summary.json``
      - NMDQ score summary with ``score_0_100``, selected reference
        device/category/scope, family scores, preprocessing metadata, and
@@ -398,7 +402,8 @@ The static report writes a dataset dashboard and machine-readable summaries:
      - Searchable list of report alarms.
    * - ``static_html_report/data/dataset_summary.json``
      - Dataset-level metrics, thresholds, workflow metadata, and subject
-       summaries.
+       summaries. The compatibility field ``megqc_score`` contains the NMDQ
+       score for existing machine-readable consumers.
    * - ``static_html_report/data/subjects.csv``
      - Spreadsheet-friendly subject table.
    * - ``static_html_report/data/subjects/<recording>.json``

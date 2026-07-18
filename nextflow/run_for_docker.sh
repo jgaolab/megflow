@@ -1,7 +1,7 @@
 #!/bin/bash  
 # Usage:
-#$ bash run_for_docker.sh -i /data/liaopan/datasets/Holmes_cn_single/raw --fs_license_file /data/liaopan/megflow/license.txt --fs_subjects_dir /data/liaopan/datasets/Holmes_cn/smri
-#  bash run_for_docker.sh -i /data/liaopan/datasets/Holmes_cn_single/raw --fs_license_file /data/liaopan/megflow/license.txt --fs_subjects_dir /data/liaopan/datasets/Holmes_cn/smri -o /data/liaopan/datasets/Holmes_cn_single
+# bash run_for_docker.sh -i /data/study/raw -o /data/study/megflow \
+#   --fs_license_file /data/license.txt --fs_subjects_dir /data/study/smri
 # Exit on error
 set -e
 

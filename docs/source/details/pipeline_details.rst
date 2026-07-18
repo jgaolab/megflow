@@ -41,6 +41,13 @@ dataset- or recording-level ``steps`` overrides:
    * - ``report``
      - Static HTML report only, using existing outputs.
 
+Aliases ``meg``, ``artifacts``, ``ica``, and ``epochs`` map to ``meg_all``,
+``meg_artifacts``, ``meg_ica``, and ``meg_epochs``. The optional
+``with_anatomy`` modifier can accompany ``meg_artifacts``, ``meg_ica``, or
+``meg_epochs``; ``skip_ica`` is valid with ``meg_epochs``. A recording-level
+stage may reduce an enabled dataset MEG path but cannot add anatomy or exceed
+the dataset stage.
+
 High-Level Flow
 ---------------
 
@@ -49,6 +56,8 @@ The complete ``meg_all`` or ``all`` dependency graph is:
 .. code-block:: text
 
    MEG import
+     -> NormMEG-QC scoring (when enabled)
+     -> NMDQ min_score gate
      -> continuous preprocessing
      -> artifact detection
      -> ICA fit
@@ -60,6 +69,10 @@ The complete ``meg_all`` or ``all`` dependency graph is:
           |-> forward solution <- coregistration -------|
      -> static HTML report
 
+When ``megqc.enabled`` is false, imported recordings bypass both the scoring
+process and its gate. When enabled, an unscored recording or one below
+``megqc.min_score`` does not enter continuous preprocessing.
+
 Covariance and coregistration may execute concurrently after their own inputs
 are ready. Forward modeling waits for both the recording's epoch file and its
 coregistration transform. Source reconstruction is a strict keyed join of that
@@ -68,8 +81,14 @@ covariance. The covariance branch also carries the hash of the exact source
 Raw/Epochs used to compute it; an unmatched, duplicate, or inconsistent key is
 an error rather than a silently skipped source result.
 
-When anatomy is enabled, structural processing runs before the downstream
-coregistration and source reconstruction steps:
+With ``covariance.type = "raw"``, the recording selected by
+``raw_covariance_task_id`` follows the same continuous preprocessing and ICA
+path, then feeds the experimental recording's noise-covariance branch. It does
+not create its own epochs, forward model, or source estimate.
+
+When anatomy is enabled, its branch can run concurrently with MEG
+preprocessing. The branches join only when coregistration, forward modeling, or
+source reconstruction requires anatomy:
 
 .. code-block:: text
 
@@ -95,7 +114,8 @@ Continuous Core Preprocessing
 -----------------------------
 
 The continuous MEG core is task independent and applies to both resting-state
-and task-based recordings.
+and task-based recordings. NormMEG-QC, when enabled, is a preflight gate before
+this core rather than one of its signal-processing operations.
 
 1. ``import_meg_dataset`` discovers input recordings.
    BIDS input is filtered by ``meg_import`` entities. Raw input is
@@ -103,13 +123,16 @@ and task-based recordings.
    ``raw_exclude_keywords``. Raw discovery matches both files and directories,
    so CTF ``.ds`` folders are supported.
 
-2. ``meg_basic_preproc`` calls ``meg_preproc_osl.py``, which passes the
-   effective ``preproc`` block to OSL-Ephys ``run_proc_batch``. The listed preprocessing
-   steps are executed in order. Common steps include Maxwell/tSSS for
+2. ``score_meg_quality`` runs NormMEG-QC when enabled, writes the NMDQ score
+   sidecars, and applies ``megqc.min_score`` before downstream processing.
+
+3. ``meg_basic_preproc`` calls ``meg_preproc_osl.py``, which passes the
+   effective ``preproc`` block to OSL-Ephys ``run_proc_batch``. The listed
+   preprocessing steps are executed in order. Common steps include Maxwell/tSSS for
    Elekta/MEGIN data, band-pass filtering, notch filtering, and resampling.
    Resampling is the current configurable downsampling mechanism.
 
-3. ``detect_artifacts`` calls ``meg_detect_artifacts.py``. It detects bad
+4. ``detect_artifacts`` calls ``meg_detect_artifacts.py``. It detects bad
    channels and bad time spans using the configured PyPREP, PSD, OSL, MNE, and
    optional DeepReject methods. Within DeepReject, BadChnNet runs first; its bad
    channels are masked before BadSegNet predicts bad time windows. Results from
@@ -117,14 +140,19 @@ and task-based recordings.
    ``*_bad_segments.txt``. The process also writes detector provenance and a
    recording-wide artifact-mask heatmap. Detailed waveform images are optional.
 
-4. ``run_ica`` loads the preprocessed raw file plus the artifact sidecars. Bad
+5. ``run_ica`` loads the preprocessed raw file plus the artifact sidecars. Bad
    channels are excluded from picks, and bad annotations are ignored during ICA
    fitting through ``reject_by_annotation=True``.
 
-5. ``run_ic_label`` labels artifact-related ICA components using the configured
-   ECG, EOG, MNE-ICLabel, and rule-based settings.
+6. ``run_ic_label`` labels artifact-related ICA components using configured MNE
+   ECG/EOG detection, the original MNE-ICALabel MEGNet model, the independently
+   optional retrained MEGNet model, and rule-based settings. Successful methods
+   contribute to one component union; a failure isolated to the optional
+   retrained model is recorded without blocking the other methods. The method
+   details and automatic/manual component provenance are stored in
+   ``ecg_eog_scores.json``.
 
-6. ``apply_ica`` loads the marked components, applies the ICA solution, and
+7. ``apply_ica`` loads the marked components, applies the ICA solution, and
    saves ``*_clean_raw.fif``. The cleaned continuous file keeps the bad-channel
    and bad-segment metadata.
 
@@ -158,13 +186,29 @@ tasks:
   excluded.
 
 This downstream hash mechanism is separate from published-output deletion.
-Normal Nextflow ``-resume`` reuses the work cache for unchanged tasks and
-invalidates tasks when their inputs, scripts, or configuration change. Editable
-sidecars such as bad-channel lists, bad-segment lists, marked ICA components,
-and coregistration transforms are hashed from their published locations, so
-manual edits are preserved and invalidate downstream tasks as above. Deleting a
-published result should be handled by an explicit pre-resume guard when that
-deletion is intended to force the producing step to recompute.
+Each required external result has a task-local symbolic-link cache guard that
+Nextflow records as a ``path`` output. This includes both
+``marked_components.txt`` and ``ecg_eog_scores.json`` for ICA labeling. An
+unchanged target keeps the owner task cacheable. If the published target is
+deleted, the guard becomes dangling and ``-resume`` reruns the owner task; any
+consumer whose effective input fingerprint changes then reruns as well. Other
+recordings remain cacheable.
+
+Editable bad-channel, bad-segment, and marked-component sidecars use both
+mechanisms deliberately. Deleting one reruns its owner so the required file is
+restored. Editing its content leaves the owner cached, preserves the manual
+edit, and invalidates only the downstream consumers listed above. Static report
+processes use ``cache false`` and therefore regenerate on every completed or
+lenient run.
+
+If configuration, labeling code, or the retrained model changes, Nextflow
+safely refreshes the labeling task. A ``marked_components.txt`` file that still
+matches the previous automatic result is replaced by the new automatic union.
+If its content differs, MEGFlow treats it as a manual edit and leaves it
+unchanged while refreshing detector details in ``ecg_eog_scores.json``. The
+JSON ``marked_components.mode`` field records ``auto`` or
+``preserved_manual``. Direct script users can request an unconditional reset
+with ``run_ica_label.py --overwrite-existing``.
 
 .. _bad-segment-marking:
 
@@ -325,7 +369,7 @@ run. Each dataset can override any default module block under
 with BIDS-entity ``match`` rules for task- or run-specific settings. This allows
 one workflow run to give WAND, SMN4Lang, and MEG-MASC different event
 definitions, preprocessing, artifact settings, and source labels. The runnable
-example is documented in :doc:`../reference/examples`.
+example is documented in :ref:`example-source-multi-dataset`.
 
 Primary Outputs by Step
 -----------------------
@@ -337,6 +381,10 @@ Primary Outputs by Step
    * - Step
      - Output location
      - Main outputs
+   * - NormMEG-QC
+     - ``preprocessed/quality_control/<recording>/``
+     - ``*.summary.json``, ``*.component_scores.csv``, and
+       ``*.normative_quality_score.png`` when enabled.
    * - Continuous preprocessing
      - ``preprocessed/<recording>/``
      - ``*_preproc-raw.fif``
@@ -357,7 +405,8 @@ Primary Outputs by Step
    * - Covariance
      - ``preprocessed/covariance/<recording>/``
      - ``bl-cov.fif`` and its diagnostic figures; conditional
-       ``lcmv-data-cov.fif`` and diagnostics when LCMV is requested.
+       ``lcmv-data-cov.fif`` and diagnostics when LCMV is requested; and
+       ``resolved-rank.json`` for every full source branch.
    * - Coregistration
      - ``preprocessed/trans/<recording>/``
      - ``coreg-trans.fif``, distance CSV, alignment figures.

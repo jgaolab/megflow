@@ -1,57 +1,109 @@
-Cluster
-================
+Cluster Execution
+=================
 
-MEGFlow provides composable ``slurm`` and ``singularity`` profiles. The Slurm
-driver stays lightweight; each MEGFlow process is submitted as its own job with
-the CPU, memory, time, retry, and error policy defined in ``nextflow.config``.
-The work directory and all datasets must be visible from the login and compute
-nodes at the same paths.
+MEGFlow provides composable ``slurm`` and ``singularity`` profiles for source
+launches. Nextflow runs on the login or driver node and submits each MEGFlow
+process as a separate Slurm job. The project config, datasets, output root,
+FreeSurfer files, container, and work directory must be visible at the same
+absolute paths from every compute node.
 
-Build the SIF image once on a host that can access the Docker image:
+Prerequisites
+-------------
+
+Use Nextflow 24.10 or newer; the repository integration suite currently tests
+24.10.3. Build the SIF once on a host with registry access:
 
 .. code-block:: bash
 
    singularity build cmrlab_megflow_1.0.0.sif \
-     docker-daemon://cmrlab/megflow:1.0.0
+     docker://cmrlab/megflow:1.0.0
 
-Set site-specific scheduler and container values without editing the project
-configuration:
+If the Docker image is already present in the local Docker daemon,
+``docker-daemon://cmrlab/megflow:1.0.0`` is an alternative source URI.
+
+Site Settings
+-------------
+
+Keep scientific settings in a user-owned config such as
+``nextflow/my_project.config``. Supply scheduler and filesystem details with
+environment variables:
 
 .. code-block:: bash
 
-   export MEGFLOW_SLURM_PARTITION=cpu1,cpu2,fat
+   export MEGFLOW_SLURM_PARTITION=cpu
    export MEGFLOW_SLURM_ACCOUNT=my_account
    export MEGFLOW_SLURM_QOS=normal
    export MEGFLOW_SLURM_QUEUE_SIZE=100
-   export MEGFLOW_SLURM_WORKDIR=/lustre/project/megflow/work
-   export MEGFLOW_SIF=/lustre/project/containers/cmrlab_megflow_1.0.0.sif
-   export MEGFLOW_SINGULARITY_CACHE=/lustre/project/.singularity
-   export MEGFLOW_SINGULARITY_RUN_OPTIONS='-B /lustre:/lustre'
-   export MEGFLOW_DRIVER_LOG=/lustre/project/megflow/static_html_report/nextflow/nextflow.log
-   mkdir -p "$(dirname "$MEGFLOW_DRIVER_LOG")"
+   export MEGFLOW_SLURM_WORKDIR=/shared/project/megflow/work
+   export MEGFLOW_SIF=/shared/project/containers/cmrlab_megflow_1.0.0.sif
+   export MEGFLOW_SINGULARITY_CACHE=/shared/project/.singularity
+   export MEGFLOW_SINGULARITY_RUN_OPTIONS='-B /shared:/shared'
+   export MEGFLOW_DRIVER_LOG=/shared/project/megflow/report/nextflow/nextflow.log
 
-Launch the workflow directly from the login node or from a small Slurm driver
-job:
+``MEGFLOW_SLURM_EXTRA`` can carry additional ``sbatch`` options such as a site
+constraint. Request GPU resources only in selectors for processes that use a
+GPU; do not add them globally.
+
+Launch
+------
+
+Create the driver-log directory before starting Nextflow because ``-log`` is
+resolved before the workflow config is loaded:
 
 .. code-block:: bash
 
+   mkdir -p "$(dirname "$MEGFLOW_DRIVER_LOG")"
+
    nextflow -log "$MEGFLOW_DRIVER_LOG" \
-     -C nextflow/nextflow_for_smn4lang.config \
+     -C nextflow/my_project.config \
      run nextflow/megflow.nf \
-     -profile slurm,singularity,lenient \
+     -profile slurm,singularity,strict \
      -resume
 
-Use ``strict`` instead of ``lenient`` when any failed recording should stop the
-whole run. ``lenient`` retries resource-related exits using the process-specific
-``maxRetries`` setting and then allows other recordings to continue.
+This command may run directly on the login node when site policy permits, or
+inside a small Slurm driver job. The Nextflow driver itself remains outside the
+SIF; each submitted task runs inside it.
 
-If the cluster requires additional ``sbatch`` flags, put them in
-``MEGFLOW_SLURM_EXTRA``. Do not request a GPU globally: add an accelerator or
-site option only for processes that actually use one. Likewise, do not place
-``queueSize`` inside a process selector; MEGFlow configures it in the Nextflow
-``executor`` scope.
+Resources and Concurrency
+-------------------------
 
-The ``singularity`` profile enables automatic mounts, but site filesystems may
-still require explicit binds through ``MEGFLOW_SINGULARITY_RUN_OPTIONS``. Bind
-the project, dataset, output, FreeSurfer, and license roots at the same absolute
-paths used by the dataset profile.
+MEGFlow defines process-specific ``cpus``, ``memory``, ``time``, and retry
+limits. Override them with ``withName`` selectors in the project config. Keep
+thread counts aligned with ``task.cpus`` so several concurrent recordings do
+not oversubscribe a node.
+
+``MEGFLOW_SLURM_QUEUE_SIZE`` limits the number of tasks Nextflow keeps submitted
+to Slurm. It does not cap one process type. Use ``maxForks`` for a per-process
+limit, for example:
+
+.. code-block:: groovy
+
+   process {
+     withName: run_deepprep {
+       cpus = 8
+       memory = "32 GB"
+       maxForks = 2
+     }
+     withName: source_imaging {
+       cpus = 4
+       memory = "16 GB"
+       maxForks = 4
+     }
+   }
+
+The ``debug`` profile sets ``maxForks = 1`` for each process definition;
+different process types can still overlap when their dependencies allow.
+
+Failure Policy
+--------------
+
+Use ``strict`` for validation and production runs where any failed recording
+must stop the workflow. ``lenient`` uses process-specific, exit-code-based
+retry and ignore rules so independent records may continue. It does not infer
+whether an error is scientifically recoverable. Import and report failures
+always terminate, while covariance and source reconstruction reserve exit code
+2 for deterministic contract failures that also terminate in lenient mode.
+
+See :doc:`../reference/configuration_execution` for the complete profile,
+environment-variable, and failure-policy reference, and
+:ref:`example-cluster-execution` for the matching configuration example.
