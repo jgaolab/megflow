@@ -102,6 +102,110 @@ class ExistingLabelOutputTests(unittest.TestCase):
         self.assertEqual(written, [3, 9])
         self.assertEqual(mode, "preserved_manual")
 
+    def test_score_payload_derives_automatic_union_from_categories(self):
+        payload = run_ica_label.finalize_score_payload(
+            {
+                "ecg_indices": [3],
+                "ecg": [0.9],
+                "eog_indices": [],
+                "eog": [],
+                "methods": {},
+            },
+            category_indices={"ecg": [3], "eog": [], "outlier": [7]},
+            written_indices=[3, 7],
+            marked_output_mode="auto",
+            n_components=10,
+        )
+
+        self.assertEqual(payload["ecg_indices"], [3])
+        self.assertEqual(payload["eog_indices"], [])
+        self.assertEqual(payload["outlier_indices"], [7])
+        self.assertEqual(payload["marked_components"]["auto_indices"], [3, 7])
+        self.assertEqual(
+            payload["marked_components"]["written_indices"],
+            [3, 7],
+        )
+
+    def test_score_payload_records_preserved_manual_text_contents(self):
+        payload = run_ica_label.finalize_score_payload(
+            {
+                "ecg_indices": [3],
+                "ecg": [0.9],
+                "eog_indices": [],
+                "eog": [],
+            },
+            category_indices={"ecg": [3], "eog": [], "outlier": []},
+            written_indices=[3, 9],
+            marked_output_mode="preserved_manual",
+            n_components=10,
+        )
+
+        self.assertEqual(payload["marked_components"]["auto_indices"], [3])
+        self.assertEqual(
+            payload["marked_components"]["written_indices"],
+            [3, 9],
+        )
+        self.assertNotIn(9, payload["ecg_indices"])
+        self.assertNotIn(9, payload["eog_indices"])
+        self.assertNotIn(9, payload["outlier_indices"])
+
+
+class CategoryMasterSwitchTests(unittest.TestCase):
+    def test_category_switches_use_repository_defaults(self):
+        self.assertEqual(
+            run_ica_label.resolve_category_switches({}),
+            {"ecg": True, "eog": True, "outlier": False},
+        )
+
+    def test_category_switch_rejects_non_boolean_value(self):
+        with self.assertRaisesRegex(TypeError, "ic_eog must be a boolean"):
+            run_ica_label.resolve_category_switches({"ic_eog": "false"})
+
+    def test_category_switches_gate_all_eight_combinations(self):
+        category_indices = {
+            "ic_ecg": [1],
+            "ic_eog": [2],
+            "ic_outlier": [3],
+        }
+
+        for mask in range(8):
+            with self.subTest(mask=mask):
+                config = {
+                    "ic_ecg": bool(mask & 1),
+                    "ic_eog": bool(mask & 2),
+                    "ic_outlier": bool(mask & 4),
+                }
+                expected = [
+                    index
+                    for bit, index in ((1, 1), (2, 2), (4, 3))
+                    if mask & bit
+                ]
+
+                self.assertEqual(
+                    run_ica_label.collect_exclude_indices(
+                        config,
+                        n_components=4,
+                        **category_indices,
+                    ),
+                    expected,
+                )
+
+    def test_method_artifact_union_cannot_bypass_disabled_categories(self):
+        with self.assertRaises(TypeError):
+            run_ica_label.collect_exclude_indices(
+                {
+                    "ic_ecg": False,
+                    "ic_eog": False,
+                    "ic_outlier": False,
+                    "mne_icalabel": True,
+                },
+                n_components=4,
+                mne_icalabel_artifacts=[0],
+                ic_ecg=[0],
+                ic_eog=[1],
+                ic_outlier=[2, 3],
+            )
+
 
 class MegnetNormalizationTests(unittest.TestCase):
     def test_mne_megnet_probabilities_are_reordered_to_canonical_classes(self):
@@ -140,6 +244,82 @@ class MegnetNormalizationTests(unittest.TestCase):
         ])
         self.assertEqual(outcome.detail["metadata"]["model_sha256"], "abc")
 
+    def test_detector_outcome_is_filtered_to_enabled_categories(self):
+        probabilities = np.asarray(
+            [
+                [0.1, 0.8, 0.05, 0.05],
+                [0.1, 0.2, 0.6, 0.1],
+            ],
+            dtype=np.float32,
+        )
+        outcome = run_ica_label.detector_outcome_from_probabilities(
+            "mne_icalabel",
+            probabilities,
+        )
+
+        filtered = run_ica_label.filter_detector_outcome(
+            outcome,
+            {"ecg": True, "eog": False, "outlier": False},
+        )
+
+        self.assertEqual(filtered.artifact_indices, [0])
+        self.assertEqual(filtered.ecg_indices, [0])
+        self.assertEqual(filtered.eog_indices, [])
+        self.assertNotIn("labels", filtered.detail)
+        self.assertNotIn("probabilities", filtered.detail)
+        self.assertEqual(
+            filtered.detail["detections"],
+            {
+                "ecg": [
+                    {
+                        "index": 0,
+                        "label": "heart_beat",
+                        "score": float(probabilities[0, 1]),
+                    }
+                ]
+            },
+        )
+
+    def test_disabled_winning_class_is_not_reclassified(self):
+        probabilities = np.asarray(
+            [[0.05, 0.4, 0.5, 0.05]],
+            dtype=np.float32,
+        )
+        outcome = run_ica_label.detector_outcome_from_probabilities(
+            "mne_icalabel",
+            probabilities,
+        )
+
+        filtered = run_ica_label.filter_detector_outcome(
+            outcome,
+            {"ecg": True, "eog": False, "outlier": False},
+        )
+
+        self.assertEqual(filtered.artifact_indices, [])
+        self.assertEqual(filtered.ecg_indices, [])
+        self.assertEqual(filtered.detail["detections"], {})
+
+    def test_all_enabled_megnet_categories_keep_full_model_detail(self):
+        probabilities = np.asarray(
+            [[0.1, 0.8, 0.05, 0.05]],
+            dtype=np.float32,
+        )
+        outcome = run_ica_label.detector_outcome_from_probabilities(
+            "mne_icalabel",
+            probabilities,
+        )
+
+        filtered = run_ica_label.filter_detector_outcome(
+            outcome,
+            {"ecg": True, "eog": True, "outlier": False},
+        )
+
+        self.assertEqual(filtered.detail["labels"], ["heart_beat"])
+        np.testing.assert_allclose(
+            filtered.detail["probabilities"],
+            probabilities,
+        )
+
 
 class MegnetSwitchAndFailureTests(unittest.TestCase):
     def test_retrained_failure_is_recorded_without_raising(self):
@@ -175,6 +355,27 @@ class MegnetSwitchAndFailureTests(unittest.TestCase):
 
         self.assertEqual(set(outcomes), {"mne_icalabel"})
         mne_predictor.assert_called_once_with(mock.sentinel.raw, mock.sentinel.ica)
+        retrained_predictor.assert_not_called()
+
+    def test_megnet_is_skipped_when_ecg_and_eog_are_disabled(self):
+        mne_predictor = mock.Mock(side_effect=AssertionError("must not run"))
+        retrained_predictor = mock.Mock(side_effect=AssertionError("must not run"))
+
+        outcomes = run_ica_label.run_configured_megnet_detectors(
+            {
+                "mne_icalabel": True,
+                "megnet_retrained": True,
+                "ic_ecg": False,
+                "ic_eog": False,
+            },
+            mock.sentinel.raw,
+            mock.sentinel.ica,
+            mne_predictor=mne_predictor,
+            retrained_predictor=retrained_predictor,
+        )
+
+        self.assertEqual(outcomes, {})
+        mne_predictor.assert_not_called()
         retrained_predictor.assert_not_called()
 
     def test_both_megnet_switches_can_run_together(self):
@@ -215,11 +416,9 @@ class MegnetSwitchAndFailureTests(unittest.TestCase):
         excluded = run_ica_label.collect_exclude_indices(
             {
                 "ica_label": False,
-                "mne_algorithm": False,
-                "rules_algorithm": False,
             },
             n_components=4,
-            mne_icalabel_artifacts=[2],
+            ic_eog=[2],
         )
 
         self.assertEqual(excluded, [2])

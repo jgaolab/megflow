@@ -1,4 +1,5 @@
 import os
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -10,6 +11,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 UNITTEST_GATE = REPO_ROOT / "scripts" / "validation" / "run_unittest_gate.py"
 VALIDATION_RUNNER = REPO_ROOT / "scripts" / "validation" / "run_validation.sh"
+WINDOWS_INSTALL_VALIDATOR = REPO_ROOT / "scripts" / "validation" / "validate_windows_installer.py"
 
 
 class ValidationRunnerTests(unittest.TestCase):
@@ -70,6 +72,49 @@ class ValidationRunnerTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("unknown validation mode", result.stderr)
+
+    def test_windows_validator_rejects_a_missing_powershell_parser(self):
+        with tempfile.TemporaryDirectory() as empty_path:
+            env = dict(os.environ)
+            env["PATH"] = empty_path
+            result = subprocess.run(
+                [sys.executable, str(WINDOWS_INSTALL_VALIDATOR)],
+                cwd=REPO_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=30,
+            )
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertIn("PowerShell is required", result.stderr)
+
+    def test_windows_validator_routes_the_installer_to_powershell(self):
+        with tempfile.TemporaryDirectory() as stub_path:
+            powershell = Path(stub_path) / "pwsh"
+            expected_installer = REPO_ROOT / "scripts" / "install" / "install_megflow_windows.ps1"
+            powershell.write_text(
+                "#!/bin/bash\n"
+                "set -euo pipefail\n"
+                '[[ "$1" == "-NoProfile" ]]\n'
+                '[[ "$2" == "-NonInteractive" ]]\n'
+                '[[ "$3" == "-Command" ]]\n'
+                '[[ "$4" == *"Parser]::ParseFile"* ]]\n'
+                f'[[ "$MEGFLOW_WINDOWS_INSTALLER" == {shlex.quote(str(expected_installer))} ]]\n',
+                encoding="utf-8",
+            )
+            powershell.chmod(0o755)
+            env = dict(os.environ)
+            env["PATH"] = stub_path
+            result = subprocess.run(
+                [sys.executable, str(WINDOWS_INSTALL_VALIDATOR)],
+                cwd=REPO_ROOT,
+                env=env,
+                text=True,
+                capture_output=True,
+                timeout=30,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("PowerShell syntax is valid", result.stdout)
 
 
 if __name__ == "__main__":

@@ -1,5 +1,4 @@
 import os
-import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -58,24 +57,6 @@ class InstallScriptContractTests(unittest.TestCase):
     def test_all_bash_installers_parse(self):
         result = subprocess.run(
             ["bash", "-n", str(LINUX_INSTALLER), str(MACOS_INSTALLER), str(DEV_INSTALLER)],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
-
-    def test_windows_installer_parses_when_powershell_is_available(self):
-        powershell = shutil.which("pwsh") or shutil.which("powershell")
-        if powershell is None:
-            self.skipTest("PowerShell is not installed on this host")
-        command = (
-            "$tokens=$null; $errors=$null; "
-            f"[System.Management.Automation.Language.Parser]::ParseFile('{WINDOWS_INSTALLER}', "
-            "[ref]$tokens, [ref]$errors) > $null; "
-            "if ($errors.Count -gt 0) { $errors | ForEach-Object { Write-Error $_ }; exit 1 }"
-        )
-        result = subprocess.run(
-            [powershell, "-NoProfile", "-NonInteractive", "-Command", command],
             text=True,
             capture_output=True,
             check=False,

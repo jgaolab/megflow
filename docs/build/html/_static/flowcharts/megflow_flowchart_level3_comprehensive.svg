@@ -1,0 +1,200 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="3300" height="2480" viewBox="0 0 3300 2480">
+<defs>
+  <marker id="arrow" markerWidth="12" markerHeight="12" refX="10" refY="6" orient="auto" markerUnits="strokeWidth">
+    <path d="M2,2 L10,6 L2,10 z" fill="#405867"/>
+  </marker>
+  <filter id="shadow" x="-8%" y="-8%" width="116%" height="116%">
+    <feDropShadow dx="0" dy="1.5" stdDeviation="1.2" flood-color="#334155" flood-opacity="0.11"/>
+  </filter>
+</defs>
+<style>
+  .title { font-family: Arial, Helvetica, sans-serif; font-weight: 800; fill: #17324a; }
+  .subtitle { font-family: Arial, Helvetica, sans-serif; font-weight: 400; fill: #516170; }
+  .lane { font-family: Arial, Helvetica, sans-serif; font-size: 18px; font-weight: 800; letter-spacing: .5px; fill: #17324a; text-transform: uppercase; }
+  .box-title { font-family: Arial, Helvetica, sans-serif; font-weight: 800; fill: #1f2f3a; }
+  .box-text { font-family: Arial, Helvetica, sans-serif; font-weight: 400; fill: #263946; }
+  .legend { font-family: Arial, Helvetica, sans-serif; font-size: 18px; fill: #263946; }
+  .caption { font-family: Arial, Helvetica, sans-serif; font-size: 30px; font-style: italic; fill: #555; }
+</style>
+<rect x="0" y="0" width="3300" height="2480" fill="#f7fafb"/>
+<text x="90" y="68" font-size="42" class="title" text-anchor="start">Comprehensive MEGFlow stages and selectable modules</text>
+<text x="90" y="105" font-size="20" class="subtitle" text-anchor="start">Level 3: code-derived comprehensive view of all stages, branch conditions, modules, and output families.</text>
+<rect x="2680" y="42" width="46" height="22" rx="5" fill="#d9ecff" stroke="#405867" stroke-width="1.2"/>
+<text x="2740" y="59" font-size="18" class="legend" text-anchor="start">Mandatory / typical core</text>
+<rect x="2680" y="78" width="46" height="22" rx="5" fill="#e4f4ec" stroke="#405867" stroke-width="1.2"/>
+<text x="2740" y="95" font-size="18" class="legend" text-anchor="start">Optional or conditional</text>
+<rect x="2680" y="114" width="46" height="22" rx="5" fill="#fff1c7" stroke="#405867" stroke-width="1.2"/>
+<text x="2740" y="131" font-size="18" class="legend" text-anchor="start">Outputs / reporting</text>
+<rect x="90" y="145" width="900" height="36" rx="18" fill="#cfe5fa" stroke="#405867" stroke-width="1.5" opacity="0.85"/>
+<text x="540.0" y="169" font-size="18" class="lane" text-anchor="middle">MANDATORY / TYPICAL MEG CORE</text>
+<rect x="1100" y="145" width="860" height="36" rx="18" fill="#d8efe5" stroke="#405867" stroke-width="1.5" opacity="0.85"/>
+<text x="1530.0" y="169" font-size="18" class="lane" text-anchor="middle">OPTIONAL ANATOMY / HEAD MODEL</text>
+<rect x="2100" y="145" width="860" height="36" rx="18" fill="#d8efe5" stroke="#405867" stroke-width="1.5" opacity="0.85"/>
+<text x="2530.0" y="169" font-size="18" class="lane" text-anchor="middle">OPTIONAL SOURCE WORKFLOW</text>
+<rect x="970" y="1700" width="1360" height="36" rx="18" fill="#ffe9ad" stroke="#405867" stroke-width="1.5" opacity="0.85"/>
+<text x="1650.0" y="1724" font-size="18" class="lane" text-anchor="middle">OUTPUTS / REPORTING</text>
+<rect x="110" y="215" width="850" height="100" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="245" font-size="18" class="box-title" text-anchor="middle">Inputs</text>
+<text x="132" y="273" font-size="14" class="box-text" text-anchor="start">MEG: BIDS raw or raw files/dirs (.fif, .ds, 4D/BTI suffixes)</text>
+<text x="132" y="292" font-size="14" class="box-text" text-anchor="start">Anatomy: optional T1w BIDS, NIfTI, DICOM, or existing SUBJECTS_DIR</text>
+<text x="132" y="311" font-size="14" class="box-text" text-anchor="start">Optional: empty-room/noise-like recordings</text>
+<rect x="1030" y="215" width="870" height="100" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1465.0" y="245" font-size="18" class="box-title" text-anchor="middle">Run mode selection</text>
+<text x="1052" y="273" font-size="14" class="box-text" text-anchor="start">steps: report, anatomy, all, meg_all, meg_artifacts, meg_ica, meg_epochs</text>
+<text x="1052" y="292" font-size="14" class="box-text" text-anchor="start">modifiers: with_anatomy, skip_ica (meg_epochs only)</text>
+<text x="1052" y="311" font-size="14" class="box-text" text-anchor="start">corpus mode expands immediate child datasets</text>
+<rect x="1970" y="215" width="900" height="100" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2420.0" y="245" font-size="18" class="box-title" text-anchor="middle">Execution policy</text>
+<text x="1992" y="273" font-size="14" class="box-text" text-anchor="start">error_mode/profile: lenient or strict</text>
+<text x="1992" y="292" font-size="14" class="box-text" text-anchor="start">Docker/SIF/local/cluster launch, workDir, process resources</text>
+<text x="1992" y="311" font-size="14" class="box-text" text-anchor="start">trace/report/timeline and stable report task signatures</text>
+<rect x="110" y="370" width="850" height="98" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="400" font-size="17" class="box-title" text-anchor="middle">1. MEG import and indexing</text>
+<text x="132" y="427" font-size="13" class="box-text" text-anchor="start">dataset_format auto/bids/raw; BIDS entity filters; raw</text>
+<text x="132" y="445" font-size="13" class="box-text" text-anchor="start">suffix/include/exclude; output/preproc dirs excluded from discovery;</text>
+<text x="132" y="463" font-size="13" class="box-text" text-anchor="start">imported_meg_data.txt</text>
+<rect x="110" y="510" width="850" height="118" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="540" font-size="17" class="box-title" text-anchor="middle">2. NormMEG-QC and NMDQ score</text>
+<text x="132" y="567" font-size="13" class="box-text" text-anchor="start">megqc.enabled; bundled normative profile; vendor auto/by dataset;</text>
+<text x="132" y="585" font-size="13" class="box-text" text-anchor="start">category auto/rest/task/ALL; scope device_category/category/global;</text>
+<text x="132" y="603" font-size="13" class="box-text" text-anchor="start">min_reference_n; 1-100 Hz scoring preproc; notch overrides; min_score gate;</text>
+<text x="132" y="621" font-size="13" class="box-text" text-anchor="start">alarm threshold</text>
+<rect x="110" y="675" width="850" height="118" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="705" font-size="17" class="box-title" text-anchor="middle">3. Continuous preprocessing</text>
+<text x="132" y="732" font-size="13" class="box-text" text-anchor="start">meg_preproc_osl.py through OSL-Ephys run_proc_batch; optional Maxwell/tSSS;</text>
+<text x="132" y="750" font-size="13" class="box-text" text-anchor="start">default filter 1-100 Hz, notch 50/100 Hz, resample 250 Hz;</text>
+<text x="132" y="768" font-size="13" class="box-text" text-anchor="start">dataset-specific preproc and notch maps</text>
+<rect x="110" y="840" width="850" height="148" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="870" font-size="17" class="box-title" text-anchor="middle">4. Artifact detection</text>
+<text x="132" y="897" font-size="13" class="box-text" text-anchor="start">DeepReject: BadChnNet first, mask bad channels, then BadSegNet windows</text>
+<text x="132" y="915" font-size="13" class="box-text" text-anchor="start">Other channels: PyPREP, PSD outlier, OSL detect_badchannels, MNE LOF</text>
+<text x="132" y="933" font-size="13" class="box-text" text-anchor="start">Other segments: OSL detect_badsegments and MNE annotation methods</text>
+<text x="132" y="951" font-size="13" class="box-text" text-anchor="start">Merged annotation sidecars and per-detector channel provenance</text>
+<text x="132" y="969" font-size="13" class="box-text" text-anchor="start">Mask heatmap always; detailed artifact images optional</text>
+<rect x="110" y="1040" width="850" height="105" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="1070" font-size="17" class="box-title" text-anchor="middle">5. ICA fit</text>
+<text x="132" y="1097" font-size="13" class="box-text" text-anchor="start">run_ica.py; num_IC; uses bad-channel and bad-segment sidecars;</text>
+<text x="132" y="1115" font-size="13" class="box-text" text-anchor="start">reject_by_annotation during fit; optional explained-variance annotations and</text>
+<text x="132" y="1133" font-size="13" class="box-text" text-anchor="start">component property figures</text>
+<rect x="110" y="1188" width="850" height="128" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="1218" font-size="17" class="box-title" text-anchor="middle">6. ICA labels</text>
+<text x="132" y="1245" font-size="13" class="box-text" text-anchor="start">MNE find_bads_eog/find_bads_ecg/find_bads_muscle; MNE-ICLabel MEGNet labels;</text>
+<text x="132" y="1263" font-size="13" class="box-text" text-anchor="start">rule/template ICA_classify with vendor auto/by dataset; ECG/EOG/outlier</text>
+<text x="132" y="1281" font-size="13" class="box-text" text-anchor="start">selection; score JSON and marked_components.txt</text>
+<rect x="110" y="1365" width="850" height="96" rx="14" fill="#d9ecff" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="1395" font-size="17" class="box-title" text-anchor="middle">7. Apply ICA</text>
+<text x="132" y="1422" font-size="13" class="box-text" text-anchor="start">apply_ica.py writes cleaned continuous raw; attaches bad-channel and</text>
+<text x="132" y="1440" font-size="13" class="box-text" text-anchor="start">bad-segment metadata; hashes marked components and sidecars for downstream</text>
+<text x="132" y="1458" font-size="13" class="box-text" text-anchor="start">resume invalidation</text>
+<rect x="110" y="1505" width="850" height="128" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="535.0" y="1535" font-size="17" class="box-title" text-anchor="middle">8. Epochs when selected</text>
+<text x="132" y="1562" font-size="13" class="box-text" text-anchor="start">task or resting; event_source=find_events or BIDS events.tsv;</text>
+<text x="132" y="1580" font-size="13" class="box-text" text-anchor="start">exclude_event_id; tmin/tmax/baseline/reject_by_annotation; optional</text>
+<text x="132" y="1598" font-size="13" class="box-text" text-anchor="start">autoreject, interpolate_bads, drop_bad_channels; skip_ica branch can epoch</text>
+<text x="132" y="1616" font-size="13" class="box-text" text-anchor="start">preprocessed raw</text>
+<polyline points="535.0,468 535.0,510" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="535.0,628 535.0,675" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="535.0,793 535.0,840" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="535.0,988 535.0,1040" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="535.0,1145 535.0,1188" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="535.0,1316 535.0,1365" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="535.0,1461 535.0,1505" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="1100" y="370" width="860" height="105" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1530.0" y="400" font-size="17" class="box-title" text-anchor="middle">A. Anatomy input selection</text>
+<text x="1122" y="427" font-size="13" class="box-text" text-anchor="start">cfg.runAnatomy via anatomy/all/with_anatomy; anatomy_select_tag maps MEG</text>
+<text x="1122" y="445" font-size="13" class="box-text" text-anchor="start">subject id to MRI subject id; reused fs_subjects_dir when anatomy is not run</text>
+<rect x="1100" y="530" width="860" height="132" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1530.0" y="560" font-size="17" class="box-title" text-anchor="middle">B. Import or synthesize T1</text>
+<text x="1122" y="587" font-size="13" class="box-text" text-anchor="start">BIDS MRI import with mri_import_config; non-BIDS NIfTI; non-BIDS DICOM</text>
+<text x="1122" y="605" font-size="13" class="box-text" text-anchor="start">through dcm2niix and optional t1_dicom_series_glob; Pseudo-MRI from MEG FIF</text>
+<text x="1122" y="623" font-size="13" class="box-text" text-anchor="start">digitization/headshape with bundled mni_icbm152_nlin_sym_09a template</text>
+<rect x="1100" y="720" width="860" height="132" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1530.0" y="750" font-size="17" class="box-title" text-anchor="middle">C. Structural reconstruction</text>
+<text x="1122" y="777" font-size="13" class="box-text" text-anchor="start">FreeSurfer recon-all, resume-safe continuation, mkheadsurf; DeepPrep</text>
+<text x="1122" y="795" font-size="13" class="box-text" text-anchor="start">participant anat-only and copy Recon outputs; Pseudo-MRI path feeds generated</text>
+<text x="1122" y="813" font-size="13" class="box-text" text-anchor="start">pseudo T1 into FreeSurfer; existing anatomy can be reused</text>
+<rect x="1100" y="910" width="860" height="120" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1530.0" y="940" font-size="17" class="box-title" text-anchor="middle">D. Head model and source spaces</text>
+<text x="1122" y="967" font-size="13" class="box-text" text-anchor="start">generate_bem.py; watershed BEM solution, ico grade and conductivity; surface</text>
+<text x="1122" y="985" font-size="13" class="box-text" text-anchor="start">source space on configured surface/spacing; BEM/source figures consumed by</text>
+<text x="1122" y="1003" font-size="13" class="box-text" text-anchor="start">forward model and reports</text>
+<polyline points="1530.0,475 1530.0,530" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1530.0,662 1530.0,720" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1530.0,852 1530.0,910" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<rect x="2100" y="610" width="860" height="125" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2530.0" y="640" font-size="17" class="box-title" text-anchor="middle">S1. Covariance</text>
+<text x="2122" y="667" font-size="13" class="box-text" text-anchor="start">Runs in full MEG stage. covar_type=epochs uses baseline windows from cleaned</text>
+<text x="2122" y="685" font-size="13" class="box-text" text-anchor="start">experimental data; covar_type=raw pairs cleaned recordings to</text>
+<text x="2122" y="703" font-size="13" class="box-text" text-anchor="start">raw_covariance_task_id; supports compute_raw_covariance/compute_covariance</text>
+<text x="2122" y="721" font-size="13" class="box-text" text-anchor="start">config and optional plots</text>
+<rect x="2100" y="790" width="860" height="128" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2530.0" y="820" font-size="17" class="box-title" text-anchor="middle">S2. Coregistration</text>
+<text x="2122" y="847" font-size="13" class="box-text" text-anchor="start">Clean raw plus target MRI subject; estimated/manual fiducials supported by</text>
+<text x="2122" y="865" font-size="13" class="box-text" text-anchor="start">script; head-shape, HPI and EEG weights; ICP plus fine-tuned ICP; outputs</text>
+<text x="2122" y="883" font-size="13" class="box-text" text-anchor="start">coreg-trans.fif, distance CSV, staged figures</text>
+<rect x="2100" y="975" width="860" height="120" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2530.0" y="1005" font-size="17" class="box-title" text-anchor="middle">S3. Forward solution</text>
+<text x="2122" y="1032" font-size="13" class="box-text" text-anchor="start">Combines epoch file, coreg transform, BEM solution and source space;</text>
+<text x="2122" y="1050" font-size="13" class="box-text" text-anchor="start">configurable surface/spacing and fwd_epoch_label; writes forward FIF and BEM</text>
+<text x="2122" y="1068" font-size="13" class="box-text" text-anchor="start">slice figures</text>
+<rect x="2100" y="1145" width="860" height="145" rx="14" fill="#e4f4ec" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2530.0" y="1175" font-size="17" class="box-title" text-anchor="middle">S4. Source localization</text>
+<text x="2122" y="1202" font-size="13" class="box-text" text-anchor="start">src_type=epochs or raw; data_type selection; source_methods list supports MNE,</text>
+<text x="2122" y="1220" font-size="13" class="box-text" text-anchor="start">dSPM, sLORETA, eLORETA and LCMV; minimum-norm inverse or beamformer paths;</text>
+<text x="2122" y="1238" font-size="13" class="box-text" text-anchor="start">writes STC estimates and optional brain visualizations</text>
+<polyline points="2530.0,735 2530.0,790" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="2530.0,918 2530.0,975" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="2530.0,1095 2530.0,1145" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="960,420 1100,420" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="9 7"/>
+<polyline points="1530,1030 2100,850" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="9 7"/>
+<polyline points="960,1415 2100,672" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="9 7"/>
+<polyline points="960,1569 2100,1035" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)" stroke-dasharray="9 7"/>
+<rect x="250" y="1740" width="650" height="250" rx="14" fill="#fff1c7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="575.0" y="1775" font-size="17" class="box-title" text-anchor="middle">Core MEG derivatives</text>
+<text x="272" y="1802" font-size="13" class="box-text" text-anchor="start">imported_meg_data.txt</text>
+<text x="272" y="1820" font-size="13" class="box-text" text-anchor="start">quality_control summaries, component_scores.csv,</text>
+<text x="272" y="1838" font-size="13" class="box-text" text-anchor="start">normative_quality_score.png</text>
+<text x="272" y="1856" font-size="13" class="box-text" text-anchor="start">*_preproc-raw.fif</text>
+<text x="272" y="1874" font-size="13" class="box-text" text-anchor="start">artifact_report</text>
+<text x="272" y="1892" font-size="13" class="box-text" text-anchor="start">bad channels/provenance, annotations, DeepReject, heatmap/images</text>
+<text x="272" y="1910" font-size="13" class="box-text" text-anchor="start">ica_report ICA FIF, sources, marked components, scores,</text>
+<text x="272" y="1928" font-size="13" class="box-text" text-anchor="start">figures</text>
+<text x="272" y="1946" font-size="13" class="box-text" text-anchor="start">*_clean_raw.fif and epochs/*-epo.fif</text>
+<rect x="970" y="1740" width="650" height="250" rx="14" fill="#fff1c7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1295.0" y="1775" font-size="17" class="box-title" text-anchor="middle">Anatomy/source derivatives</text>
+<text x="992" y="1802" font-size="13" class="box-text" text-anchor="start">pseudomri/&lt;subject&gt;/&lt;subject&gt;.nii.gz and metadata</text>
+<text x="992" y="1820" font-size="13" class="box-text" text-anchor="start">FreeSurfer/DeepPrep SUBJECTS_DIR outputs</text>
+<text x="992" y="1838" font-size="13" class="box-text" text-anchor="start">BEM surfaces/solutions and source spaces</text>
+<text x="992" y="1856" font-size="13" class="box-text" text-anchor="start">covariance/bl-cov.fif and plots</text>
+<text x="992" y="1874" font-size="13" class="box-text" text-anchor="start">trans/coreg-trans.fif, dists.csv, ICP figures</text>
+<text x="992" y="1892" font-size="13" class="box-text" text-anchor="start">forward_solution/*-fwd.fif</text>
+<text x="992" y="1910" font-size="13" class="box-text" text-anchor="start">source_recon STC files and images</text>
+<rect x="1690" y="1740" width="650" height="250" rx="14" fill="#fff1c7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2015.0" y="1775" font-size="17" class="box-title" text-anchor="middle">Static report package</text>
+<text x="1712" y="1802" font-size="13" class="box-text" text-anchor="start">static_html_report/index.html</text>
+<text x="1712" y="1820" font-size="13" class="box-text" text-anchor="start">subject/recording pages, alarms.html</text>
+<text x="1712" y="1838" font-size="13" class="box-text" text-anchor="start">data/dataset_summary.json, subjects.csv, per-subject JSON</text>
+<text x="1712" y="1856" font-size="13" class="box-text" text-anchor="start">workflow diagram from megflow_run_manifest.json</text>
+<text x="1712" y="1874" font-size="13" class="box-text" text-anchor="start">nextflow.config snapshot, trace-derived task details,</text>
+<text x="1712" y="1892" font-size="13" class="box-text" text-anchor="start">command log excerpts</text>
+<rect x="2410" y="1740" width="650" height="250" rx="14" fill="#fff1c7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="2735.0" y="1775" font-size="17" class="box-title" text-anchor="middle">Review and corpus outputs</text>
+<text x="2432" y="1802" font-size="13" class="box-text" text-anchor="start">Streamlit viewer for artifact/ICA/coreg/source review and</text>
+<text x="2432" y="1820" font-size="13" class="box-text" text-anchor="start">editable sidecars</text>
+<text x="2432" y="1838" font-size="13" class="box-text" text-anchor="start">report-only regeneration with preserved preprocessing</text>
+<text x="2432" y="1856" font-size="13" class="box-text" text-anchor="start">manifest</text>
+<text x="2432" y="1874" font-size="13" class="box-text" text-anchor="start">corpus_static_html_report with datasets table, sortable</text>
+<text x="2432" y="1892" font-size="13" class="box-text" text-anchor="start">columns except Steps, bundled dataset reports,</text>
+<text x="2432" y="1910" font-size="13" class="box-text" text-anchor="start">corpus_summary.json and datasets.csv</text>
+<polyline points="535,1633 535,1745" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="1530,1030 1295,1745" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<polyline points="2530,1290 2015,1745" fill="none" stroke="#405867" stroke-width="3.0" stroke-linecap="round" stroke-linejoin="round" marker-end="url(#arrow)"/>
+<line x1="2340" y1="1840" x2="2410" y2="1840" stroke="#405867" stroke-width="3" marker-end="url(#arrow)"/>
+<line x1="2410" y1="1840" x2="2340" y2="1840" stroke="#405867" stroke-width="3" marker-end="url(#arrow)"/>
+<rect x="110" y="2090" width="2990" height="150" rx="14" fill="#edf3f7" stroke="#405867" stroke-width="2.2" opacity="1.0" filter="url(#shadow)"/>
+<text x="1605.0" y="2120" font-size="18" class="box-title" text-anchor="middle">Workflow infrastructure</text>
+<text x="132" y="2152" font-size="15" class="box-text" text-anchor="start">Nextflow process DAG; task-level caching and -resume; sidecar hash invalidation for edited bad-channel/bad-segment, marked_components, and coreg-trans files; workDir isolation in</text>
+<text x="132" y="2174" font-size="15" class="box-text" text-anchor="start">corpus mode; sanitized dataset names; Docker entrypoint with UID/GID handling; Apptainer/Singularity/SIF use; local workstation, server/HPC and SLURM/container profiles; strict or</text>
+<text x="132" y="2196" font-size="15" class="box-text" text-anchor="start">lenient error strategies with retries</text>
+<text x="1650.0" y="2418" font-size="30" class="caption" text-anchor="middle">Figure. Comprehensive MEGFlow flowchart clarifying mandatory, optional, conditional, output, and infrastructure modules.</text>
+</svg>

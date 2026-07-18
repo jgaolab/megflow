@@ -270,10 +270,13 @@ bash scripts/validation/run_validation.sh all
 
 Use `routing` for Nextflow 24.10.3 DAG, resume, failure, report, and config
 contracts, or `scientific` for real synthetic MNE/OSL filtering, epochs,
-covariance, source-call, MEGQC, DeepReject-input, and report tests. Requested
-gates fail when dependencies are missing, no tests are discovered, or any test
-is skipped. GitHub runs both gates for every push and pull request; its pinned
-lightweight scientific dependencies are in `requirements_validation.txt`.
+covariance, source-call, MEGQC, DeepReject-input, MEGNet/ICA-label, and report
+tests. Requested gates fail when dependencies are missing, no tests are
+discovered, or any test is skipped. A coverage contract also fails when a new
+`tests/test_*.py` module is not assigned to either gate. GitHub runs both gates,
+a native PowerShell parser check for the Windows installer, and the strict
+documentation build for every push and pull request. Pinned lightweight
+scientific dependencies are in `requirements_validation.txt`.
 
 ### Resume and interactive edits
 

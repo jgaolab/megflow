@@ -1,0 +1,682 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Multi-Dataset and Override Examples &#8212; MEGFlow Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=911fa163" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=f9c1cefe"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/examples_profiles';</script>
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="OPM Data Conversion" href="opm_conversion.html" />
+    <link rel="prev" title="Single-Dataset Configuration Examples" href="examples_single_dataset.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.png" class="logo__image only-light" alt="MEGFlow Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="MEGFlow Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Quickstart</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/quick_guide.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/full_workflow.html">Full Workflow</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_local.html">Local Docker Run</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_cluster.html">Cluster Execution</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/reports.html">Reports</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/outputs.html">Outputs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Pipeline Details</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../details/pipeline_details.html">Pipeline Details</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="configuration.html">Configuration Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="configuration_datasets.html">Dataset and Stage Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_preprocessing.html">Preprocessing Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_source.html">Source and Report Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_execution.html">Execution and Resource Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="rank_covariance.html">Rank, Covariance, and Source Imaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deepreject.html">DeepReject Artifact Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qc_metrics.html">Quality Control Metrics</a></li>
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="examples.html">Configuration Examples</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="examples_single_dataset.html">Single-Dataset Configuration Examples</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Multi-Dataset and Override Examples</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="opm_conversion.html">OPM Data Conversion</a></li>
+<li class="toctree-l1"><a class="reference internal" href="validation.html">Validation and Regression Testing</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/reference/examples_profiles.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Multi-Dataset and Override Examples</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-specific-deepreject">Dataset-Specific DeepReject</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-specific-overrides">Recording-Specific Overrides</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#three-level-opm-cog-task-example">Three-Level OPM-COG Task Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-corpus-with-different-dataset-settings">Docker Corpus with Different Dataset Settings</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-three-dataset-source-demo">Runnable Three-Dataset Source Demo</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-execution">Cluster Execution</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="multi-dataset-and-override-examples">
+<span id="examples-profiles"></span><h1>Multi-Dataset and Override Examples<a class="headerlink" href="#multi-dataset-and-override-examples" title="Link to this heading">#</a></h1>
+<p>These examples show dataset and recording overrides, heterogeneous Docker
+corpus execution, the runnable source demo, and cluster launch patterns.</p>
+<section id="dataset-specific-deepreject">
+<span id="example-deepreject"></span><h2>Dataset-Specific DeepReject<a class="headerlink" href="#dataset-specific-deepreject" title="Link to this heading">#</a></h2>
+<p>DeepReject can be tuned per dataset without duplicating the rest of the artifact
+configuration:</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">MEG_MASC_word</span><span class="o">.</span><span class="na">artifacts</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;kit&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">deepreject:</span><span class="w"> </span><span class="o">[</span><span class="nl">mode:</span><span class="w"> </span><span class="s2">&quot;lenient&quot;</span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<p>The inherited <code class="docutils literal notranslate"><span class="pre">enabled</span></code>, device, fold, and resource values remain unchanged.
+<code class="docutils literal notranslate"><span class="pre">lenient</span></code> changes BadSegNet interval post-processing; it does not switch model
+weights. See <a class="reference internal" href="deepreject.html"><span class="doc">DeepReject Artifact Detection</span></a> before setting low-level thresholds.</p>
+<p><strong>Configuration reference:</strong> the <strong>Artifact Detection</strong> section in
+<a class="reference internal" href="configuration_preprocessing.html"><span class="doc">Preprocessing Configuration</span></a>.</p>
+</section>
+<section id="recording-specific-overrides">
+<span id="example-recording-overrides"></span><h2>Recording-Specific Overrides<a class="headerlink" href="#recording-specific-overrides" title="Link to this heading">#</a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">recordings</span></code> when imported files from the same dataset require different
+post-import settings. Match fields are case-insensitive, fields within one
+<code class="docutils literal notranslate"><span class="pre">match</span></code> map are combined with AND, and list values within a field are combined
+with OR. Exactly zero or one profile may match a recording; multiple matches are
+an error.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="o">.</span><span class="na">LanguageStudy</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">dataset_dir:</span><span class="w"> </span><span class="s2">&quot;/data/LanguageStudy&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">fs_subjects_dir:</span><span class="w"> </span><span class="s2">&quot;/data/LanguageStudy/smri&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">steps:</span><span class="w"> </span><span class="s2">&quot;meg_all&quot;</span><span class="o">,</span>
+<span class="w">  </span><span class="nl">meg_import:</span><span class="w"> </span><span class="o">[</span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;auditory&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;visual&quot;</span><span class="o">]],</span>
+<span class="w">  </span><span class="nl">recordings:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">auditory_task:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="nl">match:</span><span class="w"> </span><span class="o">[</span><span class="nl">task:</span><span class="w"> </span><span class="s2">&quot;auditory&quot;</span><span class="o">],</span>
+<span class="w">      </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">        </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;find_events&quot;</span><span class="o">,</span>
+<span class="w">        </span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="mf">0.0395</span><span class="o">,</span>
+<span class="w">        </span><span class="nl">find_events:</span><span class="w"> </span><span class="o">[</span><span class="nl">stim_channel:</span><span class="w"> </span><span class="s2">&quot;STI101&quot;</span><span class="o">],</span>
+<span class="w">        </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.6</span><span class="o">]</span>
+<span class="w">      </span><span class="o">],</span>
+<span class="w">      </span><span class="nl">covariance:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="mf">0.0395</span><span class="o">]</span>
+<span class="w">    </span><span class="o">],</span>
+<span class="w">    </span><span class="nl">visual_run_two:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="nl">match:</span><span class="w"> </span><span class="o">[</span><span class="nl">task:</span><span class="w"> </span><span class="s2">&quot;visual&quot;</span><span class="o">,</span><span class="w"> </span><span class="nl">run:</span><span class="w"> </span><span class="s2">&quot;2&quot;</span><span class="o">],</span>
+<span class="w">      </span><span class="nl">artifacts:</span><span class="w"> </span><span class="o">[</span><span class="nl">deepreject:</span><span class="w"> </span><span class="o">[</span><span class="nl">mode:</span><span class="w"> </span><span class="s2">&quot;strict&quot;</span><span class="o">]],</span>
+<span class="w">      </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">        </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;event_file&quot;</span><span class="o">,</span>
+<span class="w">        </span><span class="nl">event_file:</span><span class="w"> </span><span class="o">[</span><span class="nl">trial_type:</span><span class="w"> </span><span class="o">[</span><span class="nl">target:</span><span class="w"> </span><span class="mi">1</span><span class="o">]],</span>
+<span class="w">        </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.8</span><span class="o">]</span>
+<span class="w">      </span><span class="o">]</span>
+<span class="w">    </span><span class="o">]</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<p>Recording profiles are resolved only after MEG import. They can specialize
+<code class="docutils literal notranslate"><span class="pre">rank_policy</span></code>, <code class="docutils literal notranslate"><span class="pre">megqc</span></code>, continuous preprocessing, digitization, artifacts, ICA, epochs,
+covariance, coregistration, forward modeling, source reconstruction, or reduce
+an already enabled MEG stage. They cannot change file discovery, import a file
+excluded by <code class="docutils literal notranslate"><span class="pre">meg_import</span></code>, create an anatomy plan, alter dataset paths, or
+change dataset-level report thresholds. Put those settings in the dataset
+profile. See <a class="reference internal" href="configuration_datasets.html#configuration-profile-resolution"><span class="std std-ref">Profile Resolution</span></a> for every match field.</p>
+<p>The complete <code class="docutils literal notranslate"><span class="pre">match</span></code> semantics, including <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">suffix</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">filename_contains</span></code>, are defined in the <strong>Recording Matching</strong> section of
+<a class="reference internal" href="configuration_datasets.html"><span class="doc">Dataset and Stage Configuration</span></a>.</p>
+</section>
+<section id="three-level-opm-cog-task-example">
+<span id="example-opm-task-overrides"></span><h2>Three-Level OPM-COG Task Example<a class="headerlink" href="#three-level-opm-cog-task-example" title="Link to this heading">#</a></h2>
+<p><a class="reference external" href="https://github.com/jgaolab/megflow/blob/main/nextflow/nextflow_opm_cog_task_overrides_example.config">nextflow_opm_cog_task_overrides_example.config on GitHub</a>
+demonstrates all three configuration levels in one source-mode file. Replace
+its site paths before running it in another environment:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">defaults</span></code> defines shared epoch, covariance, forward, and source policies.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">datasets.OPM_COG</span></code> defines OPM vendor settings, import selectors, and the
+event convention shared by the dataset.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">datasets.OPM_COG.recordings</span></code> matches AEF, VEF, TAP, and SSVEF tasks and
+gives each task its own epoch window, covariance baseline, output label, and
+source visualization target.</p></li>
+</ul>
+<p>All task names must also be present in <code class="docutils literal notranslate"><span class="pre">meg_import.task</span></code> because recording
+profiles are applied after discovery. Edit the example paths and selectors,
+then run the command shown at the top of the config file.</p>
+<p><strong>Configuration reference:</strong> <a class="reference internal" href="configuration_datasets.html"><span class="doc">Dataset and Stage Configuration</span></a> for matching and
+<a class="reference internal" href="configuration_source.html"><span class="doc">Source and Report Configuration</span></a> for task-specific covariance/source settings.</p>
+</section>
+<section id="docker-corpus-with-different-dataset-settings">
+<span id="example-docker-corpus"></span><h2>Docker Corpus with Different Dataset Settings<a class="headerlink" href="#docker-corpus-with-different-dataset-settings" title="Link to this heading">#</a></h2>
+<p>In Docker corpus mode, <code class="docutils literal notranslate"><span class="pre">/input</span></code> must contain one immediate child directory per
+dataset. Name each profile after its child directory and omit <code class="docutils literal notranslate"><span class="pre">dataset_dir</span></code>;
+the entrypoint sets <code class="docutils literal notranslate"><span class="pre">corpus_root</span></code> from <code class="docutils literal notranslate"><span class="pre">--input</span></code> and preserves these named
+profiles and dataset filters.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>/data/corpus/
+|-- WAND_Extracted/
+|-- SMN4Lang/
+`-- MEG-MASC/
+</pre></div>
+</div>
+<p>Example <code class="docutils literal notranslate"><span class="pre">corpus.config</span></code>:</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">includeConfig</span><span class="w"> </span><span class="s2">&quot;/program/nextflow/nextflow_for_docker.config&quot;</span>
+
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">dataset_include</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;WAND_Extracted&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;SMN4Lang&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;MEG-MASC&quot;</span><span class="o">]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">dataset_exclude</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[]</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">defaults</span><span class="o">.</span><span class="na">steps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;meg_ica&quot;</span>
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">defaults</span><span class="o">.</span><span class="na">meg_import</span><span class="o">.</span><span class="na">subject_id</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;first:10&quot;</span>
+
+<span class="n">params</span><span class="o">.</span><span class="na">megflow</span><span class="o">.</span><span class="na">datasets</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span>
+<span class="w">  </span><span class="nl">WAND_Extracted:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">meg_import:</span><span class="w"> </span><span class="o">[</span><span class="nl">session_id:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;01&quot;</span><span class="o">],</span><span class="w"> </span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;visual&quot;</span><span class="o">]],</span>
+<span class="w">    </span><span class="nl">megqc:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;ctf&quot;</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">artifacts:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;ctf&quot;</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;find_events&quot;</span><span class="o">,</span>
+<span class="w">      </span><span class="nl">find_events:</span><span class="w"> </span><span class="o">[</span><span class="nl">stim_channel:</span><span class="w"> </span><span class="s2">&quot;UPPT001&quot;</span><span class="o">],</span>
+<span class="w">      </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">1.0</span><span class="o">]</span>
+<span class="w">    </span><span class="o">]</span>
+<span class="w">  </span><span class="o">],</span>
+<span class="w">  </span><span class="nl">SMN4Lang:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">rank_policy:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg:</span><span class="w"> </span><span class="mi">50</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">meg_import:</span><span class="w"> </span><span class="o">[</span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;RDR&quot;</span><span class="o">],</span><span class="w"> </span><span class="nl">run_id:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;1&quot;</span><span class="o">]],</span>
+<span class="w">    </span><span class="nl">megqc:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;elekta&quot;</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">      </span><span class="nl">event_source:</span><span class="w"> </span><span class="s2">&quot;event_file&quot;</span><span class="o">,</span>
+<span class="w">      </span><span class="nl">event_time_shift_sec:</span><span class="w"> </span><span class="o">-</span><span class="mf">10.6105</span><span class="o">,</span>
+<span class="w">      </span><span class="nl">event_file:</span><span class="w"> </span><span class="o">[</span><span class="nl">trial_type:</span><span class="w"> </span><span class="o">[</span><span class="kt">char</span><span class="o">:</span><span class="w"> </span><span class="mi">1</span><span class="o">]],</span>
+<span class="w">      </span><span class="nl">epochs:</span><span class="w"> </span><span class="o">[</span><span class="nl">event_id:</span><span class="w"> </span><span class="mi">1</span><span class="o">,</span><span class="w"> </span><span class="nl">tmin:</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span><span class="o">,</span><span class="w"> </span><span class="nl">tmax:</span><span class="w"> </span><span class="mf">0.8</span><span class="o">]</span>
+<span class="w">    </span><span class="o">]</span>
+<span class="w">  </span><span class="o">],</span>
+<span class="w">  </span><span class="s2">&quot;MEG-MASC&quot;</span><span class="o">:</span><span class="w"> </span><span class="o">[</span>
+<span class="w">    </span><span class="nl">dataset_format:</span><span class="w"> </span><span class="s2">&quot;bids&quot;</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">file_suffix:</span><span class="w"> </span><span class="s2">&quot;.con&quot;</span><span class="o">,</span>
+<span class="w">    </span><span class="nl">meg_import:</span><span class="w"> </span><span class="o">[</span><span class="nl">session_id:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;0&quot;</span><span class="o">],</span><span class="w"> </span><span class="nl">task:</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;0&quot;</span><span class="o">]],</span>
+<span class="w">    </span><span class="nl">megqc:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;kit&quot;</span><span class="o">],</span>
+<span class="w">    </span><span class="nl">artifacts:</span><span class="w"> </span><span class="o">[</span><span class="nl">meg_vendor:</span><span class="w"> </span><span class="s2">&quot;kit&quot;</span><span class="o">,</span><span class="w"> </span><span class="nl">deepreject:</span><span class="w"> </span><span class="o">[</span><span class="nl">mode:</span><span class="w"> </span><span class="s2">&quot;lenient&quot;</span><span class="o">]]</span>
+<span class="w">  </span><span class="o">]</span>
+<span class="o">]</span>
+</pre></div>
+</div>
+<p>Run it with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus:/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus_megflow:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus_smri:/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus.config:/config/corpus.config:ro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cmrlab/megflow:1.0.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--config<span class="w"> </span>/config/corpus.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--input<span class="w"> </span>/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output<span class="w"> </span>/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--fs_subjects_dir<span class="w"> </span>/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--corpus<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--resume
+</pre></div>
+</div>
+<p>Omitting <code class="docutils literal notranslate"><span class="pre">--steps</span></code> keeps the stage policy from the config. Passing
+<code class="docutils literal notranslate"><span class="pre">--steps</span> <span class="pre">meg_ica</span></code> would change the shared corpus default while preserving any
+explicit dataset-level <code class="docutils literal notranslate"><span class="pre">steps</span></code> overrides.</p>
+<p><strong>Configuration reference:</strong> the <strong>Dataset Discovery</strong> section in
+<a class="reference internal" href="configuration_datasets.html"><span class="doc">Dataset and Stage Configuration</span></a> and <a class="reference internal" href="configuration_execution.html"><span class="doc">Execution and Resource Configuration</span></a>.</p>
+</section>
+<section id="runnable-three-dataset-source-demo">
+<span id="example-source-multi-dataset"></span><h2>Runnable Three-Dataset Source Demo<a class="headerlink" href="#runnable-three-dataset-source-demo" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">nextflow/nextflow_multi_dataset_demo.config</span></code> is the complete runnable
+example. It uses three named profiles with explicit paths:</p>
+<ul class="simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">WAND_visual</span></code> uses CTF settings, <code class="docutils literal notranslate"><span class="pre">UPPT001</span></code> trigger events, and a visual
+source label.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">SMN4Lang_RDR</span></code> uses Elekta settings, BIDS event-file mapping, a measured
+event-time correction, a dataset-level validated <code class="docutils literal notranslate"><span class="pre">[meg:</span> <span class="pre">50]</span></code> rank policy,
+and a language source label.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">MEG_MASC_word</span></code> uses KIT digitization sidecars, customized fine coregistration,
+word-event filtering, and lenient DeepReject segment post-processing.</p></li>
+</ul>
+<p>Edit only the path and subject-selection fields needed for the target server,
+then run:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>bash<span class="w"> </span>run_MultiDatasets_sourcecode.sh
+</pre></div>
+</div>
+<p>The source runner uses host Nextflow, derives the log and work paths from the
+configured <code class="docutils literal notranslate"><span class="pre">params.megflow.output_dir</span></code>, and defaults to
+<code class="docutils literal notranslate"><span class="pre">-profile</span> <span class="pre">local,strict</span> <span class="pre">-resume</span></code>. Useful overrides include:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">CONDA_ENV</span><span class="o">=</span>megflow<span class="w"> </span>bash<span class="w"> </span>run_MultiDatasets_sourcecode.sh
+<span class="nv">PROFILE</span><span class="o">=</span>slurm,strict<span class="w"> </span>bash<span class="w"> </span>run_MultiDatasets_sourcecode.sh
+<span class="nv">RESUME</span><span class="o">=</span><span class="nb">false</span><span class="w"> </span><span class="nv">DRY_RUN</span><span class="o">=</span><span class="nb">true</span><span class="w"> </span>bash<span class="w"> </span>run_MultiDatasets_sourcecode.sh
+</pre></div>
+</div>
+<p>Do not pass <code class="docutils literal notranslate"><span class="pre">--steps</span></code> to this source-mode command. Change
+<code class="docutils literal notranslate"><span class="pre">params.megflow.defaults.steps</span></code> or a named dataset profile’s <code class="docutils literal notranslate"><span class="pre">steps</span></code> in the
+demo config instead.</p>
+<p>The file also demonstrates process-specific <code class="docutils literal notranslate"><span class="pre">maxForks</span></code> limits. Adjust those
+limits according to available CPU, RAM, GPU, and storage throughput; they
+control concurrency but do not change scientific parameters.</p>
+<p><strong>Configuration reference:</strong> follow the ordered pages from
+<a class="reference internal" href="configuration_datasets.html"><span class="doc">Dataset and Stage Configuration</span></a> through <a class="reference internal" href="configuration_execution.html"><span class="doc">Execution and Resource Configuration</span></a>.</p>
+</section>
+<section id="cluster-execution">
+<span id="example-cluster-execution"></span><h2>Cluster Execution<a class="headerlink" href="#cluster-execution" title="Link to this heading">#</a></h2>
+<p>Dataset profiles are independent of the executor. Keep the same
+<code class="docutils literal notranslate"><span class="pre">params.megflow</span></code> content and launch with the composable Slurm and Singularity
+profiles:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>nextflow<span class="w"> </span>-log<span class="w"> </span><span class="s2">&quot;</span><span class="nv">$MEGFLOW_DRIVER_LOG</span><span class="s2">&quot;</span><span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-C<span class="w"> </span>nextflow/my_project.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>run<span class="w"> </span>nextflow/megflow.nf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-profile<span class="w"> </span>slurm,singularity,lenient<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-resume
+</pre></div>
+</div>
+<p>See <a class="reference internal" href="../tutorial/tutorial_cluster.html"><span class="doc">Cluster Execution</span></a> for filesystem, SIF, scheduler, and
+environment-variable requirements.</p>
+<p><strong>Configuration reference:</strong> <a class="reference internal" href="configuration_execution.html"><span class="doc">Execution and Resource Configuration</span></a>.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="examples_single_dataset.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Single-Dataset Configuration Examples</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="opm_conversion.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">OPM Data Conversion</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-specific-deepreject">Dataset-Specific DeepReject</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-specific-overrides">Recording-Specific Overrides</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#three-level-opm-cog-task-example">Three-Level OPM-COG Task Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-corpus-with-different-dataset-settings">Docker Corpus with Different Dataset Settings</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#runnable-three-dataset-source-demo">Runnable Three-Dataset Source Demo</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#cluster-execution">Cluster Execution</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By LiaoPan
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2025, LiaoPan.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -39,6 +39,11 @@ MNE_MEGNET_NATIVE_CLASSES = (
     "heart_beat",
     "eye_blink",
 )
+ICA_CATEGORY_DEFAULTS = {
+    "ecg": True,
+    "eog": True,
+    "outlier": False,
+}
 
 
 @dataclass
@@ -79,6 +84,28 @@ def unique_ints(values, max_value=None):
         if idx not in result:
             result.append(idx)
     return result
+
+
+def resolve_category_switches(config):
+    resolved = {}
+    for category, default in ICA_CATEGORY_DEFAULTS.items():
+        key = f"ic_{category}"
+        value = config.get(key, default)
+        if not isinstance(value, bool):
+            raise TypeError(f"{key} must be a boolean")
+        resolved[category] = value
+    return resolved
+
+
+def filter_category_indices(category_indices, categories, n_components=None):
+    return {
+        category: (
+            sorted(unique_ints(category_indices.get(category, []), n_components))
+            if categories[category]
+            else []
+        )
+        for category in ICA_CATEGORY_DEFAULTS
+    }
 
 
 def should_generate_labels(
@@ -185,6 +212,50 @@ def normalize_score_dict(scores_dict, n_components=None):
     return normalized
 
 
+def finalize_score_payload(
+    scores_dict,
+    *,
+    category_indices,
+    written_indices,
+    marked_output_mode,
+    n_components,
+):
+    normalized_categories = {
+        category: sorted(
+            unique_ints(category_indices.get(category, []), n_components)
+        )
+        for category in ICA_CATEGORY_DEFAULTS
+    }
+    payload = normalize_score_dict(scores_dict, n_components)
+    for category in ("ecg", "eog"):
+        score_by_index = dict(
+            zip(
+                payload.get(f"{category}_indices", []),
+                payload.get(category, []),
+            )
+        )
+        payload[f"{category}_indices"] = normalized_categories[category]
+        payload[category] = [
+            float(score_by_index.get(component_idx, 0.5))
+            for component_idx in normalized_categories[category]
+        ]
+    payload["outlier_indices"] = normalized_categories["outlier"]
+
+    auto_indices = sorted(
+        {
+            component_idx
+            for indices in normalized_categories.values()
+            for component_idx in indices
+        }
+    )
+    payload["marked_components"] = {
+        "mode": marked_output_mode,
+        "auto_indices": auto_indices,
+        "written_indices": sorted(unique_ints(written_indices, n_components)),
+    }
+    return payload
+
+
 def canonicalize_mne_megnet_probabilities(probabilities):
     probabilities = np.asarray(probabilities, dtype=np.float32)
     if probabilities.ndim != 2 or probabilities.shape[1] != 4:
@@ -229,6 +300,61 @@ def detector_outcome_from_probabilities(method_name, probabilities, metadata=Non
         "eog_indices": eog_indices,
         "metadata": dict(metadata or {}),
     }
+    return DetectorOutcome(
+        artifact_indices=artifact_indices,
+        ecg_indices=ecg_indices,
+        eog_indices=eog_indices,
+        probabilities=probabilities,
+        detail=detail,
+    )
+
+
+def filter_detector_outcome(outcome, categories):
+    ecg_indices = list(outcome.ecg_indices) if categories["ecg"] else []
+    eog_indices = list(outcome.eog_indices) if categories["eog"] else []
+    artifact_indices = sorted(set(ecg_indices + eog_indices))
+    labels = outcome.detail.get("labels", [])
+    probabilities = outcome.probabilities
+    detections = {}
+
+    for category, indices in (("ecg", ecg_indices), ("eog", eog_indices)):
+        category_detections = []
+        for component_idx in indices:
+            label = labels[component_idx]
+            class_idx = CANONICAL_MEGNET_CLASSES.index(label)
+            category_detections.append(
+                {
+                    "index": int(component_idx),
+                    "label": label,
+                    "score": float(probabilities[component_idx, class_idx]),
+                }
+            )
+        if category_detections:
+            detections[category] = category_detections
+
+    detail = {
+        key: value
+        for key, value in outcome.detail.items()
+        if key
+        not in {
+            "labels",
+            "probabilities",
+            "artifact_indices",
+            "ecg_indices",
+            "eog_indices",
+        }
+    }
+    detail.update(
+        {
+            "artifact_indices": artifact_indices,
+            "ecg_indices": ecg_indices,
+            "eog_indices": eog_indices,
+            "detections": detections,
+        }
+    )
+    if categories["ecg"] and categories["eog"]:
+        detail["labels"] = list(labels)
+        detail["probabilities"] = outcome.detail.get("probabilities", [])
     return DetectorOutcome(
         artifact_indices=artifact_indices,
         ecg_indices=ecg_indices,
@@ -316,19 +442,29 @@ def run_configured_megnet_detectors(
     mne_predictor=None,
     retrained_predictor=None,
 ):
+    categories = resolve_category_switches(config)
+    if not categories["ecg"] and not categories["eog"]:
+        return {}
+
     outcomes = {}
     if config.get("mne_icalabel", True):
-        outcomes["mne_icalabel"] = run_mne_megnet_detector(
-            raw,
-            ica,
-            predictor=mne_predictor,
+        outcomes["mne_icalabel"] = filter_detector_outcome(
+            run_mne_megnet_detector(
+                raw,
+                ica,
+                predictor=mne_predictor,
+            ),
+            categories,
         )
     if _retrained_enabled(config):
-        outcomes["megnet_retrained"] = run_retrained_detector(
-            raw,
-            ica,
-            ica_sources_file=ica_sources_file,
-            predictor=retrained_predictor,
+        outcomes["megnet_retrained"] = filter_detector_outcome(
+            run_retrained_detector(
+                raw,
+                ica,
+                ica_sources_file=ica_sources_file,
+                predictor=retrained_predictor,
+            ),
+            categories,
         )
     return outcomes
 
@@ -356,33 +492,23 @@ def merge_detector_scores(scores_dict, outcome):
 def collect_exclude_indices(
     config,
     n_components,
-    mne_icalabel_artifacts=None,
-    megnet_retrained_artifacts=None,
-    mne_artifacts=None,
-    rules_artifacts=None,
     ic_ecg=None,
     ic_eog=None,
     ic_outlier=None,
 ):
+    categories = resolve_category_switches(config)
+    filtered = filter_category_indices(
+        {
+            "ecg": ic_ecg,
+            "eog": ic_eog,
+            "outlier": ic_outlier,
+        },
+        categories,
+        n_components,
+    )
     exclude_idx = []
-
-    if config.get('mne_icalabel', True):
-        exclude_idx.extend(mne_icalabel_artifacts or [])
-    if _retrained_enabled(config):
-        exclude_idx.extend(megnet_retrained_artifacts or [])
-    if config.get('mne_algorithm', True):
-        exclude_idx.extend(mne_artifacts or [])
-    if config.get('rules_algorithm', True):
-        exclude_idx.extend(rules_artifacts or [])
-
-    # Keep category switches as additive compatibility for existing configs.
-    if config.get('ic_ecg'):
-        exclude_idx.extend(ic_ecg or [])
-    if config.get('ic_eog'):
-        exclude_idx.extend(ic_eog or [])
-    if config.get('ic_outlier'):
-        exclude_idx.extend(ic_outlier or [])
-
+    for indices in filtered.values():
+        exclude_idx.extend(indices)
     return sorted(unique_ints(exclude_idx, n_components))
 
 
@@ -448,6 +574,7 @@ def main():
 
     # Parse YAML configuration
     config = yaml.safe_load(args.config) or {}
+    categories = resolve_category_switches(config)
 
 
     mne_ic_labels = {'y_pred_proba': [], 'labels': [], 'index': []}
@@ -477,11 +604,13 @@ def main():
         ic_ecg = []
         ic_eog = []
         ic_outlier = []
-        mne_icalabel_artifacts = []
-        megnet_retrained_artifacts = []
-        mne_artifacts = []
-        rules_artifacts = []
-        scores_dict = {'ecg': [], 'ecg_indices': [], 'eog': [], 'eog_indices': []}
+        scores_dict = {
+            'ecg': [],
+            'ecg_indices': [],
+            'eog': [],
+            'eog_indices': [],
+            'outlier_indices': [],
+        }
         scores_dict = defaultdict(list, scores_dict)
         # Load the ICA file
         ica = mne.preprocessing.read_ica(args.ica_file)
@@ -490,72 +619,72 @@ def main():
         if config.get('mne_algorithm',True):
             # mne-python
             # find which ICs match the EOG pattern
-            try:
-                # check eog flat.
-                if config["find_bads_eog"]['ch_name'] is not None:
-                    for ref_ch_name in config["find_bads_eog"]['ch_name']:
-                        logging.info("EOG Ref Channel " + ref_ch_name + "")
-                        config["find_bads_eog"]['ch_name'] = ref_ch_name
-                        print("EOG Ref Channel: " + ref_ch_name + "")
-                        print("Measure Methods:",config["find_bads_eog"]['measure'])
-                        print("Reference Channel Name: ",config["find_bads_eog"]['ch_name'])
-                        eog_signal = raw.copy().pick(ref_ch_name).get_data()
-                        flat_ratio = calculate_flat_ratio(eog_signal)
-                        logging.info("The flat ratio of eog signal:",flat_ratio)
-                        if flat_ratio > 0.1:
-                            config["find_bads_eog"]['ch_name'] = None
+            if categories["eog"]:
+                try:
+                    # check eog flat.
+                    if config["find_bads_eog"]['ch_name'] is not None:
+                        for ref_ch_name in config["find_bads_eog"]['ch_name']:
+                            logging.info("EOG Ref Channel " + ref_ch_name + "")
+                            config["find_bads_eog"]['ch_name'] = ref_ch_name
+                            print("EOG Ref Channel: " + ref_ch_name + "")
+                            print("Measure Methods:",config["find_bads_eog"]['measure'])
+                            print("Reference Channel Name: ",config["find_bads_eog"]['ch_name'])
+                            eog_signal = raw.copy().pick(ref_ch_name).get_data()
+                            flat_ratio = calculate_flat_ratio(eog_signal)
+                            logging.info("The flat ratio of eog signal:",flat_ratio)
+                            if flat_ratio > 0.1:
+                                config["find_bads_eog"]['ch_name'] = None
 
-                        eog_indices, eog_scores = ica.find_bads_eog(raw,**config.get("find_bads_eog", {}))
-                        logging.info("EOG indices:{}, {}".format(eog_indices,eog_scores))
-                        print(f"EOG indices({ref_ch_name}):{eog_indices}_eog_scores:{eog_scores}")
-                        mne_ic_labels['index'].extend(eog_indices)
-                        mne_ic_labels['labels'].extend(['EOG']*len(eog_indices))
-                        mne_ic_labels['y_pred_proba'].extend(eog_scores[eog_indices])
-                        ic_eog.extend(eog_indices)
-                        mne_artifacts.extend(eog_indices)
-                        for component_idx in eog_indices:
-                            append_component_score(scores_dict, "eog", component_idx, eog_scores[component_idx])
-            except Exception as e:
-                logging.error(f"[MNE-Python] Error:{e}")
+                            eog_indices, eog_scores = ica.find_bads_eog(raw,**config.get("find_bads_eog", {}))
+                            logging.info("EOG indices:{}, {}".format(eog_indices,eog_scores))
+                            print(f"EOG indices({ref_ch_name}):{eog_indices}_eog_scores:{eog_scores}")
+                            mne_ic_labels['index'].extend(eog_indices)
+                            mne_ic_labels['labels'].extend(['EOG']*len(eog_indices))
+                            mne_ic_labels['y_pred_proba'].extend(eog_scores[eog_indices])
+                            ic_eog.extend(eog_indices)
+                            for component_idx in eog_indices:
+                                append_component_score(scores_dict, "eog", component_idx, eog_scores[component_idx])
+                except Exception as e:
+                    logging.error(f"[MNE-Python] Error:{e}")
 
             ic_eog = list(set(ic_eog))
             print(f"[MNE-Python]ic_eog:{ic_eog}")
             # find which ICs match the ECG pattern
-            try:
-                # check ecg flat.
-                if config["find_bads_ecg"]['ch_name'] is not None:
-                    ecg_signal = raw.copy().pick(config["find_bads_ecg"]['ch_name']).get_data()
-                    flat_ratio = calculate_flat_ratio(ecg_signal)
-                    print("The flat ratio of ecg signal:", flat_ratio)
-                    if flat_ratio > 0.1:
-                        config["find_bads_ecg"]['ch_name'] = None
-                ecg_indices, ecg_scores = ica.find_bads_ecg(raw, **config.get("find_bads_ecg", {}))
-                print("ECG indices:", ecg_indices,ecg_scores)
-                mne_ic_labels['index'].extend(ecg_indices)
-                mne_ic_labels['labels'].extend(['ECG'] * len(ecg_indices))
-                mne_ic_labels['y_pred_proba'].extend(ecg_scores[ecg_indices])
-                ic_ecg.extend(ecg_indices)
-                mne_artifacts.extend(ecg_indices)
-                for component_idx in ecg_indices:
-                    append_component_score(scores_dict, "ecg", component_idx, ecg_scores[component_idx])
-            except Exception as e:
-                logging.error(e)
+            if categories["ecg"]:
+                try:
+                    # check ecg flat.
+                    if config["find_bads_ecg"]['ch_name'] is not None:
+                        ecg_signal = raw.copy().pick(config["find_bads_ecg"]['ch_name']).get_data()
+                        flat_ratio = calculate_flat_ratio(ecg_signal)
+                        print("The flat ratio of ecg signal:", flat_ratio)
+                        if flat_ratio > 0.1:
+                            config["find_bads_ecg"]['ch_name'] = None
+                    ecg_indices, ecg_scores = ica.find_bads_ecg(raw, **config.get("find_bads_ecg", {}))
+                    print("ECG indices:", ecg_indices,ecg_scores)
+                    mne_ic_labels['index'].extend(ecg_indices)
+                    mne_ic_labels['labels'].extend(['ECG'] * len(ecg_indices))
+                    mne_ic_labels['y_pred_proba'].extend(ecg_scores[ecg_indices])
+                    ic_ecg.extend(ecg_indices)
+                    for component_idx in ecg_indices:
+                        append_component_score(scores_dict, "ecg", component_idx, ecg_scores[component_idx])
+                except Exception as e:
+                    logging.error(e)
 
-            try:
-                # Muscle-related ICs
-                muscle_indices, muscle_scores = ica.find_bads_muscle(raw,**config.get("find_bads_muscle", {}))
-                print("Muscle indices:", muscle_indices,muscle_scores)
-                mne_ic_labels['index'].extend(muscle_indices)
-                mne_ic_labels['labels'].extend(['MUSCLE'] * len(muscle_indices))
-                mne_ic_labels['y_pred_proba'].extend(muscle_scores[muscle_indices])
-                ic_outlier.extend(muscle_indices)
-                mne_artifacts.extend(muscle_indices)
-            except RuntimeError as e:
-                logging.error(e)
+            if categories["outlier"]:
+                try:
+                    # Muscle-related ICs
+                    muscle_indices, muscle_scores = ica.find_bads_muscle(raw,**config.get("find_bads_muscle", {}))
+                    print("Muscle indices:", muscle_indices,muscle_scores)
+                    mne_ic_labels['index'].extend(muscle_indices)
+                    mne_ic_labels['labels'].extend(['MUSCLE'] * len(muscle_indices))
+                    mne_ic_labels['y_pred_proba'].extend(muscle_scores[muscle_indices])
+                    ic_outlier.extend(muscle_indices)
+                except RuntimeError as e:
+                    logging.error(e)
 
             print("mne_ic_labels:",mne_ic_labels)
 
-        if config.get("rules_algorithm",True):
+        if config.get("rules_algorithm",True) and any(categories.values()):
             print("#"*50,"[ICA_classify]","#"*50)
             # ICA_classify[custom]
             marked_ics = []
@@ -566,24 +695,32 @@ def main():
                 ica_source_file = ica_root_dir / "ica_sources.fif"
                 explained_var_file = ica_root_dir / "ica_explained_var.jl"
                 ica_classify_config = dict(config.get("ICA_classify",{}) or {})
-                ica_classify_config["collect_outlier_rules"] = bool(config.get("ic_outlier"))
+                ica_classify_config.update({
+                    "collect_ecg_rules": categories["ecg"],
+                    "collect_eog_rules": categories["eog"],
+                    "collect_outlier_rules": categories["outlier"],
+                })
                 marked_ics,marked_ics_dict = classify_ics(ica_source_file,ica_fit_file,explained_var_file,ica_classify_config)
-                # double check.
-                rule_ecg = unique_ints(marked_ics_dict.get('ic_ecg', []), n_components)
-                rule_eog = unique_ints(marked_ics_dict.get('ic_eog', []), n_components)
-                rule_outlier = unique_ints(marked_ics_dict.get('ic_outlier', []), n_components)
+                rule_categories = filter_category_indices(
+                    {
+                        "ecg": marked_ics_dict.get('ic_ecg', []),
+                        "eog": marked_ics_dict.get('ic_eog', []),
+                        "outlier": marked_ics_dict.get('ic_outlier', []),
+                    },
+                    categories,
+                    n_components,
+                )
+                rule_ecg = rule_categories["ecg"]
+                rule_eog = rule_categories["eog"]
+                rule_outlier = rule_categories["outlier"]
                 ic_ecg.extend(rule_ecg)
                 ic_eog.extend(rule_eog)
                 ic_outlier.extend(rule_outlier)
-                rules_artifacts.extend(rule_ecg)
-                rules_artifacts.extend(rule_eog)
-                rules_artifacts.extend(rule_outlier)
                 for component_idx in rule_ecg:
                     append_component_score(scores_dict, "ecg", component_idx, 0.5)  # rule-based score placeholder
                 for component_idx in rule_eog:
                     append_component_score(scores_dict, "eog", component_idx, 0.5)  # rule-based score placeholder
-                if config.get("ic_outlier"):
-                    scores_dict['ic_outlier'].extend(rule_outlier)
+                scores_dict['outlier_indices'].extend(rule_outlier)
 
                 print("ic_ecg:",ic_ecg)
                 print("ic_eog:",ic_eog)
@@ -613,26 +750,27 @@ def main():
             merge_detector_scores(scores_dict, outcome)
             ic_ecg.extend(outcome.ecg_indices)
             ic_eog.extend(outcome.eog_indices)
-            if method_name == "mne_icalabel":
-                mne_icalabel_artifacts.extend(outcome.artifact_indices)
-            elif method_name == "megnet_retrained":
-                megnet_retrained_artifacts.extend(outcome.artifact_indices)
             print(
                 f"[{method_name}] Component labels: {outcome.artifact_indices} "
                 f"(status={outcome.detail['status']})"
             )
 
         # marked artifact IC
+        category_indices = filter_category_indices(
+            {
+                "ecg": ic_ecg,
+                "eog": ic_eog,
+                "outlier": ic_outlier,
+            },
+            categories,
+            n_components,
+        )
         exclude_idx = collect_exclude_indices(
             config,
             n_components,
-            mne_icalabel_artifacts=mne_icalabel_artifacts,
-            megnet_retrained_artifacts=megnet_retrained_artifacts,
-            mne_artifacts=mne_artifacts,
-            rules_artifacts=rules_artifacts,
-            ic_ecg=ic_ecg,
-            ic_eog=ic_eog,
-            ic_outlier=ic_outlier,
+            ic_ecg=category_indices["ecg"],
+            ic_eog=category_indices["eog"],
+            ic_outlier=category_indices["outlier"],
         )
         print(f"run_ica_label - Exclude ICs:{exclude_idx}")
 
@@ -643,12 +781,13 @@ def main():
             overwrite_existing=args.overwrite_existing,
             refresh_existing=args.refresh_existing,
         )
-        scores_dict = normalize_score_dict(scores_dict, n_components)
-        scores_dict["marked_components"] = {
-            "mode": marked_output_mode,
-            "auto_indices": exclude_idx,
-            "written_indices": written_indices,
-        }
+        scores_dict = finalize_score_payload(
+            scores_dict,
+            category_indices=category_indices,
+            written_indices=written_indices,
+            marked_output_mode=marked_output_mode,
+            n_components=n_components,
+        )
         temporary_scores_file = f"{scores_output_file}.tmp"
         with open(temporary_scores_file, "w", encoding="utf-8") as handle:
             json.dump(scores_dict, handle, ensure_ascii=False, indent=4)

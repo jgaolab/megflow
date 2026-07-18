@@ -5,10 +5,13 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   nextflow-routing:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -57,8 +60,8 @@ jobs:
       - name: Run real MNE and OSL scientific contracts
         run: bash scripts/validation/run_validation.sh scientific
 
-  documentation:
-    runs-on: ubuntu-latest
+  windows-installer:
+    runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
@@ -67,8 +70,23 @@ jobs:
         with:
           python-version: "3.11"
 
+      - name: Parse the Windows installer with PowerShell
+        run: python scripts/validation/validate_windows_installer.py
+
+  documentation:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
       - name: Install documentation dependencies
-        run: python -m pip install -r requirements_doc.txt
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements_doc.txt
 
       - name: Build documentation with warnings as errors
         run: sphinx-build -W --keep-going -b html docs/source docs/build/html

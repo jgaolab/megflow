@@ -5,6 +5,9 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 NEXTFLOW_FILE = ROOT / "nextflow" / "megflow.nf"
+ICA_CONFIG_DOC = ROOT / "docs" / "source" / "reference" / "configuration_preprocessing.rst"
+PIPELINE_DOC = ROOT / "docs" / "source" / "details" / "pipeline_details.rst"
+OUTPUTS_DOC = ROOT / "docs" / "source" / "tutorial" / "outputs.rst"
 TRACKED_DEFAULT_CONFIGS = (
     ROOT / "nextflow" / "nextflow.config",
     ROOT / "nextflow" / "nextflow_corpus.config",
@@ -34,6 +37,34 @@ class MegnetConfigMigrationTests(unittest.TestCase):
                 self.assertRegex(source, r"(?m)^\s*megnet_retrained:\s*false,")
                 self.assertNotRegex(source, r"megnet_retrained\.enabled")
                 self.assertNotRegex(source, r"(?m)^\s*ica_label:\s*")
+
+    def test_multi_dataset_demo_all_false_categories_mean_no_auto_selection(self):
+        source = (
+            ROOT / "nextflow" / "nextflow_multi_dataset_demo.config"
+        ).read_text(encoding="utf-8")
+        for category in ("ecg", "eog", "outlier"):
+            self.assertRegex(source, rf"(?m)^\s*ic_{category}:\s*false,")
+
+
+class IcaCategoryDocumentationContractTests(unittest.TestCase):
+    def test_configuration_documents_category_master_switches(self):
+        source = ICA_CONFIG_DOC.read_text(encoding="utf-8")
+
+        self.assertIn("category master switches", source.lower())
+        self.assertNotIn(
+            "Additive category switches retained for compatibility",
+            source,
+        )
+        self.assertIn("outlier_indices", source)
+        self.assertIn("no automatic ICA exclusions", source)
+
+    def test_pipeline_and_output_pages_document_json_text_consistency(self):
+        pipeline = PIPELINE_DOC.read_text(encoding="utf-8")
+        outputs = OUTPUTS_DOC.read_text(encoding="utf-8")
+
+        self.assertIn("written_indices", pipeline)
+        self.assertIn("outlier_indices", outputs)
+        self.assertIn("marked_components.txt", outputs)
 
 
 class MegnetNextflowContractTests(unittest.TestCase):

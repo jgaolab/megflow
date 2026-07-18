@@ -20,7 +20,9 @@ MEGQC_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_megqc.config"
 PROFILE_INTEGRATION_TEST = REPO_ROOT / "tests" / "test_nextflow_profile_integration.py"
 VALIDATION_RUNNER = REPO_ROOT / "scripts" / "validation" / "run_validation.sh"
 VALIDATION_UNITTEST_GATE = REPO_ROOT / "scripts" / "validation" / "run_unittest_gate.py"
+WINDOWS_INSTALL_VALIDATOR = REPO_ROOT / "scripts" / "validation" / "validate_windows_installer.py"
 VALIDATION_REQUIREMENTS = REPO_ROOT / "requirements_validation.txt"
+DOCUMENTATION_REQUIREMENTS = REPO_ROOT / "requirements_doc.txt"
 VALIDATION_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "validation.yml"
 DATASET_CONFIGS = (
     REPO_ROOT / "nextflow" / "nextflow_for_holmes.config",
@@ -73,9 +75,15 @@ class NextflowExecutionConfigTests(unittest.TestCase):
             self.assertIn(f"{mode})", runner)
         self.assertIn("MEGFLOW_NEXTFLOW", runner)
         self.assertIn("command -v python3", runner)
+        self.assertIn(
+            '${ROOT_DIR}:${ROOT_DIR}/megflow:${ROOT_DIR}/tests',
+            runner,
+        )
         self.assertIn("test_nextflow_profile_integration", runner)
         self.assertIn("test_validation_runner", runner)
         self.assertIn("test_mne_config_contract", runner)
+        self.assertIn("sphinx_autodoc_typehints", runner)
+        self.assertIn("install requirements_doc.txt", runner)
         unittest_gate = VALIDATION_UNITTEST_GATE.read_text(encoding="utf-8")
         self.assertIn("Unexpected skipped tests", unittest_gate)
 
@@ -83,6 +91,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         for pinned_dependency in (
             "h5py==3.12.1",
             "scikit-learn==1.6.1",
+            "sleepecg==0.5.5",
             "Sphinx==7.3.7",
         ):
             self.assertIn(pinned_dependency, requirements)
@@ -96,6 +105,50 @@ class NextflowExecutionConfigTests(unittest.TestCase):
             "python -m pip install --no-deps -e ./megflow/tools/osl-ephys",
             workflow,
         )
+
+    def test_validation_gates_cover_every_test_module_and_windows_parser(self):
+        runner = VALIDATION_RUNNER.read_text(encoding="utf-8")
+        test_modules = {
+            path.stem
+            for path in (REPO_ROOT / "tests").glob("test_*.py")
+        }
+        omitted = sorted(module for module in test_modules if module not in runner)
+        self.assertEqual(omitted, [])
+
+        self.assertTrue(WINDOWS_INSTALL_VALIDATOR.is_file())
+        workflow = VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertIn("runs-on: windows-latest", workflow)
+        self.assertIn("validate_windows_installer.py", workflow)
+
+    def test_documentation_job_uses_a_minimal_pinned_environment(self):
+        requirements = [
+            line.strip()
+            for line in DOCUMENTATION_REQUIREMENTS.read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.lstrip().startswith("#")
+        ]
+        self.assertEqual(
+            requirements,
+            [
+                "Jinja2==3.1.3",
+                "pydata-sphinx-theme==0.15.4",
+                "Sphinx==7.3.7",
+                "sphinx-autodoc-typehints==2.3.0",
+                "sphinx-book-theme==1.1.4",
+                "sphinx-click==6.0.0",
+                "sphinx-copybutton==0.5.2",
+                "sphinx_design==0.6.1",
+            ],
+        )
+
+        workflow = VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        self.assertGreaterEqual(
+            workflow.count("python -m pip install --upgrade pip"),
+            2,
+        )
+        routing_job = workflow.split("  nextflow-routing:", 1)[1].split(
+            "  scientific-contracts:", 1
+        )[0]
+        self.assertIn("timeout-minutes: 30", routing_job)
 
     def test_every_process_selector_matches_current_pipeline(self):
         names = process_names()

@@ -10,16 +10,27 @@ The original MNE-ICALabel MEGNet and this retrained model are independent:
 
 ```groovy
 ic_label: [
+    ic_ecg: true,
+    ic_eog: true,
+    ic_outlier: false,
     mne_icalabel: true,
     megnet_retrained: false
 ]
 ```
 
-Both may be enabled. Successful artifact predictions contribute to the union
-written to `marked_components.txt`. ECG and EOG summary scores are merged into
-`ecg_eog_scores.json`; duplicate method/component assignments retain the
-maximum score, while `methods` preserves each model's labels and complete
-four-class probabilities.
+Both may be enabled. The method switches select models; `ic_ecg` and `ic_eog`
+are master category gates shared with the MNE and rule-based detectors. A model
+prediction contributes to `marked_components.txt` only when its category gate
+is enabled. If both gates are false, MEGNet inference is skipped. If one is
+false, detections from that class are omitted from both the JSON and text
+outputs and are not reassigned using another class probability.
+
+ECG and EOG summary scores are merged into `ecg_eog_scores.json`; duplicate
+method/component assignments retain the maximum score. Complete four-class
+labels and probabilities remain available under `methods` when both model
+categories are enabled. With either category disabled, method details contain
+only enabled-category detections so the JSON and final marked list remain
+consistent.
 
 The former `ica_label` key is not a compatibility alias. Use `mne_icalabel`.
 `megnet_retrained` is a Boolean switch; the former `[enabled: ...]` mapping
