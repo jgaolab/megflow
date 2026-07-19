@@ -165,6 +165,11 @@ Command-line options map as follows:
      - ``datasets.docker_input.steps`` or ``defaults.steps``
      - Single mode overrides ``docker_input``. Corpus mode changes the shared
        default while preserving explicit dataset-level ``steps`` overrides.
+   * - ``--anat-method``
+     - ``datasets.docker_input.anatomy.method`` or ``defaults.anatomy.method``
+     - Accepts ``freesurfer``, ``deepprep``, or ``pseudomri``. Single mode
+       overrides ``docker_input``. Corpus mode changes the shared default while
+       preserving explicit dataset-level methods.
    * - ``--corpus``
      - ``params.megflow.corpus_root``
      - Treats immediate input children as datasets and writes isolated outputs
@@ -188,8 +193,8 @@ Command-line options map as follows:
      - Report viewer mode
      - Starts Streamlit without launching preprocessing.
 
-Processing and report policy is intentionally not exposed through the Docker
-entrypoint. Configure ``anatomy.method``, ``anatomy.t1_input_type``,
+Other processing and report policy is intentionally not exposed through the
+Docker entrypoint. Configure ``anatomy.t1_input_type``,
 ``anatomy.t1_dicom_series_glob``, ``report.static_task_log_mode``, and
 ``report.static_artifact_overview_duration`` in ``params.megflow.defaults`` or
 the matching dataset profile. MEGFlow validates the effective values after

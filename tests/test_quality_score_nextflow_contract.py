@@ -1,3 +1,4 @@
+import unittest
 from pathlib import Path
 
 
@@ -13,20 +14,27 @@ def quality_process_text() -> str:
     )[0]
 
 
-def test_quality_process_stages_canonical_public_names():
-    process_text = quality_process_text()
+class QualityScoreNextflowContractTests(unittest.TestCase):
+    def test_quality_process_stages_canonical_public_names(self):
+        process_text = quality_process_text()
 
-    for suffix in (
-        "summary.json",
-        "component_scores.csv",
-        "normative_quality_score.png",
-    ):
-        assert f"${{qc_output_stem}}.{suffix}" in process_text
-        assert f"${{qc_output_stem}}.${{qc_model}}.{suffix}" not in process_text
+        for suffix in (
+            "summary.json",
+            "component_scores.csv",
+            "normative_quality_score.png",
+        ):
+            self.assertIn(f"${{qc_output_stem}}.{suffix}", process_text)
+            self.assertNotIn(
+                f"${{qc_output_stem}}.${{qc_model}}.{suffix}",
+                process_text,
+            )
+
+    def test_quality_profile_is_used_only_as_a_runtime_argument(self):
+        process_text = quality_process_text()
+
+        self.assertIn('--model "${cfgText(megqc_config,', process_text)
+        self.assertNotIn("qc_model =", process_text)
 
 
-def test_quality_profile_is_used_only_as_a_runtime_argument():
-    process_text = quality_process_text()
-
-    assert '--model "${cfgText(megqc_config,' in process_text
-    assert "qc_model =" not in process_text
+if __name__ == "__main__":
+    unittest.main()

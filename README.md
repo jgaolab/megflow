@@ -442,6 +442,7 @@ complete list and FreeSurfer license mount example.
 The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.sh) (installed in the container as `/program/nextflow/run.sh`). **Step selection uses the same values** as in the [Pipeline steps](#pipeline-steps) table above.
 
 - **After the image name**, pass **`-s`** / **`--steps`**. The entrypoint writes this into the runtime `params.megflow` profile. If you omit it, the workflow uses **`params.megflow.defaults.steps`** from the config.
+- Pass **`--anat-method deepprep`** after the image name to select the anatomy implementation for one run. Valid values are `freesurfer`, `deepprep`, and `pseudomri`; omitting it preserves the configured `anatomy.method`.
 - **Modifiers** that contain commas must be **quoted for the shell**, e.g. `--steps 'meg_epochs,skip_ica'`.
 - **Corpus mode** uses `--corpus`; in that mode `-i` / `--input` points to a directory whose immediate children are datasets, and `--fs_subjects_dir` is used as the base directory for per-dataset FreeSurfer outputs. Named profiles, `dataset_include`, `dataset_exclude`, and dataset-level module overrides from the mounted config are preserved.
 - You can instead set **`params.megflow.defaults.steps = '...'`** inside the Nextflow file you mount at **`/program/nextflow/nextflow.config`**; a container **`--steps`** / **`-s`** argument **overrides** that for the run.
@@ -455,6 +456,12 @@ The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.s
 **Docker output ownership**
 
 You do **not** need to add Docker's `--user` flag or pre-create the output directory. If the host output path does not exist, Docker may create it as `root:root` before the container starts; MEGFlow fixes that at startup, then runs the pipeline as the host user inferred from `/input`. For interactive report runs such as `docker run ... -v /data/preprocessed:/output cplmeg/megflow:<version> -r`, ownership is inferred from `/output`. Outputs should therefore be writable by the submitting user, not owned by root.
+
+Pre-create every other writable bind-mount source as the submitting user,
+especially the structural directory used by `-v /data/smri:/smri`. Docker may
+otherwise create a missing host path as `root:root`, leaving `/smri` unwritable
+after MEGFlow drops privileges. Before anatomy or source processing, run
+`mkdir -p /data/smri` and confirm `test -w /data/smri` succeeds.
 
 Nextflow's `docker.runOptions = '-u $(id -u):$(id -g)'` syntax is valid when a
 host Nextflow process launches a separate Docker container for each task. It is
@@ -508,6 +515,7 @@ docker run --rm -it \
 | `-i`, `--input` | Specify the input directory |
 | `-o`, `--output` | Specify the output directory (including report results) |
 | `-s`, `--steps` | Sets the runtime `params.megflow` steps value (e.g. `all`, `meg_all`, `anatomy`, `report`). With **Docker**, pass this **after the image name**; see [Using pipeline steps with Docker](#using-pipeline-steps-with-docker). Same semantics as [Pipeline steps](#pipeline-steps). |
+| `--anat-method` | Sets the runtime anatomy method to `freesurfer`, `deepprep`, or `pseudomri`. Single-dataset mode overrides `docker_input`; corpus mode changes the shared default while preserving explicit named-dataset methods. |
 | `-r`, `--view-report` | Run Streamlit to view the report (does not run Nextflow) |
 | `--corpus` | Treat the input directory as a collection of datasets, preserve matching named dataset profiles, run each selected child through the native dataset tuple DAG, and generate a corpus-level static report |
 | `--fs_license_file` | Specify the FreeSurfer license file path |
@@ -515,9 +523,9 @@ docker run --rm -it \
 | `--t1_dir` | Specify the T1 image directory |
 | `--resume` | Resume the previous run (Nextflow option) |
 
-Processing and report policy is configured in `params.megflow`, not exposed as
-Docker entrypoint flags. This includes `anatomy.method`,
-`anatomy.t1_input_type`, `anatomy.t1_dicom_series_glob`,
+Other processing and report policy is configured in `params.megflow`, not
+exposed as Docker entrypoint flags. This includes `anatomy.t1_input_type`,
+`anatomy.t1_dicom_series_glob`,
 `report.static_task_log_mode`, and
 `report.static_artifact_overview_duration`. Put shared values under
 `params.megflow.defaults` and dataset-specific values under the matching

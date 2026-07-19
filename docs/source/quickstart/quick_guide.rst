@@ -65,6 +65,24 @@ The same rule applies to output: the host output directory is mounted as the
 container alias ``/output``. MEGFlow's ``-i /input`` and ``-o /output`` then
 refer to those aliases, not directly to the host paths.
 
+Create writable host-side directories **before** ``docker run``. If a bind-mount
+source does not exist, Docker may create it as ``root:root``; after MEGFlow
+drops to the dataset owner's user ID, a structural workflow can then fail while
+creating a subject under ``/smri``. For a run that mounts both output and
+anatomy directories, prepare and check them with:
+
+.. code-block:: bash
+
+   mkdir -p /path/to/output /path/to/smri
+   test -w /path/to/output
+   test -w /path/to/smri
+
+The first ICA command below does not mount anatomy, so only
+``/path/to/output`` is needed. Create ``/path/to/smri`` before later adding
+``-v /path/to/smri:/smri`` for anatomy or source-level processing. If a
+directory already exists but ``test -w`` fails, correct its host ownership or
+permissions before starting the container.
+
 Run One Command
 ---------------
 

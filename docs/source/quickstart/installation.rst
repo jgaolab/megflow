@@ -122,6 +122,21 @@ from ``/input`` before running Nextflow. Report-only runs that only mount
 appropriate, pass ``-e LOCAL_UID="$(id -u)" -e LOCAL_GID="$(id -g)"`` to choose
 the output owner explicitly.
 
+Before binding writable host directories, create them as the user who will run
+MEGFlow. This is especially important for the structural ``/smri`` mount:
+
+.. code-block:: bash
+
+   mkdir -p /data/out /data/smri
+   test -w /data/out
+   test -w /data/smri
+
+If a bind-mount source is missing, Docker may create the host directory as
+``root:root``. MEGFlow prepares the ``/output`` mount at startup, but a
+root-owned ``/smri`` can remain unwritable after the container drops to the
+host UID/GID and cause anatomy processing to fail. Correct host ownership or
+permissions before rerunning if either write check fails.
+
 .. code-block:: text
 
    Usage: /program/nextflow/run.sh [options]
@@ -130,6 +145,7 @@ the output owner explicitly.
      -i, --input           MEG dataset or corpus input directory
      -o, --output          MEGFlow output directory
      -s, --steps           Pipeline stage override, for example all or meg_all
+     --anat-method         Anatomy method: freesurfer, deepprep, or pseudomri
      -r, --view-report     Run Streamlit to view the report and do not run Nextflow
      --corpus              Process immediate input children as separate datasets
      --fs_license_file     FreeSurfer license path inside the container
@@ -142,6 +158,11 @@ Common ``--steps`` values are ``meg_all`` for full MEG processing with existing
 anatomy, ``all`` for anatomy plus full MEG, ``anatomy`` for structural MRI only,
 and ``report`` for static report regeneration. See
 :doc:`../reference/configuration` for all modes and modifiers.
+Use ``--anat-method deepprep`` to override the configured structural method for
+one Docker run. The accepted values are ``freesurfer``, ``deepprep``, and
+``pseudomri``. When the option is omitted, the configured ``anatomy.method``
+remains effective. In corpus mode the option changes the shared default while
+an explicit method in a named dataset profile remains authoritative.
 The entrypoint maps ``--fs_license_file`` into the effective
 ``anatomy.fs_license_file`` setting. In ``--corpus`` mode it also preserves
 named dataset profiles from the mounted config, including dataset-specific
@@ -153,9 +174,9 @@ the configured value and MEGFlow ultimately falls back to the dataset input
 directory. ``--t1_dir`` is rejected with ``--corpus`` because each corpus
 dataset can have a different MRI root; set ``t1_dir`` in each named profile.
 
-Scientific and report behavior is configured only in ``params.megflow``.
-Set ``anatomy.method``, ``anatomy.t1_input_type``,
-``anatomy.t1_dicom_series_glob``, ``report.static_task_log_mode``, and
+Other scientific and report behavior is configured only in ``params.megflow``.
+Set ``anatomy.t1_input_type``, ``anatomy.t1_dicom_series_glob``,
+``report.static_task_log_mode``, and
 ``report.static_artifact_overview_duration`` under shared defaults or the
 matching dataset profile. This keeps the effective values reviewable in the
 saved runtime config and allows heterogeneous corpus datasets to differ.

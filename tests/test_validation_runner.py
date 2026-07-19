@@ -1,3 +1,4 @@
+import ast
 import os
 import shlex
 import subprocess
@@ -67,6 +68,38 @@ class ValidationRunnerTests(unittest.TestCase):
         text = ROUTING_CONTRACT_TEST.read_text(encoding="utf-8")
         self.assertNotIn("self.skipTest", text)
         self.assertNotIn("not packaged in the image", text)
+
+    def test_every_tracked_test_module_uses_unittest_discovery(self):
+        tracked_tests = subprocess.run(
+            ["git", "ls-files", "tests/test_*.py"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        undiscoverable = []
+        for relative_path in tracked_tests.stdout.splitlines():
+            text = (REPO_ROOT / relative_path).read_text(encoding="utf-8")
+            tree = ast.parse(text, filename=relative_path)
+            has_test_case = any(
+                isinstance(node, ast.ClassDef)
+                and any(
+                    (
+                        isinstance(base, ast.Attribute)
+                        and base.attr == "TestCase"
+                    )
+                    or (isinstance(base, ast.Name) and base.id == "TestCase")
+                    for base in node.bases
+                )
+                for node in ast.walk(tree)
+            )
+            if not has_test_case:
+                undiscoverable.append(relative_path)
+        self.assertEqual(
+            undiscoverable,
+            [],
+            "run_unittest_gate.py cannot discover module-level pytest functions",
+        )
 
     def test_shell_runner_rejects_unknown_modes_before_running_a_gate(self):
         result = subprocess.run(

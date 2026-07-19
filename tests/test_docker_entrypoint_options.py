@@ -102,6 +102,7 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             "--input",
             "--output",
             "--steps",
+            "--anat-method",
             "--view-report",
             "--corpus",
             "--fs_license_file",
@@ -125,6 +126,13 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             self.assertNotIn(option, docs)
         self.assertIn("Single-dataset structural MRI input root", result.stdout)
         self.assertIn("single-dataset mode", docs)
+        self.assertIn("mkdir -p /data/out /data/smri", docs)
+        self.assertIn("root:root", docs)
+        self.assertIn(
+            "Anatomy method: freesurfer, deepprep, or pseudomri", result.stdout
+        )
+        for method in ("freesurfer", "deepprep", "pseudomri"):
+            self.assertIn(f"``{method}``", docs)
 
     def test_quickstart_ships_a_safe_downloadable_project_overlay(self):
         self.assertTrue(QUICKSTART_CONFIG.is_file())
@@ -158,6 +166,9 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             quickstart,
         )
         self.assertIn("HOST_PATH:CONTAINER_PATH", quickstart)
+        self.assertIn("mkdir -p /path/to/output /path/to/smri", quickstart)
+        self.assertIn("root:root", quickstart)
+        self.assertIn("test -w /path/to/smri", quickstart)
         for option in (
             "``-v``",
             "``-i``",
@@ -232,6 +243,8 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             str(output_dir),
             "--steps",
             "anatomy",
+            "--anat-method",
+            "deepprep",
             "--fs_license_file",
             str(license_file),
             "--fs_subjects_dir",
@@ -249,6 +262,7 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             f'params.megflow.datasets.docker_input.t1_dir = "{t1_dir}"',
             f'params.megflow.datasets.docker_input.fs_subjects_dir = "{fs_dir}"',
             'params.megflow.datasets.docker_input.steps = "anatomy"',
+            'params.megflow.datasets.docker_input.anatomy.method = "deepprep"',
             f'params.megflow.datasets.docker_input.anatomy.fs_license_file = "{license_file}"',
         )
         for line in expected_lines:
@@ -260,10 +274,13 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         license_assignment = (
             f'params.megflow.datasets.docker_input.anatomy.fs_license_file = "{license_file}"'
         )
+        method_assignment = (
+            'params.megflow.datasets.docker_input.anatomy.method = "deepprep"'
+        )
         self.assertIn(anatomy_init, config)
+        self.assertLess(config.index(anatomy_init), config.index(method_assignment))
         self.assertLess(config.index(anatomy_init), config.index(license_assignment))
         self.assertNotIn("params.megflow.datasets.docker_input.report", config)
-        self.assertNotIn("params.megflow.datasets.docker_input.anatomy.method =", config)
         self.assertNotIn("params.megflow.datasets.docker_input.anatomy.t1_input_type =", config)
         self.assertNotIn("params.megflow.datasets.docker_input.anatomy.t1_dicom_series_glob =", config)
         self.assertIn("-resume", self.nextflow_args.read_text(encoding="utf-8").splitlines())
@@ -311,6 +328,9 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.assertIn('static_task_log_mode: "none"', config)
         self.assertIn("static_artifact_overview_duration: 45.0", config)
         self.assertNotIn("params.megflow.datasets.docker_input.t1_dir =", config)
+        self.assertNotIn(
+            "params.megflow.datasets.docker_input.anatomy.method =", config
+        )
         self.assertNotIn("params.megflow.datasets.docker_input.anatomy.fs_license_file =", config)
         self.assertNotIn("params.megflow.datasets.docker_input.report", config)
 
@@ -331,6 +351,8 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             "--corpus",
             "--steps",
             "all",
+            "--anat-method",
+            "deepprep",
             "--fs_subjects_dir",
             str(fs_root),
         )
@@ -341,6 +363,7 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             f'params.megflow.corpus_root = "{input_dir}"',
             f'params.megflow.fs_subjects_root = "{fs_root}"',
             'params.megflow.defaults.steps = "all"',
+            'params.megflow.defaults.anatomy.method = "deepprep"',
             'params.megflow.datasets.docker_input.dataset_dir = ""',
             'NamedDataset: [steps: "meg_epochs"]',
         )
@@ -420,6 +443,30 @@ class DockerEntrypointOptionTests(unittest.TestCase):
 
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("--t1_dir is only valid for a single-dataset run", result.stdout)
+        self.assertFalse(self.nextflow_args.exists())
+
+    def test_anat_method_rejects_unknown_value(self):
+        input_dir = self.root / "invalid-anat-input"
+        output_dir = self.root / "invalid-anat-output"
+        input_dir.mkdir()
+
+        result = self._run(
+            "--config",
+            str(self.base_config),
+            "--input",
+            str(input_dir),
+            "--output",
+            str(output_dir),
+            "--anat-method",
+            "invalid",
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(
+            "Error: --anat-method must be one of: "
+            "freesurfer, deepprep, pseudomri",
+            result.stdout,
+        )
         self.assertFalse(self.nextflow_args.exists())
 
     def test_removed_processing_options_are_rejected(self):

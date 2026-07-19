@@ -17,6 +17,7 @@ RUN_CONFIG_FILE="/program/nextflow/run_nextflow.config"
 INPUT_DIR=""
 OUTPUT_DIR=""
 STEPS=""
+ANAT_METHOD=""
 FS_LICENSE_FILE=""
 FS_SUBJECTS_DIR=""
 T1_DIR=""
@@ -139,6 +140,7 @@ while [[ "$#" -gt 0 ]]; do
         -i|--input) INPUT_DIR="$2"; shift ;;
         -o|--output) OUTPUT_DIR="$2"; shift ;;
         -s|--steps) STEPS="$2"; shift ;;
+        --anat-method) ANAT_METHOD="$2"; shift ;;
         --fs_license_file) FS_LICENSE_FILE="$2"; shift ;;
         --fs_subjects_dir) FS_SUBJECTS_DIR="$2"; shift ;;
 
@@ -161,6 +163,7 @@ while [[ "$#" -gt 0 ]]; do
             echo "  -i, --input           MEG dataset or corpus input directory"
             echo "  -o, --output          MEGFlow output directory"
             echo "  -s, --steps           Pipeline stage override (e.g. all, meg_all, anatomy, report)"
+            echo "  --anat-method         Anatomy method: freesurfer, deepprep, or pseudomri"
             echo "  -r, --view-report     Run Streamlit to view the report (does not run Nextflow)"
             echo "  --corpus              Process immediate input children as separate datasets"
             echo "  --fs_license_file     FreeSurfer license path inside the container"
@@ -177,6 +180,14 @@ while [[ "$#" -gt 0 ]]; do
     esac
     shift
 done
+
+case "$ANAT_METHOD" in
+    ""|freesurfer|deepprep|pseudomri) ;;
+    *)
+        echo "Error: --anat-method must be one of: freesurfer, deepprep, pseudomri"
+        exit 1
+        ;;
+esac
 
 
 # If --view-report is set, run the Streamlit app instead of Nextflow
@@ -259,8 +270,16 @@ write_run_config() {
         steps_assignment="params.megflow.datasets.docker_input.steps = \"$(groovy_escape "$STEPS")\""
     fi
 
-    if [ -n "$FS_LICENSE_FILE" ]; then
+    if [ -n "$ANAT_METHOD" ] || [ -n "$FS_LICENSE_FILE" ]; then
         anatomy_assignments="params.megflow.datasets.docker_input.anatomy = params.megflow.datasets.docker_input.anatomy ?: [:]"
+    fi
+
+    if [ -n "$ANAT_METHOD" ]; then
+        anatomy_assignments="${anatomy_assignments}
+params.megflow.datasets.docker_input.anatomy.method = \"$(groovy_escape "$ANAT_METHOD")\""
+    fi
+
+    if [ -n "$FS_LICENSE_FILE" ]; then
         anatomy_assignments="${anatomy_assignments}
 params.megflow.datasets.docker_input.anatomy.fs_license_file = \"$(groovy_escape "$FS_LICENSE_FILE")\""
     fi
@@ -318,8 +337,16 @@ write_corpus_run_config() {
         steps_assignment="params.megflow.defaults.steps = \"$(groovy_escape "$STEPS")\""
     fi
 
-    if [ -n "$FS_LICENSE_FILE" ]; then
+    if [ -n "$ANAT_METHOD" ] || [ -n "$FS_LICENSE_FILE" ]; then
         anatomy_assignments="params.megflow.defaults.anatomy = params.megflow.defaults.anatomy ?: [:]"
+    fi
+
+    if [ -n "$ANAT_METHOD" ]; then
+        anatomy_assignments="${anatomy_assignments}
+params.megflow.defaults.anatomy.method = \"$(groovy_escape "$ANAT_METHOD")\""
+    fi
+
+    if [ -n "$FS_LICENSE_FILE" ]; then
         anatomy_assignments="${anatomy_assignments}
 params.megflow.defaults.anatomy.fs_license_file = \"$(groovy_escape "$FS_LICENSE_FILE")\""
     fi

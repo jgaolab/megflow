@@ -92,6 +92,7 @@ run_routing_ci() {
         test_docker_image_namespace \
         test_install_scripts \
         test_megnet_retrained_nextflow_contract \
+        test_quality_score_nextflow_contract \
         test_validation_runner
 
     printf '\n== CI Nextflow routing smoke matrix ==\n'
@@ -124,6 +125,7 @@ run_routing() {
         test_docker_image_namespace \
         test_install_scripts \
         test_megnet_retrained_nextflow_contract \
+        test_quality_score_nextflow_contract \
         test_validation_runner \
         test_nextflow_profile_integration \
         test_nextflow_report_layout_integration

@@ -118,6 +118,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
         expected_ci_contracts = (
             "test_documentation_config_examples.DocumentationConfigExamplesTests",
+            "test_quality_score_nextflow_contract",
             "test_anatomy_step_matrix_schedules_only_selected_method",
             "test_with_anatomy_modifier_stops_at_requested_meg_stage",
             "test_recording_level_steps_reduce_the_dataset_stage",
