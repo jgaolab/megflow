@@ -1,5 +1,6 @@
 import ast
 import os
+import re
 import shlex
 import subprocess
 import sys
@@ -99,6 +100,52 @@ class ValidationRunnerTests(unittest.TestCase):
             undiscoverable,
             [],
             "run_unittest_gate.py cannot discover module-level pytest functions",
+        )
+
+    def test_sphinx_download_targets_are_tracked(self):
+        tracked_files = set(
+            subprocess.run(
+                ["git", "ls-files"],
+                cwd=REPO_ROOT,
+                capture_output=True,
+                text=True,
+                check=True,
+            ).stdout.splitlines()
+        )
+        missing_targets = []
+        rst_sources = sorted(
+            REPO_ROOT / relative_path
+            for relative_path in tracked_files
+            if relative_path.startswith("docs/source/")
+            and relative_path.endswith(".rst")
+            and not any(
+                part.startswith("._") for part in Path(relative_path).parts
+            )
+        )
+        for source_path in rst_sources:
+            text = source_path.read_text(encoding="utf-8")
+            for match in re.finditer(r":download:`([^`]+)`", text, re.DOTALL):
+                body = match.group(1).strip()
+                explicit_target = re.search(r"<([^<>]+)>\s*$", body)
+                target = explicit_target.group(1) if explicit_target else body
+                resolved_target = (source_path.parent / target).resolve()
+                try:
+                    relative_target = resolved_target.relative_to(
+                        REPO_ROOT
+                    ).as_posix()
+                except ValueError:
+                    missing_targets.append(
+                        f"{source_path.relative_to(REPO_ROOT)}: {target}"
+                    )
+                    continue
+                if relative_target not in tracked_files:
+                    missing_targets.append(
+                        f"{source_path.relative_to(REPO_ROOT)}: {relative_target}"
+                    )
+        self.assertEqual(
+            missing_targets,
+            [],
+            "Sphinx download targets must exist in a clean Git checkout",
         )
 
     def test_shell_runner_rejects_unknown_modes_before_running_a_gate(self):

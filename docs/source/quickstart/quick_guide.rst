@@ -167,9 +167,10 @@ not ``"sub-02"``. Then run:
 
 Here ``:ro`` makes the mounted config read-only. The command omits
 ``--steps`` so ``steps = "meg_ica"`` in the config remains effective. For the
-dataset-specific event timing, covariance, anatomy, and source settings used by
-a full SMN4Lang analysis, inspect the :download:`advanced SMN4Lang profile
-<../../../nextflow/nextflow_for_smn4lang.config>` after this first pass.
+dataset-specific event timing, covariance, anatomy, and source settings required
+by a full analysis, continue with :doc:`Running the Full Workflow
+<../tutorial/full_workflow>` and the :doc:`configuration examples
+<../reference/examples>` after this first pass.
 
 Check the Results
 -----------------
