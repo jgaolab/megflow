@@ -2,9 +2,9 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Restore the static Workflow diagram's light connector hierarchy, use fixed small arrowheads, and route ICA-to-Coregistration and Head-model-to-Source-localization through the ports shown in the approved annotation.
+**Goal:** Restore the static Workflow diagram's light connector hierarchy, use fixed small arrowheads, route ICA-to-Coregistration and Head-model-to-Source-localization through the approved ports, and directly connect Structural MRI to Coregistration.
 
-**Architecture:** Keep the current stage-column and two-lane layout. Add two semantic cross-lane routing cases before the generic cross-lane fallback, then adjust the embedded report CSS and SVG marker/port sizes without changing workflow dependencies.
+**Architecture:** Keep the current stage-column and two-lane layout. Use two semantic cross-lane routing cases before the generic cross-lane fallback, and let the adjacent Structural-MRI-to-Coregistration edge reuse the standard same-lane direct rule. Keep the embedded report CSS and SVG marker/port sizes unchanged from the approved light treatment without changing workflow dependencies.
 
 **Tech Stack:** Python 3, inline SVG, embedded CSS, `unittest`/pytest-compatible tests.
 
@@ -13,6 +13,8 @@
 - The annotated red arrows define route direction only; do not copy their color or size.
 - ICA-to-Coregistration is bottom-center to left-center.
 - Head-model-to-Source-localization is right-center to bottom-center.
+- Structural-MRI-to-Coregistration is a right-center to left-center horizontal direct edge.
+- Structural-MRI-to-Head-model retains its existing lower routed path.
 - Restore the base connector to `rgba(66, 103, 213, 0.26)`, the arrowhead to `rgba(66, 103, 213, 0.38)`, and the base width to `1.8px`.
 - Arrowheads use a fixed 6–7 user-space pixel size and never scale with stroke width.
 - Keep all workflow nodes, dependencies, statuses, lanes, titles, and edge metadata unchanged.
@@ -312,3 +314,93 @@ Expected: both commands exit successfully with no output from `git diff --check`
 - [ ] **Step 5: Preserve the user's existing worktree ownership**
 
 Report the modified files and verification results. Do not create an implementation commit containing the full three files unless the user explicitly authorizes committing their pre-existing changes together with this refinement.
+
+---
+
+### Task 4: Directly connect Structural MRI to Coregistration
+
+**Files:**
+- Modify: `tests/test_static_reports.py:456-514`
+- Modify: `megflow/reports/workflow_diagram.py:990-1030`
+
+**Interfaces:**
+- Consumes: the existing `anatomy_structural` and `coregistration` node positions from `_render_svg`.
+- Produces: a standard `wf-edge-direct` horizontal SVG path from the Structural MRI right-center port to the Coregistration left-center port.
+
+- [ ] **Step 1: Replace the old detour assertion with a failing direct-edge contract**
+
+In `test_workflow_svg_routes_explicit_anatomy_edges_orthogonally`, require this exact edge prefix:
+
+```python
+self.assertIn(
+    'data-from="anatomy_structural" data-to="coregistration">'
+    '<title>Structural MRI -&gt; Coregistration</title>'
+    '<path d="M330.0,270.0 H514.0" '
+    'class="wf-edge wf-edge-direct"',
+    rendered,
+)
+```
+
+Retain the existing assertion for the Structural-MRI-to-Head-model path:
+
+```python
+'<path d="M260.0,310.0 V344.0 H746.0 V310.0"'
+```
+
+- [ ] **Step 2: Run the focused test and verify RED**
+
+Run:
+
+```bash
+python3 -m unittest tests.test_static_reports.StaticManifestScopeTests.test_workflow_svg_routes_explicit_anatomy_edges_orthogonally -v
+```
+
+Expected: `FAIL`, because the current SVG contains the old bottom detour `M330.0,270.0 V332.0 H584.0 V310.0` and the routed-edge class.
+
+- [ ] **Step 3: Remove the edge-specific detour and reuse the direct rule**
+
+In `_render_svg`, remove the `anatomy_to_coregistration` flag, remove its exclusion from `direct`, and delete its routed special-case block. The resulting direct decision is:
+
+```python
+direct = (
+    same_lane
+    and forward
+    and not has_intermediate_node(source_key, target_node["key"], source_lane)
+)
+```
+
+Do not modify generic same-lane routing or the Structural-MRI-to-Head-model dependency.
+
+- [ ] **Step 4: Run the focused test and verify GREEN**
+
+Run the Step 2 command again. Expected: `OK`.
+
+- [ ] **Step 5: Run static-report regression tests**
+
+Run:
+
+```bash
+python3 -m unittest tests.test_static_reports -v
+```
+
+Expected: all static-report tests pass.
+
+- [ ] **Step 6: Render and inspect the anatomy-enabled Workflow**
+
+Generate `/private/tmp/megprep-workflow-anatomy-direct.svg` from an `all` manifest with `run_anatomy: True`, convert it to PNG, and inspect that:
+
+- Structural MRI enters Coregistration through one horizontal segment;
+- the light connector, endpoint ports, and small arrowhead are unchanged;
+- Structural MRI to Head model remains below the cards; and
+- no other connector route changes.
+
+- [ ] **Step 7: Validate syntax and the incremental diff**
+
+Run:
+
+```bash
+python3 -m py_compile megflow/reports/workflow_diagram.py tests/test_static_reports.py
+git diff --check -- megflow/reports/workflow_diagram.py tests/test_static_reports.py
+```
+
+Expected: both commands exit successfully. Review the scoped diff and confirm only the direct-edge test and removal of the obsolete special route are added by this task.
