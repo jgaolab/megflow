@@ -148,7 +148,7 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             ".. literalinclude:: ../../../nextflow/quickstart.config", quickstart
         )
         self.assertIn(
-            ":download:`Download ``quickstart.config`` "
+            ":download:`Download quickstart.config "
             "<../../../nextflow/quickstart.config>`",
             quickstart,
         )

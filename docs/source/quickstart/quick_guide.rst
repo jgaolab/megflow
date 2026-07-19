@@ -189,7 +189,7 @@ for every output directory and important sidecar, and the
 Start from ``quickstart.config``
 --------------------------------
 
-:download:`Download ``quickstart.config`` <../../../nextflow/quickstart.config>`
+:download:`Download quickstart.config <../../../nextflow/quickstart.config>`
 and keep it with your study. This is a small project **overlay**, not a second
 copy of all MEGFlow defaults:
 

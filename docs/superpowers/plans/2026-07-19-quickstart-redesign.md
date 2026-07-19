@@ -67,7 +67,7 @@ Add these methods after `test_help_and_installation_list_the_same_entrypoint_opt
             ".. literalinclude:: ../../../nextflow/quickstart.config", quickstart
         )
         self.assertIn(
-            ":download:`Download ``quickstart.config`` "
+            ":download:`Download quickstart.config "
             "<../../../nextflow/quickstart.config>`",
             quickstart,
         )
@@ -316,7 +316,7 @@ report, and timeline, followed immediately by these three links:
 Display and download the starter file, then link the defaults using exactly:
 
 ```rst
-:download:`Download ``quickstart.config``
+:download:`Download quickstart.config
 <../../../nextflow/quickstart.config>`
 
 .. literalinclude:: ../../../nextflow/quickstart.config
