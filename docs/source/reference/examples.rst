@@ -32,6 +32,9 @@ Canonical Templates
 
 Use one of these repository files as the base:
 
+* :download:`quickstart.config <../../../nextflow/quickstart.config>` is the
+  recommended first Docker project overlay. It selects all discovered MEG
+  recordings and stops at ICA; add only study-specific overrides.
 * :download:`nextflow_for_docker.config
   <../../../nextflow/nextflow_for_docker.config>` contains the authoritative
   paths and defaults for the distributed container.

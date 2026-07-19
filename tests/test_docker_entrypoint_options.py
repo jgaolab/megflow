@@ -8,6 +8,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
 INSTALLATION_DOC = REPO_ROOT / "docs" / "source" / "quickstart" / "installation.rst"
+QUICKSTART_DOC = REPO_ROOT / "docs" / "source" / "quickstart" / "quick_guide.rst"
+QUICKSTART_CONFIG = REPO_ROOT / "nextflow" / "quickstart.config"
+EXAMPLES_DOC = REPO_ROOT / "docs" / "source" / "reference" / "examples.rst"
 
 
 class DockerEntrypointOptionTests(unittest.TestCase):
@@ -122,6 +125,93 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             self.assertNotIn(option, docs)
         self.assertIn("Single-dataset structural MRI input root", result.stdout)
         self.assertIn("single-dataset mode", docs)
+
+    def test_quickstart_ships_a_safe_downloadable_project_overlay(self):
+        self.assertTrue(QUICKSTART_CONFIG.is_file())
+        config = QUICKSTART_CONFIG.read_text(encoding="utf-8")
+        self.assertIn(
+            'params.megflow.datasets.docker_input.steps = "meg_ica"', config
+        )
+        for selector in (
+            "subject_id: null",
+            "session_id: null",
+            "task: null",
+            "run_id: null",
+            "raw_include_keywords: null",
+            "raw_exclude_keywords: null",
+        ):
+            self.assertIn(selector, config)
+        self.assertNotIn("/data/liaopan", config)
+
+        quickstart = QUICKSTART_DOC.read_text(encoding="utf-8")
+        self.assertIn(
+            ".. literalinclude:: ../../../nextflow/quickstart.config", quickstart
+        )
+        self.assertIn(
+            ":download:`Download ``quickstart.config`` "
+            "<../../../nextflow/quickstart.config>`",
+            quickstart,
+        )
+        self.assertIn(
+            ":download:`authoritative Docker defaults "
+            "<../../../nextflow/nextflow_for_docker.config>`",
+            quickstart,
+        )
+        self.assertIn("HOST_PATH:CONTAINER_PATH", quickstart)
+        for option in (
+            "``-v``",
+            "``-i``",
+            "``-o``",
+            "``--steps``",
+            "``--resume``",
+        ):
+            self.assertIn(option, quickstart)
+
+    def test_quickstart_covers_smn4lang_results_and_beginner_goals(self):
+        quickstart = QUICKSTART_DOC.read_text(encoding="utf-8")
+        for smn_selector in (
+            'subject_id: ["02"]',
+            'task: ["RDR"]',
+            'run_id: ["1"]',
+        ):
+            self.assertIn(smn_selector, quickstart)
+        self.assertNotIn("/data/liaopan", quickstart)
+
+        for stage in (
+            "``meg_artifacts``",
+            "``meg_ica``",
+            "``meg_epochs``",
+            "``anatomy``",
+            "``meg_all``",
+            "``all``",
+            "``report``",
+        ):
+            self.assertIn(stage, quickstart)
+        for beginner_setting in (
+            "meg_import.subject_id",
+            "fixed_length_duration",
+            "event_source",
+            "preproc.steps",
+            "deepreject.enabled",
+            "find_bad_channels_lof: null",
+            "ic_ecg",
+            "ic_eog",
+            "ic_outlier",
+            "source_methods",
+        ):
+            self.assertIn(beginner_setting, quickstart)
+        for detail_link in (
+            ":doc:`report guide <../tutorial/reports>`",
+            ":doc:`complete output guide <../tutorial/outputs>`",
+            ":doc:`pipeline details <../details/pipeline_details>`",
+        ):
+            self.assertIn(detail_link, quickstart)
+
+        examples = EXAMPLES_DOC.read_text(encoding="utf-8")
+        self.assertIn(
+            ":download:`quickstart.config <../../../nextflow/quickstart.config>`",
+            examples,
+        )
 
     def test_single_dataset_options_generate_expected_runtime_config(self):
         input_dir = self.root / "single-input"
