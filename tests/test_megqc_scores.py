@@ -3,6 +3,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pandas as pd
@@ -14,6 +15,7 @@ if str(MEGQC_DIR) not in sys.path:
     sys.path.insert(0, str(MEGQC_DIR))
 
 import score_meg_reference_quota_standalone as scorer
+from megflow import meg_quality_control as quality_control
 
 
 class NormativeQualityScoreTests(unittest.TestCase):
@@ -68,6 +70,52 @@ class NormativeQualityScoreTests(unittest.TestCase):
 
         available = [item["score_0_100"] for item in family_scores if np.isfinite(item["score_0_100"])]
         self.assertAlmostEqual(summary["score_0_100"], float(np.mean(available)), places=12)
+        self.assertNotIn("model", summary)
+
+    def test_quality_output_paths_do_not_expose_internal_model(self):
+        summary, component, figure = scorer.quality_output_paths(
+            Path("/tmp/qc"),
+            "recording",
+        )
+
+        self.assertEqual(summary.name, "recording.summary.json")
+        self.assertEqual(component.name, "recording.component_scores.csv")
+        self.assertEqual(figure.name, "recording.normative_quality_score.png")
+        self.assertNotIn(
+            "lowcost_quota",
+            " ".join(map(str, (summary, component, figure))),
+        )
+
+    def test_failure_summary_does_not_expose_internal_model(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir)
+            summary_path = output_dir / "recording.summary.json"
+            component_path = output_dir / "recording.component_scores.csv"
+            figure_path = output_dir / "recording.normative_quality_score.png"
+            args = SimpleNamespace(
+                input=output_dir / "recording.fif",
+                model=scorer.DEFAULT_MODEL,
+                meg_vendor="auto",
+                category="auto",
+                reference_scope="device_category",
+                keep_bad_annotations="true",
+                omit_bad_channels="false",
+                min_score=0.0,
+                alarm_score=60.0,
+            )
+
+            quality_control.write_failure_outputs(
+                args=args,
+                stem="recording",
+                summary_path=summary_path,
+                component_path=component_path,
+                figure_path=figure_path,
+                error=RuntimeError("synthetic scoring failure"),
+            )
+
+            payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            self.assertNotIn("model", payload)
+            self.assertNotIn(scorer.DEFAULT_MODEL, summary_path.read_text(encoding="utf-8"))
 
     def test_mag_only_components_produce_mag_only_family_scores(self):
         summary, _ = self.score({"MAG"})

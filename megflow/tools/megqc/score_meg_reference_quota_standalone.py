@@ -38,6 +38,16 @@ DEFAULT_REFERENCE_PREPROC_STEPS: list[dict[str, object]] = [
 ]
 
 
+def quality_output_paths(output_dir: Path, stem: str) -> tuple[Path, Path, Path]:
+    """Return stable public output paths without exposing the profile key."""
+    prefix = Path(output_dir) / stem
+    return (
+        Path(f"{prefix}.summary.json"),
+        Path(f"{prefix}.component_scores.csv"),
+        Path(f"{prefix}.normative_quality_score.png"),
+    )
+
+
 def default_reference_preproc_steps() -> list[dict[str, object]]:
     """Return an isolated copy of the reference-aligned QC preprocessing."""
     return deepcopy(DEFAULT_REFERENCE_PREPROC_STEPS)
@@ -718,7 +728,6 @@ def score_metrics(
         )
     final_score = float(np.mean(family_scores) * 100.0) if family_scores else np.nan
     summary = {
-        "model": config["model"],
         "score_0_100": final_score,
         "n_families_available": int(len(family_scores)),
         "n_families_expected": int(len(config["families"])),
@@ -1091,11 +1100,12 @@ def main() -> None:
         if stem.endswith(suffix):
             stem = stem[: -len(suffix)]
             break
-    out_prefix = args.output_dir / f"{stem}.{args.model}"
-    quality_score_plot = out_prefix.with_suffix(".normative_quality_score.png")
+    summary_path, component_scores_path, quality_score_plot = quality_output_paths(
+        args.output_dir,
+        stem,
+    )
     summary["quality_score_plot"] = str(quality_score_plot)
-    detail.to_csv(out_prefix.with_suffix(".component_scores.csv"), index=False)
-    summary_path = out_prefix.with_suffix(".summary.json")
+    detail.to_csv(component_scores_path, index=False)
     summary_path.write_text(json.dumps(json_ready(summary), ensure_ascii=False, indent=2, allow_nan=False), encoding="utf-8")
     draw_quality_score_plot(summary, quality_score_plot)
     print(json.dumps(json_ready({"score_0_100": summary["score_0_100"], "n_families_available": summary["n_families_available"], "summary": str(summary_path)}), ensure_ascii=False, allow_nan=False))

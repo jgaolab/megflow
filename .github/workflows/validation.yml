@@ -8,19 +8,23 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   nextflow-routing:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-java@v4
+      - uses: actions/setup-java@v5
         with:
           distribution: temurin
           java-version: "17"
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -32,20 +36,20 @@ jobs:
           NXF_VER=24.10.3 bash -c 'curl -fsSL https://get.nextflow.io | bash'
           ./nextflow -version
 
-      - name: Run routing and configuration tests
+      - name: Run core routing and configuration tests
         env:
           MEGFLOW_NEXTFLOW: ${{ runner.temp }}/megflow-bin/nextflow
           NXF_ANSI_LOG: "false"
           NXF_VER: 24.10.3
-        run: bash scripts/validation/run_validation.sh routing
+        run: bash scripts/validation/run_validation.sh routing-ci
 
   scientific-contracts:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.10"
           cache: pip
@@ -64,9 +68,9 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 
@@ -77,9 +81,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
 

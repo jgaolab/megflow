@@ -14,11 +14,11 @@ INTERACTIVE_APP = REPO_ROOT / "megflow" / "reports" / "reports.py"
 INTERACTIVE_NEXTFLOW = REPO_ROOT / "megflow" / "reports" / "reports" / "nextflow.py"
 INTERACTIVE_CONFIG = REPO_ROOT / "megflow" / "reports" / "reports" / "nx_config_online.py"
 MULTI_DATASET_DEMO = REPO_ROOT / "nextflow" / "nextflow_multi_dataset_demo.config"
+CORPUS_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_corpus.config"
 OPM_COG_TASK_OVERRIDE_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_opm_cog_task_overrides_example.config"
 MAXWELL_TSSS_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_maxwell_tsss_example.config"
+PSEUDOMRI_DOCKER_OVERLAY = REPO_ROOT / "nextflow" / "nextflow_pseudomri_docker.config"
 MULTI_DATASET_SOURCE_RUNNER = REPO_ROOT / "run_MultiDatasets_sourcecode.sh"
-OPM_COG_RUNNER = REPO_ROOT / "run_OPM_COG.sh"
-MEGQC_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_megqc.config"
 PROFILE_INTEGRATION_TEST = REPO_ROOT / "tests" / "test_nextflow_profile_integration.py"
 VALIDATION_RUNNER = REPO_ROOT / "scripts" / "validation" / "run_validation.sh"
 VALIDATION_UNITTEST_GATE = REPO_ROOT / "scripts" / "validation" / "run_unittest_gate.py"
@@ -26,15 +26,15 @@ WINDOWS_INSTALL_VALIDATOR = REPO_ROOT / "scripts" / "validation" / "validate_win
 VALIDATION_REQUIREMENTS = REPO_ROOT / "requirements_validation.txt"
 DOCUMENTATION_REQUIREMENTS = REPO_ROOT / "requirements_doc.txt"
 VALIDATION_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "validation.yml"
-DATASET_CONFIGS = (
-    REPO_ROOT / "nextflow" / "nextflow_for_holmes.config",
-    MEGQC_CONFIG,
-    REPO_ROOT / "nextflow" / "nextflow_for_opm_cog.config",
-    REPO_ROOT / "nextflow" / "nextflow_for_smn4lang.config",
+SHIPPED_SOURCE_EXAMPLES = (
+    (MULTI_DATASET_DEMO, "corpus_static_html_report"),
+    (CORPUS_EXAMPLE, "corpus_static_html_report"),
+    (OPM_COG_TASK_OVERRIDE_EXAMPLE, "static_html_report"),
+    (MAXWELL_TSSS_EXAMPLE, "static_html_report"),
 )
-LEGACY_DATASET_CONFIGS = (
-    REPO_ROOT / "nextflow" / "nextflow_for_Holmes.config",
-    REPO_ROOT / "nextflow" / "nextflow_for_opm.config",
+DOCKER_OVERLAY_EXAMPLES = (
+    REPO_ROOT / "examples" / "megflow" / "nextflow_for_cog.config",
+    REPO_ROOT / "examples" / "megflow" / "nextflow_for_cog-anat.config",
 )
 
 
@@ -73,7 +73,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertTrue(VALIDATION_WORKFLOW.is_file())
 
         runner = VALIDATION_RUNNER.read_text(encoding="utf-8")
-        for mode in ("routing", "scientific", "all"):
+        for mode in ("routing-ci", "routing", "scientific", "all"):
             self.assertIn(f"{mode})", runner)
         self.assertIn("MEGFLOW_NEXTFLOW", runner)
         self.assertIn("command -v python3", runner)
@@ -101,16 +101,71 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         workflow = VALIDATION_WORKFLOW.read_text(encoding="utf-8")
         self.assertRegex(workflow, r"(?m)^  push:\s*$")
         self.assertNotIn("branches: [main, master]", workflow)
-        self.assertIn("run_validation.sh routing", workflow)
+        self.assertIn("run_validation.sh routing-ci", workflow)
         self.assertIn("run_validation.sh scientific", workflow)
+        self.assertIn("uses: actions/checkout@v6", workflow)
+        self.assertIn("uses: actions/setup-java@v5", workflow)
+        self.assertIn("uses: actions/setup-python@v6", workflow)
         self.assertIn(
             "python -m pip install --no-deps -e ./megflow/tools/osl-ephys",
             workflow,
         )
 
+    def test_ci_routing_gate_is_explicit_and_keeps_full_matrices_local(self):
+        runner = VALIDATION_RUNNER.read_text(encoding="utf-8")
+        ci_body = runner.split("run_routing_ci() {", 1)[1].split("\n}", 1)[0]
+        full_body = runner.split("run_routing() {", 1)[1].split("\n}", 1)[0]
+
+        expected_ci_contracts = (
+            "test_documentation_config_examples.DocumentationConfigExamplesTests",
+            "test_anatomy_step_matrix_schedules_only_selected_method",
+            "test_with_anatomy_modifier_stops_at_requested_meg_stage",
+            "test_recording_level_steps_reduce_the_dataset_stage",
+            "test_dataset_and_recording_overrides_do_not_cross_route",
+            "test_mne_and_osl_kwargs_survive_default_dataset_recording_merges",
+            "test_raw_covariance_pairs_with_the_correct_dataset_noise_recording",
+            "test_lcmv_data_covariance_is_conditional_and_uses_exact_source_input",
+            "test_missing_raw_covariance_pair_fails_instead_of_silently_skipping_source",
+            "test_resume_invalidates_event_dependent_lineage_and_new_inputs",
+            "test_strict_processing_failure_terminates_before_report_submission",
+            "test_live_trace_survives_dataset_and_corpus_report_rebuild",
+        )
+        for contract in expected_ci_contracts:
+            self.assertIn(contract, ci_body)
+
+        self.assertNotRegex(
+            ci_body,
+            r"(?m)^\s+test_nextflow_profile_integration\s*\\?$",
+        )
+        self.assertNotRegex(
+            ci_body,
+            r"(?m)^\s+test_documentation_config_examples\s*\\?$",
+        )
+        self.assertRegex(
+            full_body,
+            r"(?m)^\s+test_nextflow_profile_integration\s*\\?$",
+        )
+        self.assertRegex(
+            full_body,
+            r"(?m)^\s+test_documentation_config_examples\s*\\?$",
+        )
+        self.assertIn("run_timed_unittest_gate", runner)
+        self.assertIn("parse_shipped_configs", ci_body)
+        self.assertIn("parse_shipped_configs", full_body)
+
     def test_validation_workflow_local_inputs_are_tracked(self):
         required_paths = (
             ".github/workflows/validation.yml",
+            "megflow.Dockerfile",
+            "nextflow/nextflow.config",
+            "nextflow/nextflow_for_docker.config",
+            "nextflow/run_for_docker.sh",
+            "nextflow/nextflow_multi_dataset_demo.config",
+            "nextflow/nextflow_corpus.config",
+            "nextflow/nextflow_opm_cog_task_overrides_example.config",
+            "nextflow/nextflow_maxwell_tsss_example.config",
+            "examples/megflow/nextflow_for_cog.config",
+            "examples/megflow/nextflow_for_cog-anat.config",
             "requirements_doc.txt",
             "requirements_validation.txt",
             "scripts/validation/run_unittest_gate.py",
@@ -132,9 +187,16 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
     def test_validation_gates_cover_every_test_module_and_windows_parser(self):
         runner = VALIDATION_RUNNER.read_text(encoding="utf-8")
+        tracked_tests = subprocess.run(
+            ["git", "ls-files", "tests/test_*.py"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
         test_modules = {
-            path.stem
-            for path in (REPO_ROOT / "tests").glob("test_*.py")
+            Path(path).stem
+            for path in tracked_tests.stdout.splitlines()
         }
         omitted = sorted(module for module in test_modules if module not in runner)
         self.assertEqual(omitted, [])
@@ -172,7 +234,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         routing_job = workflow.split("  nextflow-routing:", 1)[1].split(
             "  scientific-contracts:", 1
         )[0]
-        self.assertIn("timeout-minutes: 30", routing_job)
+        self.assertIn("timeout-minutes: 15", routing_job)
 
     def test_every_process_selector_matches_current_pipeline(self):
         names = process_names()
@@ -236,12 +298,25 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("NXF_SYNTAX_PARSER='v1'", dockerfile)
 
     def test_source_config_has_portable_execution_profiles(self):
-        if not DOCKER_CONFIG.is_file():
-            self.skipTest("the container image packages only its Docker execution config")
+        self.assertTrue(SOURCE_CONFIG.is_file())
         text = SOURCE_CONFIG.read_text(encoding="utf-8")
         for profile in ("local", "docker", "slurm", "singularity", "lenient", "strict", "debug"):
             self.assertRegex(text, rf"(?m)^\s{{4}}{profile}\s*\{{")
         self.assertIn('executor.queueSize = (System.getenv("MEGFLOW_SLURM_QUEUE_SIZE") ?: "100") as int', text)
+
+    def test_coregistration_retry_exhaustion_falls_back_to_ignore(self):
+        selector_pattern = re.compile(
+            r"(?ms)^\s{4}withName: coregistration\s*\{(?P<body>.*?)^\s{4}\}"
+        )
+        for config in available_configs():
+            text = config.read_text(encoding="utf-8")
+            match = selector_pattern.search(text)
+            self.assertIsNotNone(match, config.name)
+            selector = match.group("body")
+            self.assertIn("maxRetries = 6", selector, config.name)
+            self.assertIn("task.attempt <= 6", selector, config.name)
+            self.assertIn('task.exitStatus == 1', selector, config.name)
+            self.assertIn('params.megflow.error_mode == "strict"', selector, config.name)
 
     def test_normmegqc_defaults_resample_to_250_hz(self):
         standalone_defaults = (
@@ -416,48 +491,40 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertNotIn("docker run", text)
         self.assertNotIn("--cohort", text)
 
-    def test_dataset_configs_inherit_common_execution_policy(self):
-        available = tuple(config for config in DATASET_CONFIGS if config.is_file())
-        if not available:
-            self.skipTest("dataset-specific source configs are not packaged in the image")
-
-        self.assertEqual(available, DATASET_CONFIGS)
-        for config in available:
+    def test_shipped_source_examples_publish_common_execution_outputs(self):
+        for config, package in SHIPPED_SOURCE_EXAMPLES:
+            self.assertTrue(config.is_file(), config)
             text = config.read_text(encoding="utf-8")
             self.assertIn('includeConfig "nextflow.config"', text, config.name)
-            self.assertNotIn("error_mode:", text, config.name)
-            self.assertNotIn("code_dir:", text, config.name)
             self.assertIn('workDir = "${params.megflow.output_dir}/work"', text, config.name)
-            package = "corpus_static_html_report" if config == MEGQC_CONFIG else "static_html_report"
             self.assertIn(f'log.file = "${{params.megflow.output_dir}}/{package}/nextflow/nextflow.log"', text, config.name)
             self.assertIn(f'report.file = "${{params.megflow.output_dir}}/{package}/nextflow/report.html"', text, config.name)
             self.assertIn(f'timeline.file = "${{params.megflow.output_dir}}/{package}/nextflow/timeline.html"', text, config.name)
             self.assertIn(f'trace.file = "${{params.megflow.output_dir}}/{package}/nextflow/trace.txt"', text, config.name)
-            self.assertIn("-profile local,lenient -resume", text, config.name)
 
-        for legacy_config in LEGACY_DATASET_CONFIGS:
-            self.assertFalse(legacy_config.exists(), legacy_config.name)
+    def test_docker_overlay_examples_use_v2_dataset_keys(self):
+        for config in DOCKER_OVERLAY_EXAMPLES:
+            self.assertTrue(config.is_file(), config)
+            text = config.read_text(encoding="utf-8")
+            self.assertIn("params.megflow.datasets.docker_input.", text, config.name)
+            self.assertNotIn("params.megflow = [", text, config.name)
 
-    def test_opm_cog_runner_keeps_image_base_config_visible(self):
-        if not OPM_COG_RUNNER.is_file():
-            self.skipTest("the source-only OPM-COG runner is not packaged in the image")
+    def test_pseudomri_docker_overlay_resolves_both_base_config_locations(self):
+        overlay = PSEUDOMRI_DOCKER_OVERLAY.read_text(encoding="utf-8")
+        runner = DOCKER_RUNNER.read_text(encoding="utf-8")
+        self.assertIn("MEGFLOW_DOCKER_BASE_CONFIG", overlay)
+        self.assertIn("'nextflow_for_docker.config'", overlay)
+        self.assertIn(
+            'MEGFLOW_DOCKER_BASE_CONFIG:-/program/nextflow/nextflow.config',
+            runner,
+        )
 
-        text = OPM_COG_RUNNER.read_text(encoding="utf-8")
-        self.assertIn("--user \"$(id -u):$(id -g)\"", text)
-        self.assertIn('${config_file}:/program/nextflow/nextflow_for_opm_cog.config:ro', text)
-        self.assertIn("-C /program/nextflow/nextflow_for_opm_cog.config", text)
-        self.assertNotIn("nextflow_for_opm_cog.config:/program/nextflow/nextflow.config", text)
-
-    def test_megqc_config_uses_corpus_discovery_without_dataset_overrides(self):
-        if not MEGQC_CONFIG.is_file():
-            self.skipTest("the source-only MEGQC corpus config is not packaged in the image")
-
-        text = MEGQC_CONFIG.read_text(encoding="utf-8")
-        self.assertIn('params.megflow.corpus_root = "/data/liaopan/datasets/MEGQC"', text)
-        self.assertIn('params.megflow.report_scope = "corpus"', text)
-        self.assertIn('params.megflow.dataset_exclude = ["Z_BACK"]', text)
-        self.assertIn('params.megflow.defaults.steps = "meg_artifacts"', text)
-        self.assertIn("params.megflow.datasets = [:]", text)
+    def test_shipped_corpus_example_has_explicit_dataset_profiles(self):
+        self.assertTrue(CORPUS_EXAMPLE.is_file())
+        text = CORPUS_EXAMPLE.read_text(encoding="utf-8")
+        self.assertIn('report_scope: "corpus"', text)
+        for profile in ("WAND_visual", "SMN4Lang_RDR", "MEG_MASC_word"):
+            self.assertRegex(text, rf"(?m)^\s{{12}}{profile}:\s*\[")
 
     def test_recording_identity_and_source_inputs_are_routed_explicitly(self):
         text = PIPELINE.read_text(encoding="utf-8")
@@ -479,12 +546,11 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("report_completion_tokens = dataset_token_ch", text)
         self.assertIn(".mix(source_token_ch)\n        .collect()", text)
         self.assertIn("val completion_tokens", text)
-        self.assertIn(
-            "generate_static_html_report(\n"
-            "        native_dataset_report_row_ch,\n"
-            "        report_completion_tokens\n"
-            "    )",
+        self.assertRegex(
             text,
+            r"native_reports\s*=\s*generate_static_html_report\(\s*"
+            r"native_dataset_report_row_ch,\s*"
+            r"report_completion_tokens\s*\)",
         )
         self.assertNotIn("report_wait_token_ch", text)
         self.assertNotIn("stable -resume caching", text)

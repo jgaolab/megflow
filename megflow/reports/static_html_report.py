@@ -611,7 +611,7 @@ a:hover {
 .wf-lane-label {
   font-size: 10px;
   font-weight: 800;
-  letter-spacing: 0.08em;
+  letter-spacing: 0;
   fill: #667085;
   font-family: "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
 }
@@ -709,11 +709,27 @@ a:hover {
   stroke: rgba(66, 103, 213, 0.26);
   stroke-width: 1.8;
   stroke-linecap: round;
+  stroke-linejoin: round;
+  pointer-events: stroke;
 }
 
-.wf-edge-branch {
-  stroke-dasharray: 4 4;
-  stroke: rgba(102, 112, 133, 0.28);
+.wf-edge-direct,
+.wf-edge-routed,
+.wf-edge-cross-lane {
+  stroke: rgba(66, 103, 213, 0.26);
+  stroke-width: 1.8;
+}
+
+.wf-edge-group:hover .wf-edge {
+  stroke: rgba(66, 103, 213, 0.52);
+  stroke-width: 2.2;
+}
+
+.wf-port {
+  fill: #ffffff;
+  stroke: rgba(66, 103, 213, 0.42);
+  stroke-width: 1.4;
+  pointer-events: none;
 }
 
 /* Legacy fallback for older rectangular workflow SVG nodes. */

@@ -282,23 +282,34 @@ Set `params.megflow.defaults.steps` in your `nextflow.config` for a project defa
 
 ### Validation
 
-Run the same validation gates used by GitHub Actions from an activated MEGFlow
+Run the fast routing gate used by GitHub Actions from an activated MEGFlow
 environment:
 
 ```bash
 export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
-bash scripts/validation/run_validation.sh all
+bash scripts/validation/run_validation.sh routing-ci
 ```
 
-Use `routing` for Nextflow 24.10.3 DAG, resume, failure, report, and config
-contracts, or `scientific` for real synthetic MNE/OSL filtering, epochs,
-covariance, source-call, MEGQC, DeepReject-input, MEGNet/ICA-label, and report
-tests. Requested gates fail when dependencies are missing, no tests are
-discovered, or any test is skipped. A coverage contract also fails when a new
-`tests/test_*.py` module is not assigned to either gate. GitHub runs both gates,
-a native PowerShell parser check for the Windows installer, and the strict
-documentation build for every push and pull request. Pinned lightweight
-scientific dependencies are in `requirements_validation.txt`.
+`routing-ci` runs all static routing contracts, parses every tracked Nextflow
+config, and executes a representative Nextflow 24.10.3 smoke matrix covering
+step selection, anatomy-only and simultaneous anatomy/MEG routing, nested
+dataset/recording overrides, MNE/OSL parameter passthrough, raw-noise and LCMV
+covariance pairing, resume invalidation, strict failure, and report rebuilding.
+
+Use `routing` for the exhaustive local routing, resume-deletion, failure, report,
+and documentation-example matrices. Use `scientific` for real synthetic MNE/OSL
+filtering, epochs, covariance, source-call, MEGQC, DeepReject-input,
+MEGNet/ICA-label, and report tests. `all` runs both complete local gates and
+builds the documentation when its dependencies are installed. Requested gates
+fail when dependencies are missing, no tests are discovered, or any test is
+skipped. A coverage contract also fails when a new tracked `tests/test_*.py`
+module is not assigned to a complete local gate.
+
+GitHub runs `routing-ci`, `scientific`, a native PowerShell parser check for the
+Windows installer, and the strict documentation build for every push and pull
+request. The exhaustive `routing` matrix remains a local pre-release test so
+routine CI stays focused and timely. Pinned lightweight scientific dependencies
+are in `requirements_validation.txt`.
 
 ### Resume and interactive edits
 

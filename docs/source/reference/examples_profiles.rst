@@ -16,9 +16,13 @@ configuration:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.MEG_MASC_word.artifacts = [
-     meg_vendor: "kit",
-     deepreject: [mode: "lenient"]
+   params.megflow.datasets.MEG_MASC_word = [
+     dataset_dir: "/data/study/MEG-MASC",
+     steps: "meg_ica",
+     artifacts: [
+       meg_vendor: "kit",
+       deepreject: [mode: "lenient"]
+     ]
    ]
 
 The inherited ``enabled``, device, fold, and resource values remain unchanged.

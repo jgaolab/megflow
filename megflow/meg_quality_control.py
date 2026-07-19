@@ -35,6 +35,7 @@ from score_meg_reference_quota_standalone import (  # noqa: E402
     compute_metric_values,
     draw_quality_score_plot,
     load_optional_mne,
+    quality_output_paths,
     score_metrics,
 )
 
@@ -172,7 +173,6 @@ def write_failure_outputs(
     component.to_csv(component_path, index=False)
     write_placeholder_png(figure_path, str(error))
     summary = {
-        "model": args.model,
         "raw_file": str(args.input),
         "score_0_100": None,
         "score_scale": "0-100; higher is better",
@@ -204,10 +204,10 @@ def score_file(args: argparse.Namespace) -> Path:
     args.output_dir.mkdir(parents=True, exist_ok=True)
 
     stem = input_stem(args.input)
-    out_prefix = args.output_dir / f"{stem}.{args.model}"
-    summary_path = Path(f"{out_prefix}.summary.json")
-    component_path = Path(f"{out_prefix}.component_scores.csv")
-    figure_path = Path(f"{out_prefix}.normative_quality_score.png")
+    summary_path, component_path, figure_path = quality_output_paths(
+        args.output_dir,
+        stem,
+    )
 
     try:
         config = load_config(Path(args.config), args.model)

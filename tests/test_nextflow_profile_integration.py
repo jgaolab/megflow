@@ -1,6 +1,7 @@
 import csv
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -61,6 +62,13 @@ RECORDING_SKIP_ICA_EPOCH_PROCESSES = (
     MEG_SKIP_ICA_EPOCH_PROCESSES - DATASET_LEVEL_MEG_PROCESSES
 )
 RECORDING_SOURCE_PROCESSES = MEG_SOURCE_PROCESSES - DATASET_LEVEL_MEG_PROCESSES
+VISIBLE_PROCESS_CANDIDATES = (
+    MEG_SOURCE_PROCESSES
+    | FREESURFER_ANATOMY_PROCESSES
+    | DEEPPREP_ANATOMY_PROCESSES
+    | PSEUDOMRI_ANATOMY_PROCESSES
+    | {"generate_corpus_static_html_report"}
+)
 
 
 def groovy_string(value):
@@ -181,7 +189,14 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
     maxDiff = None
 
     def run_pipeline(
-        self, config, output_dir, *, stub=True, resume=False, expect_success=True
+        self,
+        config,
+        output_dir,
+        *,
+        stub=True,
+        resume=False,
+        expect_success=True,
+        ansi_log=False,
     ):
         output_dir.mkdir(parents=True, exist_ok=True)
         command = [
@@ -200,7 +215,11 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
         result = subprocess.run(
             command,
             cwd=output_dir,
-            env=dict(os.environ, NXF_ANSI_LOG="false"),
+            env=dict(
+                os.environ,
+                NXF_ANSI_LOG="true" if ansi_log else "false",
+                TERM="xterm",
+            ),
             text=True,
             capture_output=True,
             timeout=240,
@@ -216,6 +235,18 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
         if not expect_success and result.returncode == 0:
             self.fail(f"Nextflow unexpectedly succeeded:\n{combined}")
         return result, combined
+
+    def displayed_processes(self, terminal_output, process_names):
+        ansi_escape = re.compile(r"\x1b(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
+        normalized = ansi_escape.sub("", terminal_output).replace("\r", "\n")
+        return {
+            process_name
+            for process_name in process_names
+            if re.search(
+                rf"(?m)^\[[^\]\n]*\]\s+{re.escape(process_name)}(?:\s|\()",
+                normalized,
+            )
+        }
 
     def trace_names(self, output_dir):
         with (output_dir / "trace.txt").open(encoding="utf-8") as handle:
@@ -1874,6 +1905,47 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             self.assertEqual(
                 [row["status"] for row in corpus_reports], ["COMPLETED"]
             )
+
+    def test_single_dataset_stage_ui_registers_only_selected_processes(self):
+        cases = {
+            "report": ("report", REPORT_PROCESSES),
+            "anatomy": ("anatomy", FREESURFER_ANATOMY_PROCESSES),
+            "artifacts": ("meg_artifacts", MEG_ARTIFACT_PROCESSES),
+            "ica": ("meg_ica", MEG_ICA_PROCESSES),
+            "epochs": ("meg_epochs", MEG_EPOCH_PROCESSES),
+            "epochs_skip_ica": (
+                "meg_epochs,skip_ica",
+                MEG_SKIP_ICA_EPOCH_PROCESSES,
+            ),
+            "source": ("meg_all", MEG_SOURCE_PROCESSES),
+            "all": (
+                "all",
+                MEG_SOURCE_PROCESSES | FREESURFER_ANATOMY_PROCESSES,
+            ),
+        }
+        for case_name, (steps, expected_processes) in cases.items():
+            with self.subTest(case=case_name), tempfile.TemporaryDirectory() as tmp:
+                root = Path(tmp)
+                output = root / "output"
+                dataset = root / "dataset"
+                create_dataset(dataset)
+                config = root / "stage.config"
+                write_config(
+                    config,
+                    output,
+                    dataset_block("dataset", dataset, steps=steps),
+                )
+
+                _, combined = self.run_pipeline(
+                    config,
+                    output,
+                    ansi_log=True,
+                )
+                displayed = self.displayed_processes(
+                    combined,
+                    VISIBLE_PROCESS_CANDIDATES,
+                )
+                self.assertEqual(displayed, expected_processes, combined)
 
     def test_strict_processing_failure_terminates_before_report_submission(self):
         with tempfile.TemporaryDirectory() as tmp:

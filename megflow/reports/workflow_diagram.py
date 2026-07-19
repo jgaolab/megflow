@@ -384,20 +384,25 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
         nodes.append(
             {
                 "key": "anatomy_structural",
-                "label": "Structural MRI (T1 → surf → BEM)",
-                "lane": "anatomy",
+                "label": "Structural MRI processing",
+                "lane": "model",
+                "stage": 0,
                 "plan": "run",
+                "depends_on": [],
             }
         )
         return nodes, f"steps: {steps_raw} (source: {source})"
 
-    if _parsed_bool(parsed, "run_anatomy"):
+    run_anatomy = _parsed_bool(parsed, "run_anatomy")
+    if run_anatomy:
         nodes.append(
             {
                 "key": "anatomy_structural",
-                "label": "Structural MRI (parallel branch)",
-                "lane": "anatomy",
+                "label": "Structural MRI",
+                "lane": "model",
+                "stage": 2,
                 "plan": "run",
+                "depends_on": [],
             }
         )
 
@@ -405,6 +410,14 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
     run_meg = _parsed_bool(parsed, "run_meg")
     skip_ica = _parsed_bool(parsed, "skip_ica")
     megqc_enabled = _megqc_enabled_from_manifest(manifest)
+    snapshot = manifest.get("params_snapshot")
+    normalized_snapshot = (
+        _snapshot_with_effective_values(snapshot)
+        if isinstance(snapshot, dict)
+        else {}
+    )
+    covariance_type = str(normalized_snapshot.get("covar_type", "epochs")).strip().lower()
+    source_type = str(normalized_snapshot.get("src_type", "epochs")).strip().lower()
 
     if run_meg:
         if megqc_enabled:
@@ -412,7 +425,8 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
                 {
                     "key": "quality_score",
                     "label": "Quality score",
-                    "lane": "meg",
+                    "lane": "data",
+                    "stage": 0,
                     "plan": "run",
                     "depends_on": [],
                 }
@@ -421,7 +435,8 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
             {
                 "key": "basic_preproc",
                 "label": "Basic preprocessing",
-                "lane": "meg",
+                "lane": "data",
+                "stage": 1,
                 "plan": "run",
                 "depends_on": ["quality_score"] if megqc_enabled else [],
             }
@@ -430,7 +445,8 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
             {
                 "key": "artifacts",
                 "label": "Artifacts",
-                "lane": "meg",
+                "lane": "data",
+                "stage": 2,
                 "plan": "run",
                 "depends_on": ["basic_preproc"],
             }
@@ -440,56 +456,70 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
                 {
                     "key": "ica",
                     "label": "ICA",
-                    "lane": "meg",
+                    "lane": "data",
+                    "stage": 3,
                     "plan": "run",
                     "depends_on": ["artifacts"],
                 }
             )
+        signal_predecessor = "artifacts" if skip_ica else "ica"
         if meg_stage >= 2:
             nodes.append(
                 {
                     "key": "epochs",
                     "label": "Epochs",
-                    "lane": "meg",
+                    "lane": "data",
+                    "stage": 4,
                     "plan": "run",
-                    "depends_on": ["basic_preproc"] if skip_ica else ["ica"],
+                    "depends_on": [signal_predecessor],
                 }
             )
         if meg_stage >= 3:
+            covariance_predecessor = (
+                "epochs" if covariance_type == "epochs" else signal_predecessor
+            )
+            anatomy_dependency = ["anatomy_structural"] if run_anatomy else []
             nodes.append(
                 {
                     "key": "covariance",
                     "label": "Covariance",
-                    "lane": "meg",
+                    "lane": "data",
+                    "stage": 5,
                     "plan": "run",
-                    "depends_on": ["epochs"],
+                    "depends_on": [covariance_predecessor],
                 }
             )
             nodes.append(
                 {
                     "key": "coregistration",
                     "label": "Coregistration",
-                    "lane": "meg",
+                    "lane": "model",
+                    "stage": 4,
                     "plan": "run",
-                    "depends_on": ["ica"],
+                    "depends_on": [signal_predecessor, *anatomy_dependency],
                 }
             )
             nodes.append(
                 {
                     "key": "headmodel",
                     "label": "Head model",
-                    "lane": "meg",
+                    "lane": "model",
+                    "stage": 5,
                     "plan": "run",
-                    "depends_on": ["epochs", "coregistration"],
+                    "depends_on": ["coregistration", *anatomy_dependency],
                 }
+            )
+            source_predecessor = (
+                "epochs" if source_type == "epochs" else signal_predecessor
             )
             nodes.append(
                 {
                     "key": "source",
                     "label": "Source localization",
-                    "lane": "meg",
+                    "lane": "data",
+                    "stage": 6,
                     "plan": "run",
-                    "depends_on": ["covariance", "headmodel"],
+                    "depends_on": [source_predecessor, "covariance", "headmodel"],
                 }
             )
 
@@ -797,67 +827,98 @@ def _nextflow_config_hint_html(ctx: dict[str, Any]) -> str:
 
 
 def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
-    anatomy_nodes = [n for n in nodes if n["lane"] == "anatomy"]
-    meg_nodes = [n for n in nodes if n["lane"] == "meg"]
+    def semantic_lane(node: dict[str, Any]) -> str:
+        return "model" if node.get("lane") in {"model", "anatomy"} else "data"
+
+    data_nodes = [node for node in nodes if semantic_lane(node) == "data"]
+    model_nodes = [node for node in nodes if semantic_lane(node) == "model"]
     mid = "wf" + secrets.token_hex(4)
-    max_row_nodes = max(len(anatomy_nodes), len(meg_nodes), 1)
-    if max_row_nodes <= 2:
+
+    order_by_key = {node["key"]: index for index, node in enumerate(nodes)}
+    stage_by_key: dict[str, int] = {}
+    for index, node in enumerate(nodes):
+        try:
+            stage_by_key[node["key"]] = int(node.get("stage", index))
+        except (TypeError, ValueError):
+            stage_by_key[node["key"]] = index
+    stage_values = sorted(set(stage_by_key.values())) or [0]
+    stage_to_column = {stage: index for index, stage in enumerate(stage_values)}
+    column_by_key = {
+        key: stage_to_column[stage]
+        for key, stage in stage_by_key.items()
+    }
+    n_columns = max(len(stage_values), 1)
+
+    if n_columns <= 2:
         box_w = 220.0
         box_h = 88.0
         gap = 56.0
         min_width = 760.0
-    elif max_row_nodes <= 4:
+    elif n_columns <= 4:
         box_w = 190.0
         box_h = 82.0
-        gap = 34.0
+        gap = 44.0
         min_width = 860.0
     else:
-        box_w = 164.0
-        box_h = 78.0
-        gap = 24.0
+        box_w = 140.0
+        box_h = 80.0
+        gap = 22.0
         min_width = 980.0
     pad_x = 28.0
-    lane_pad_y = 22.0
+    lane_pad_y = 25.0
     rx = 14.0
-    if anatomy_nodes:
-        y_anat = 46.0
-        row_gap = box_h + 42.0
-        y_meg = y_anat + row_gap
+
+    two_rows = bool(data_nodes and model_nodes)
+    if two_rows:
+        y_data = 66.0
+        y_model = 230.0
+    elif data_nodes:
+        y_data = 66.0
+        y_model = 66.0
     else:
-        y_anat = 26.0
-        y_meg = 46.0
+        y_data = 66.0
+        y_model = 66.0
 
-    def row_width(n: int) -> float:
-        if n <= 0:
-            return 0.0
-        return float(n * box_w + max(0, n - 1) * gap)
-
-    mw = pad_x * 2 + row_width(len(meg_nodes)) if meg_nodes else pad_x * 2 + 120.0
-    aw = pad_x * 2 + row_width(len(anatomy_nodes)) if anatomy_nodes else 0.0
-    width = max(mw, aw, min_width)
-    height = y_meg + box_h + 32.0
+    graph_width = n_columns * box_w + max(0, n_columns - 1) * gap
+    width = max(pad_x * 2 + graph_width, min_width)
+    x_offset = (width - graph_width) / 2.0
+    last_row_y = max(
+        y_data if data_nodes else 0.0,
+        y_model if model_nodes else 0.0,
+    )
+    height = last_row_y + box_h + 58.0
 
     statuses = {node["key"]: status_fn(node) for node in nodes}
 
     def positions_for(row_nodes: list[dict[str, Any]], y: float) -> list[tuple[dict[str, Any], float, float]]:
-        n = len(row_nodes)
-        if n == 0:
-            return []
-        total_w = row_width(n)
-        x0 = (width - total_w) / 2
-        return [(node, x0 + i * (box_w + gap), y) for i, node in enumerate(row_nodes)]
+        ordered = sorted(
+            row_nodes,
+            key=lambda node: (column_by_key[node["key"]], order_by_key[node["key"]]),
+        )
+        return [
+            (
+                node,
+                x_offset + column_by_key[node["key"]] * (box_w + gap),
+                y,
+            )
+            for node in ordered
+        ]
 
-    anatomy_pos = positions_for(anatomy_nodes, y_anat)
-    meg_pos = positions_for(meg_nodes, y_meg)
-    pos_by_key = {node["key"]: (node, x, y) for node, x, y in [*anatomy_pos, *meg_pos]}
+    data_pos = positions_for(data_nodes, y_data)
+    model_pos = positions_for(model_nodes, y_model)
+    all_positions = [*data_pos, *model_pos]
+    pos_by_key = {
+        node["key"]: (node, x, y)
+        for node, x, y in all_positions
+    }
 
     parts: list[str] = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width:.0f}" height="{height:.0f}" '
         f'viewBox="0 0 {width:.0f} {height:.0f}" class="workflow-svg" '
         f'role="img" aria-label="MEGFlow preprocessing workflow">',
         "<defs>",
-        f'<marker id="{mid}-arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">',
-        '<path d="M0,0 L8,4 L0,8 z" class="wf-arrowhead" />',
+        f'<marker id="{mid}-arrow" markerWidth="7" markerHeight="7" refX="6.5" refY="3.5" orient="auto" markerUnits="userSpaceOnUse">',
+        '<path d="M0,0 L7,3.5 L0,7 z" class="wf-arrowhead" />',
         "</marker>",
         "</defs>",
     ]
@@ -874,48 +935,179 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
             f'<text x="{left + 10:.1f}" y="{y - 7:.1f}" class="wf-lane-label">{html.escape(label)}</text>'
         )
 
-    def draw_dependency_edges(row_positions: list[tuple[dict[str, Any], float, float]]) -> None:
-        row_index = {node["key"]: index for index, (node, _, _) in enumerate(row_positions)}
-        for target, target_x, target_y in row_positions:
-            for source_key in target.get("depends_on", []):
-                if source_key not in pos_by_key or source_key not in row_index:
-                    continue
-                source, source_x, source_y = pos_by_key[source_key]
-                x1 = source_x + box_w + 3
-                x2 = target_x - 3
-                cy = target_y + box_h / 2
-                span = max(1, row_index[target["key"]] - row_index[source_key])
-                if span == 1:
-                    control_y = cy
-                else:
-                    control_y = target_y + box_h + 18 + (span - 2) * 10
-                mx = (x1 + x2) / 2
-                parts.append(
-                    f'<path data-from="{html.escape(str(source["key"]))}" '
-                    f'data-to="{html.escape(str(target["key"]))}" '
-                    f'd="M{x1:.1f},{cy:.1f} C{mx:.1f},{control_y:.1f} '
-                    f'{mx:.1f},{control_y:.1f} {x2:.1f},{cy:.1f}" '
-                    f'class="wf-edge" marker-end="url(#{mid}-arrow)" />'
-                )
-
-    def draw_branch_edge() -> None:
-        if not anatomy_pos or not meg_pos:
-            return
-        target_key = next((key for key in ("coregistration", "headmodel", "source") if key in pos_by_key), None)
-        if target_key is None:
-            return
-        _, ax, ay = anatomy_pos[0]
-        _, tx, ty = pos_by_key[target_key]
-        x1 = ax + box_w / 2
-        y1 = ay + box_h + 5
-        x2 = tx + box_w / 2
-        y2 = ty - 7
-        mid_y = (y1 + y2) / 2
-        parts.append(
-            f'<path data-from="anatomy_structural" data-to="{html.escape(target_key)}" '
-            f'd="M{x1:.1f},{y1:.1f} C{x1:.1f},{mid_y:.1f} {x2:.1f},{mid_y:.1f} {x2:.1f},{y2:.1f}" '
-            f'class="wf-edge wf-edge-branch" marker-end="url(#{mid}-arrow)" />'
+    if data_pos:
+        draw_lane(data_pos, "MEG data")
+    if model_pos:
+        model_label = (
+            "Anatomy & modeling"
+            if "anatomy_structural" in pos_by_key
+            else "Registration & modeling"
         )
+        draw_lane(model_pos, model_label)
+
+    ports: set[tuple[float, float]] = set()
+    top_route_index = 0
+    bottom_route_index = 0
+    cross_route_index = 0
+
+    def has_intermediate_node(source_key: str, target_key: str, lane: str) -> bool:
+        source_column = column_by_key[source_key]
+        target_column = column_by_key[target_key]
+        low, high = sorted((source_column, target_column))
+        return any(
+            semantic_lane(node) == lane
+            and low < column_by_key[node["key"]] < high
+            for node in nodes
+        )
+
+    def append_edge(
+        source: dict[str, Any],
+        target: dict[str, Any],
+        path_data: str,
+        class_names: str,
+    ) -> None:
+        source_key = html.escape(str(source["key"]))
+        target_key = html.escape(str(target["key"]))
+        title = html.escape(f'{source["label"]} -> {target["label"]}')
+        parts.append(
+            f'<g class="wf-edge-group" data-from="{source_key}" data-to="{target_key}">'
+            f'<title>{title}</title>'
+            f'<path d="{path_data}" class="{class_names}" marker-end="url(#{mid}-arrow)" />'
+            "</g>"
+        )
+
+    for target in nodes:
+        if target["key"] not in pos_by_key:
+            continue
+        target_node, target_x, target_y = pos_by_key[target["key"]]
+        for source_key in target.get("depends_on", []):
+            if source_key not in pos_by_key:
+                continue
+            source, source_x, source_y = pos_by_key[source_key]
+            source_lane = semantic_lane(source)
+            target_lane = semantic_lane(target_node)
+            same_lane = source_lane == target_lane
+            forward = column_by_key[source_key] < column_by_key[target_node["key"]]
+            anatomy_to_coregistration = (
+                same_lane
+                and source_key == "anatomy_structural"
+                and target_node["key"] == "coregistration"
+            )
+            direct = (
+                same_lane
+                and forward
+                and not anatomy_to_coregistration
+                and not has_intermediate_node(source_key, target_node["key"], source_lane)
+            )
+
+            if direct:
+                start = (source_x + box_w, source_y + box_h / 2.0)
+                end = (target_x, target_y + box_h / 2.0)
+                ports.update((start, end))
+                append_edge(
+                    source,
+                    target_node,
+                    f"M{start[0]:.1f},{start[1]:.1f} H{end[0]:.1f}",
+                    "wf-edge wf-edge-direct",
+                )
+                continue
+
+            source_center_x = source_x + box_w / 2.0
+            target_center_x = target_x + box_w / 2.0
+            if anatomy_to_coregistration:
+                track_y = source_y + box_h + 22.0 + bottom_route_index * 12.0
+                bottom_route_index += 1
+                start = (source_x + box_w, source_y + box_h / 2.0)
+                end = (target_center_x, target_y + box_h)
+                ports.update((start, end))
+                path_data = (
+                    f"M{start[0]:.1f},{start[1]:.1f} V{track_y:.1f} "
+                    f"H{end[0]:.1f} V{end[1]:.1f}"
+                )
+                append_edge(source, target_node, path_data, "wf-edge wf-edge-routed")
+                continue
+
+            if (
+                not same_lane
+                and target_node["key"] == "coregistration"
+                and source_key in {"ica", "artifacts"}
+            ):
+                start = (source_center_x, source_y + box_h)
+                end = (target_x, target_y + box_h / 2.0)
+                ports.update((start, end))
+                append_edge(
+                    source,
+                    target_node,
+                    f"M{start[0]:.1f},{start[1]:.1f} V{end[1]:.1f} H{end[0]:.1f}",
+                    "wf-edge wf-edge-routed wf-edge-cross-lane",
+                )
+                continue
+
+            if (
+                not same_lane
+                and source_key == "headmodel"
+                and target_node["key"] == "source"
+            ):
+                start = (source_x + box_w, source_y + box_h / 2.0)
+                end = (target_center_x, target_y + box_h)
+                ports.update((start, end))
+                append_edge(
+                    source,
+                    target_node,
+                    f"M{start[0]:.1f},{start[1]:.1f} H{end[0]:.1f} V{end[1]:.1f}",
+                    "wf-edge wf-edge-routed wf-edge-cross-lane",
+                )
+                continue
+
+            if same_lane and source_lane == "data":
+                track_y = max(14.0, y_data - 24.0 - top_route_index * 12.0)
+                top_route_index += 1
+                start = (source_center_x, source_y)
+                end = (target_center_x, target_y)
+                ports.update((start, end))
+                path_data = (
+                    f"M{start[0]:.1f},{start[1]:.1f} V{track_y:.1f} "
+                    f"H{end[0]:.1f} V{end[1]:.1f}"
+                )
+                append_edge(source, target_node, path_data, "wf-edge wf-edge-routed")
+                continue
+
+            if same_lane:
+                track_y = source_y + box_h + 22.0 + bottom_route_index * 12.0
+                bottom_route_index += 1
+                start = (source_center_x, source_y + box_h)
+                end = (target_center_x, target_y + box_h)
+                ports.update((start, end))
+                path_data = (
+                    f"M{start[0]:.1f},{start[1]:.1f} V{track_y:.1f} "
+                    f"H{end[0]:.1f} V{end[1]:.1f}"
+                )
+                append_edge(source, target_node, path_data, "wf-edge wf-edge-routed")
+                continue
+
+            if source_lane == "data":
+                start = (source_center_x, source_y + box_h)
+                end = (target_center_x, target_y)
+            else:
+                start = (source_center_x, source_y)
+                end = (target_center_x, target_y + box_h)
+            middle_top = y_data + box_h
+            middle_bottom = y_model
+            track_y = middle_top + (cross_route_index + 1) * (
+                (middle_bottom - middle_top) / 3.0
+            )
+            cross_route_index = (cross_route_index + 1) % 2
+            ports.update((start, end))
+            path_data = (
+                f"M{start[0]:.1f},{start[1]:.1f} V{track_y:.1f} "
+                f"H{end[0]:.1f} V{end[1]:.1f}"
+            )
+            append_edge(
+                source,
+                target_node,
+                path_data,
+                "wf-edge wf-edge-routed wf-edge-cross-lane",
+            )
 
     def draw_node(node: dict[str, Any], x: float, y: float) -> None:
         st = statuses.get(node["key"], "missing")
@@ -946,15 +1138,10 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
             f'class="wf-node-status {cls}">{html.escape(status_label)}</text></g>'
         )
 
-    if anatomy_nodes:
-        draw_lane(anatomy_pos, "Anatomy")
-    if meg_nodes:
-        draw_lane(meg_pos, "MEG")
-    draw_dependency_edges(anatomy_pos)
-    draw_dependency_edges(meg_pos)
-    draw_branch_edge()
-    for node, x, y in [*anatomy_pos, *meg_pos]:
+    for node, x, y in all_positions:
         draw_node(node, x, y)
+    for x, y in sorted(ports):
+        parts.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="2.6" class="wf-port" />')
     parts.append("</svg>")
     return "".join(parts)
 

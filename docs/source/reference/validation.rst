@@ -14,24 +14,49 @@ DeepPrep, or full source reconstruction.
 Run the Test Suite
 ------------------
 
-The supported one-command entrypoint uses the same gates as GitHub Actions:
+The fast routing gate used for every GitHub push and pull request is:
 
 .. code-block:: bash
 
    export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
-   bash scripts/validation/run_validation.sh all
+   bash scripts/validation/run_validation.sh routing-ci
 
-``routing`` runs static configuration, shell-entrypoint, real Nextflow 24.10.3
-stub routing, resume/failure, report-layout, and shipped-config parsing tests.
+``routing-ci`` first runs every static routing/configuration contract, then a
+representative real Nextflow 24.10.3 ``-stub-run`` matrix, and finally parses
+every tracked config under ``nextflow/``. The smoke matrix covers recording
+stage reduction, anatomy-only and simultaneous anatomy/MEG routing,
+defaults/dataset/recording precedence, MNE/OSL parameter passthrough,
+dataset-scoped empty-room covariance, conditional LCMV data covariance,
+resume invalidation, strict failure, and dataset/corpus report rebuilding.
+Static documentation-example checks run here, while exhaustive parsing and
+previewing of every embedded Groovy example stays in the full local gate.
+
+Run the complete routing and resume matrix before a release or after broad
+workflow changes:
+
+.. code-block:: bash
+
+   export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
+   bash scripts/validation/run_validation.sh routing
+
+``routing`` includes all ``routing-ci`` behavior plus complete step aliases and
+invalid combinations, required-output deletion matrices, detailed resume
+lineage cases, lenient-failure closure, report layout, and every documented
+configuration example. These tests use stubs for slow scientific programs, so
+FreeSurfer and DeepPrep do not perform real reconstruction, but the large
+number of Nextflow launches makes this gate intentionally more time-consuming.
+
 ``scientific`` runs the explicit synthetic MNE/OSL, DeepReject-input, NMDQ,
-epochs, rank/covariance, MEGNet/ICA-label, source-call, and static-report
-suites. ``all`` runs both and also builds the documentation when Sphinx is
-installed together with all extensions in ``requirements_doc.txt``. A
-requested gate fails if its dependency is missing, zero tests are discovered,
-or any test is skipped; this prevents a missing executable from producing a
-misleading green result. A static coverage contract enumerates every
-``tests/test_*.py`` module and fails when a module is not assigned to one of
-the two shared gates.
+epochs, rank/covariance, MEGNet/ICA-label, source-call, and static-report suites.
+``all`` runs the complete ``routing`` and ``scientific`` gates and also builds
+the documentation when Sphinx is installed together with all extensions in
+``requirements_doc.txt``. A requested gate fails if its dependency is missing,
+zero tests are discovered, or any test is skipped; this prevents a missing
+executable from producing a misleading green result. The CI-required files are
+also checked against ``git ls-files``, so local-only files cannot silently make
+a clean GitHub checkout behave differently. A static coverage contract
+enumerates every tracked ``tests/test_*.py`` module and fails when a module is
+not assigned to a complete local gate.
 
 To reproduce the lightweight scientific CI environment rather than using an
 existing MEGFlow environment:
@@ -44,9 +69,11 @@ existing MEGFlow environment:
    PYTHON=/tmp/megflow-validation/bin/python \
      bash scripts/validation/run_validation.sh scientific
 
-The repository CI performs both gates with Nextflow 24.10.3 on every push and
-pull request. A separate ``windows-latest`` job parses the Windows installer
-with the native PowerShell AST parser and fails if that parser is unavailable;
+The repository CI performs ``routing-ci`` and ``scientific`` with Nextflow
+24.10.3 on every push and pull request. The exhaustive ``routing`` gate remains
+local rather than extending routine CI with every resume and output-deletion
+matrix. A separate ``windows-latest`` job parses the Windows installer with the
+native PowerShell AST parser and fails if that parser is unavailable;
 non-Windows runs do not report this platform-specific check as passed or
 skipped. The strict documentation build is a fourth job. Keep Nextflow pinned
 to the production runtime and evaluate an upgrade in a separate change. The

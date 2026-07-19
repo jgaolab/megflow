@@ -9,6 +9,7 @@ set -e
 # syntax parser. Nextflow 26 defaults to v2, so select the compatible parser
 # explicitly until the pipeline itself is migrated to the static v2 syntax.
 export NXF_SYNTAX_PARSER=v1
+export MEGFLOW_DOCKER_BASE_CONFIG="${MEGFLOW_DOCKER_BASE_CONFIG:-/program/nextflow/nextflow.config}"
 
 # Default configuration file and parameters
 CONFIG_FILE="/program/nextflow/nextflow.config"

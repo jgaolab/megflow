@@ -12,6 +12,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 UNITTEST_GATE = REPO_ROOT / "scripts" / "validation" / "run_unittest_gate.py"
 VALIDATION_RUNNER = REPO_ROOT / "scripts" / "validation" / "run_validation.sh"
 WINDOWS_INSTALL_VALIDATOR = REPO_ROOT / "scripts" / "validation" / "validate_windows_installer.py"
+ROUTING_CONTRACT_TEST = REPO_ROOT / "tests" / "test_nextflow_execution_config.py"
 
 
 class ValidationRunnerTests(unittest.TestCase):
@@ -61,6 +62,11 @@ class ValidationRunnerTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("discovered zero tests", result.stderr)
+
+    def test_mandatory_routing_contracts_do_not_conditionally_skip(self):
+        text = ROUTING_CONTRACT_TEST.read_text(encoding="utf-8")
+        self.assertNotIn("self.skipTest", text)
+        self.assertNotIn("not packaged in the image", text)
 
     def test_shell_runner_rejects_unknown_modes_before_running_a_gate(self):
         result = subprocess.run(

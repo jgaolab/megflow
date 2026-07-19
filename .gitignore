@@ -27,6 +27,7 @@ softwares/tktools
 .venv/
 .nextflow.log
 .nextflow.log.*
+.pytest_cache/
 megflow/temp/
 megflow/tools/DeepPrep
 megflow/tools/MEGNet

@@ -19,6 +19,11 @@ overrides, heterogeneous corpora, source-mode demos, and cluster execution.
 2. :doc:`examples_profiles`: per-dataset and per-recording overrides, corpus
    execution, the runnable multi-dataset demo, and cluster launch.
 
+Repository validation parses every Groovy block, checks every shell and Docker
+command, and previews representative profile layouts with synthetic paths.
+Dataset-specific event definitions, calibration files, anatomy, and scientific
+parameter choices still need to be verified against the real study data.
+
 .. toctree::
    :maxdepth: 1
 

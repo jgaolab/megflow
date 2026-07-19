@@ -1357,7 +1357,6 @@ process score_meg_quality {
     qc_output_dir = "${preproc_dir}/quality_control/${raw_subject_basename}"
     qc_output_stem = megInputStem(orig_raw_path)
     megqc_config = moduleConfig(effective_config, 'megqc')
-    qc_model = cfgText(megqc_config, ['model'], 'lowcost_quota_T4_S2_Stat1_Fr1')
     qc_preproc_config = configJson([preproc: cfgGet(megqc_config, ['preproc'], [])])
     qc_meg_vendor = cfgText(megqc_config, ['meg_vendor'], 'auto')
     """
@@ -1384,12 +1383,12 @@ process score_meg_quality {
         --omit_bad_channels "${cfgBool(megqc_config, ['omit_bad_channels'], false)}" \\
         --n_jobs ${task.cpus} \\
         --seg_length ${cfgGet(megqc_config, ['seg_length'], 100)}
-    cp "${qc_output_dir}/${qc_output_stem}.${qc_model}.summary.json" .
-    cp "${qc_output_dir}/${qc_output_stem}.${qc_model}.component_scores.csv" .
-    cp "${qc_output_dir}/${qc_output_stem}.${qc_model}.normative_quality_score.png" .
-    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.summary.json" qc-summary-output.guard
-    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.component_scores.csv" qc-components-output.guard
-    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.normative_quality_score.png" qc-plot-output.guard
+    cp "${qc_output_dir}/${qc_output_stem}.summary.json" .
+    cp "${qc_output_dir}/${qc_output_stem}.component_scores.csv" .
+    cp "${qc_output_dir}/${qc_output_stem}.normative_quality_score.png" .
+    ln -s "${qc_output_dir}/${qc_output_stem}.summary.json" qc-summary-output.guard
+    ln -s "${qc_output_dir}/${qc_output_stem}.component_scores.csv" qc-components-output.guard
+    ln -s "${qc_output_dir}/${qc_output_stem}.normative_quality_score.png" qc-plot-output.guard
     """
 
     stub:
@@ -1399,22 +1398,21 @@ process score_meg_quality {
     raw_input_hash = fileStatFingerprint(orig_raw_path)
     qc_output_dir = "${preproc_dir}/quality_control/${raw_subject_basename}"
     qc_output_stem = megInputStem(orig_raw_path)
-    qc_model = cfgText(effective_config, ['megqc', 'model'], 'lowcost_quota_T4_S2_Stat1_Fr1')
     qc_stub_score = cfgGet(effective_config, ['test_stub_qc_score'], 100.0)
     """
     # MEGFLOW_CODE_SHA256=${qc_code_hash}
     # MEGFLOW_RAW_INPUT=${raw_input_hash}
     ${stubFailureCommand(effective_config, 'score_meg_quality')}
     mkdir -p "${qc_output_dir}"
-    printf '{"score_0_100": %s}\n' "${qc_stub_score}" > "${qc_output_stem}.${qc_model}.summary.json"
-    printf 'metric,score\nstub,100\n' > "${qc_output_stem}.${qc_model}.component_scores.csv"
-    touch "${qc_output_stem}.${qc_model}.normative_quality_score.png"
-    cp "${qc_output_stem}.${qc_model}.summary.json" "${qc_output_dir}/"
-    cp "${qc_output_stem}.${qc_model}.component_scores.csv" "${qc_output_dir}/"
-    cp "${qc_output_stem}.${qc_model}.normative_quality_score.png" "${qc_output_dir}/"
-    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.summary.json" qc-summary-output.guard
-    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.component_scores.csv" qc-components-output.guard
-    ln -s "${qc_output_dir}/${qc_output_stem}.${qc_model}.normative_quality_score.png" qc-plot-output.guard
+    printf '{"score_0_100": %s}\n' "${qc_stub_score}" > "${qc_output_stem}.summary.json"
+    printf 'metric,score\nstub,100\n' > "${qc_output_stem}.component_scores.csv"
+    touch "${qc_output_stem}.normative_quality_score.png"
+    cp "${qc_output_stem}.summary.json" "${qc_output_dir}/"
+    cp "${qc_output_stem}.component_scores.csv" "${qc_output_dir}/"
+    cp "${qc_output_stem}.normative_quality_score.png" "${qc_output_dir}/"
+    ln -s "${qc_output_dir}/${qc_output_stem}.summary.json" qc-summary-output.guard
+    ln -s "${qc_output_dir}/${qc_output_stem}.component_scores.csv" qc-components-output.guard
+    ln -s "${qc_output_dir}/${qc_output_stem}.normative_quality_score.png" qc-plot-output.guard
     """
 }
 
@@ -2247,6 +2245,46 @@ Map attachRecordingSteps(Map datasetConfig, Map recordingConfig, def rawPathValu
     return effective
 }
 
+Map buildMegProcessPlan(List datasetProfiles) {
+    def stepCandidates = []
+    def datasetSteps = []
+    datasetProfiles.each { profile ->
+        def effective = attachParsedSteps(asMap(asMap(profile).effective_config))
+        def resolvedDatasetSteps = asMap(effective._steps)
+        datasetSteps << resolvedDatasetSteps
+        stepCandidates << resolvedDatasetSteps
+        asMap(effective.recordings).each { profileName, profileValue ->
+            def recordingProfile = asMap(profileValue)
+            if (recordingProfile.containsKey('steps')) {
+                stepCandidates << parseMegPipelineSteps(
+                    cfgText(recordingProfile, ['steps'], 'meg_all')
+                )
+            }
+        }
+    }
+
+    def megSteps = stepCandidates.findAll { steps -> cfgBool(steps, ['runMeg'], false) }
+    return [
+        enabled: !megSteps.isEmpty(),
+        runIca: megSteps.any { steps ->
+            cfgGet(steps, ['megStage'], -1).toString().toInteger() >= 1 &&
+                !cfgBool(steps, ['skipIca'], false)
+        },
+        runEpochs: megSteps.any { steps ->
+            cfgGet(steps, ['megStage'], -1).toString().toInteger() >= 2
+        },
+        runSource: megSteps.any { steps ->
+            cfgGet(steps, ['megStage'], -1).toString().toInteger() >= 3
+        },
+        runReports: datasetSteps.any { steps ->
+            cfgBool(steps, ['runMeg'], false) || cfgText(steps, ['primary'], '') == 'report'
+        },
+        maxStage: megSteps
+            ? megSteps.collect { steps -> cfgGet(steps, ['megStage'], -1).toString().toInteger() }.max()
+            : -1
+    ]
+}
+
 Map buildAnatomyProcessPlan(List datasetProfiles) {
     def anatomyConfigs = datasetProfiles
         .collect { profile ->
@@ -2300,6 +2338,7 @@ Map buildAnatomyProcessPlan(List datasetProfiles) {
 workflow {
     def datasetProfiles = resolveDatasetProfiles(params.megflow)
     def anatomyPlan = buildAnatomyProcessPlan(datasetProfiles)
+    def megPlan = buildMegProcessPlan(datasetProfiles)
     def megflowParams = asMap(params.megflow)
     def corpusMode = datasetProfiles.size() > 1 || cfgText(megflowParams, ['corpus_root'], '')
     def expectedReportScope = corpusMode ? 'corpus' : 'dataset'
@@ -2319,6 +2358,7 @@ workflow {
     log.info "MEGFlow profile datasets: ${datasetProfiles.collect { it.dataset_name }.join(', ')}"
     log.info "Corpus mode: ${corpusMode}"
     log.info "Anatomy process plan: enabled=${anatomyPlan.enabled}, methods=${anatomyPlan.methods ?: 'none'}, datasets=${anatomyPlan.datasetNames ?: 'none'}"
+    log.info "MEG process plan: enabled=${megPlan.enabled}, max_stage=${megPlan.maxStage}, ica=${megPlan.runIca}, epochs=${megPlan.runEpochs}, source=${megPlan.runSource}, reports=${megPlan.runReports}"
 
     native_dataset_ch = Channel
         .fromList(datasetProfiles)
@@ -2404,30 +2444,33 @@ workflow {
             tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, rawInventoryHash)
         }
 
-    native_imported = import_meg_dataset(dataset_meg_import_ch)
-    native_raw_subject_ch = native_imported.imported_meg_data
-        .flatMap { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, imported_file ->
-            def rawPaths = imported_file.readLines()
-                .collect { it.trim() }
-                .findAll { it }
-            def duplicateOutputIds = rawPaths.groupBy { rawPath -> recordingOutputId(rawPath) }
-                .findAll { outputId, paths -> paths.size() > 1 }
-            if (duplicateOutputIds) {
-                throw new IllegalArgumentException(
-                    "Imported recordings in dataset ${dataset_name} share output identifiers: ${duplicateOutputIds}"
-                )
-            }
-            rawPaths.collect { raw_subject_path ->
-                    def recordingConfig = attachRecordingSteps(
-                        asMap(effective_config),
-                        effectiveRecordingConfig(asMap(effective_config), raw_subject_path),
-                        raw_subject_path
+    native_raw_subject_ch = Channel.empty()
+    if (megPlan.enabled || anatomyPlan.runPseudomri) {
+        native_imported = import_meg_dataset(dataset_meg_import_ch)
+        native_raw_subject_ch = native_imported.imported_meg_data
+            .flatMap { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, imported_file ->
+                def rawPaths = imported_file.readLines()
+                    .collect { it.trim() }
+                    .findAll { it }
+                def duplicateOutputIds = rawPaths.groupBy { rawPath -> recordingOutputId(rawPath) }
+                    .findAll { outputId, paths -> paths.size() > 1 }
+                if (duplicateOutputIds) {
+                    throw new IllegalArgumentException(
+                        "Imported recordings in dataset ${dataset_name} share output identifiers: ${duplicateOutputIds}"
                     )
-                    recordingConfig.code_dir = cfgText(recordingConfig, ['code_dir'], megflowCodeDir(recordingConfig))
-                    recordingConfig._recording.raw_input_fingerprint = fileStatFingerprint(raw_subject_path)
-                    tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, recordingConfig, raw_subject_path)
                 }
-        }
+                rawPaths.collect { raw_subject_path ->
+                        def recordingConfig = attachRecordingSteps(
+                            asMap(effective_config),
+                            effectiveRecordingConfig(asMap(effective_config), raw_subject_path),
+                            raw_subject_path
+                        )
+                        recordingConfig.code_dir = cfgText(recordingConfig, ['code_dir'], megflowCodeDir(recordingConfig))
+                        recordingConfig._recording.raw_input_fingerprint = fileStatFingerprint(raw_subject_path)
+                        tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, recordingConfig, raw_subject_path)
+                    }
+            }
+    }
 
     native_raw_cov_reference_keys_v = native_raw_subject_ch
         .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, raw_subject_path ->
@@ -2612,286 +2655,301 @@ workflow {
         native_anatomy_subject_ch = native_bem.bem_subjects
     }
 
-    native_meg_raw_ch = native_raw_subject_ch
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, raw_subject_path ->
-            asMap(effective_config._steps).runMeg
-        }
-    native_raw_with_qc_ch = native_meg_raw_ch
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, raw_subject_path ->
-            cfgBool(effective_config, ['megqc', 'enabled'], true)
-        }
-    native_raw_without_qc_ch = native_meg_raw_ch
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, raw_subject_path ->
-            !cfgBool(effective_config, ['megqc', 'enabled'], true)
-        }
-    native_qc = score_meg_quality(native_raw_with_qc_ch)
-    native_qc_passed_ch = native_qc.qc_subjects
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, qc_summary, qc_components, qc_plot ->
-            def scorePayload = new JsonSlurper().parse(new File(qc_summary.toString())) as Map
-            def scoreValue = scorePayload.score_0_100
-            boolean hasScore = scoreValue != null && scoreValue.toString() != '' && scoreValue.toString().toLowerCase() != 'nan'
-            double scoreDouble = hasScore ? scoreValue.toString().toDouble() : Double.NaN
-            double minScore = cfgGet(effective_config, ['megqc', 'min_score'], 0.0).toString().toDouble()
-            boolean passed = hasScore && scoreDouble >= minScore
-            if (!passed) {
-                log.warn "MEG QC skipped downstream processing: dataset=${dataset_name}, raw=${orig_raw_path}, score=${scoreValue}, threshold=${minScore}"
+    native_preproc_with_hash_ch = Channel.empty()
+    native_artifacts_with_hash = Channel.empty()
+    if (megPlan.enabled) {
+        native_meg_raw_ch = native_raw_subject_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, raw_subject_path ->
+                asMap(effective_config._steps).runMeg
             }
-            return passed ? tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path) : null
-        }
-        .filter { it != null }
-    native_meg_input_ch = native_raw_without_qc_ch.mix(native_qc_passed_ch)
-
-    native_preproc = meg_basic_preproc(native_meg_input_ch)
-    native_preproc_with_hash_ch = native_preproc.preproc_subjects
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path ->
-            def preprocHash = fileStatFingerprint(preproc_raw_path)
-            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preprocHash)
-        }
-    native_artifacts = detect_artifacts(native_preproc_with_hash_ch)
-    native_artifacts_with_hash = native_artifacts.artifacts
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash, bad_channels, bad_segments ->
-            def artifactHash = "${preproc_hash}|${filesSha256([bad_channels, bad_segments])}"
-            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifactHash)
-        }
-
-    native_ica_inputs_ch = native_artifacts_with_hash
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifactHash ->
-            asMap(effective_config._steps).megStage >= 1 && !asMap(effective_config._steps).skipIca
-        }
-    native_ica = run_ica(native_ica_inputs_ch)
-    native_ica_with_hash_ch = native_ica.ica_subjects
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_source, ica_file_path ->
-            def icaHash = fileStatFingerprint(ica_file_path)
-            def icaLabelCodeHash
-            synchronized (icaLabelFingerprints) {
-                if (!icaLabelFingerprints.containsKey(effective_config.code_dir)) {
-                    icaLabelFingerprints[effective_config.code_dir] =
-                        icaLabelImplementationFingerprint(effective_config.code_dir)
+        native_raw_with_qc_ch = native_meg_raw_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, raw_subject_path ->
+                cfgBool(effective_config, ['megqc', 'enabled'], true)
+            }
+        native_raw_without_qc_ch = native_meg_raw_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, raw_subject_path ->
+                !cfgBool(effective_config, ['megqc', 'enabled'], true)
+            }
+        native_qc = score_meg_quality(native_raw_with_qc_ch)
+        native_qc_passed_ch = native_qc.qc_subjects
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, qc_summary, qc_components, qc_plot ->
+                def scorePayload = new JsonSlurper().parse(new File(qc_summary.toString())) as Map
+                def scoreValue = scorePayload.score_0_100
+                boolean hasScore = scoreValue != null && scoreValue.toString() != '' && scoreValue.toString().toLowerCase() != 'nan'
+                double scoreDouble = hasScore ? scoreValue.toString().toDouble() : Double.NaN
+                double minScore = cfgGet(effective_config, ['megqc', 'min_score'], 0.0).toString().toDouble()
+                boolean passed = hasScore && scoreDouble >= minScore
+                if (!passed) {
+                    log.warn "MEG QC skipped downstream processing: dataset=${dataset_name}, raw=${orig_raw_path}, score=${scoreValue}, threshold=${minScore}"
                 }
-                icaLabelCodeHash = icaLabelFingerprints[effective_config.code_dir]
+                return passed ? tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path) : null
             }
-            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_source, ica_file_path, icaHash, icaLabelCodeHash)
-        }
-    native_labels = run_ic_label(native_ica_with_hash_ch)
-    native_labelled_with_hash = native_labels.labelled_subjects
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_hash, marked_components ->
-            def markedHash = fileSha256(marked_components)
-            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_hash, marked_components, markedHash)
-        }
-    native_clean = apply_ica(native_labelled_with_hash)
-    native_clean_subject_ch = native_clean.clean_subjects
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, logical_clean_hash ->
-            def cleanFileHash = fileStatFingerprint(clean_raw_path)
-            def cleanHash = "${logical_clean_hash}|file:${cleanFileHash}"
-            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, cleanHash)
-        }
+            .filter { it != null }
+        native_meg_input_ch = native_raw_without_qc_ch.mix(native_qc_passed_ch)
 
-    native_non_reference_preproc_with_hash_ch = native_preproc_with_hash_ch
-        .combine(native_raw_cov_reference_keys_v)
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash, reference_keys ->
-            !isRawCovarianceReferenceKey(reference_keys, dataset_name, orig_raw_path)
-        }
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash, reference_keys ->
-            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash)
-        }
-    native_non_reference_clean_subject_ch = native_clean_subject_ch
-        .combine(native_raw_cov_reference_keys_v)
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, reference_keys ->
-            !isRawCovarianceReferenceKey(reference_keys, dataset_name, orig_raw_path)
-        }
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, reference_keys ->
-            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
-        }
+        native_preproc = meg_basic_preproc(native_meg_input_ch)
+        native_preproc_with_hash_ch = native_preproc.preproc_subjects
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path ->
+                def preprocHash = fileStatFingerprint(preproc_raw_path)
+                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preprocHash)
+            }
+        native_artifacts = detect_artifacts(native_preproc_with_hash_ch)
+        native_artifacts_with_hash = native_artifacts.artifacts
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash, bad_channels, bad_segments ->
+                def artifactHash = "${preproc_hash}|${filesSha256([bad_channels, bad_segments])}"
+                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifactHash)
+            }
+    }
 
-    native_epoch_from_preproc_ch = native_non_reference_preproc_with_hash_ch
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash ->
-            asMap(effective_config._steps).megStage >= 2 && asMap(effective_config._steps).skipIca
-        }
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash ->
-            def subjectKey = recordingKey(dataset_name, orig_raw_path)
-            tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, '', preproc_hash)
-        }
-    native_epoch_from_clean_ch = native_non_reference_clean_subject_ch
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-            asMap(effective_config._steps).megStage >= 2
-        }
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-            def subjectKey = recordingKey(dataset_name, orig_raw_path)
-            tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
-        }
-    native_epoch_input_ch = native_epoch_from_preproc_ch
-        .mix(native_epoch_from_clean_ch)
-        .map { subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, analysis_raw_path, target_mri_subject_id, clean_hash ->
-            def eventsFile = orig_raw_path.toString().replaceAll(/_meg\..*/, '_events.tsv')
-            def eventsHash = fileSha256(eventsFile)
-            tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, analysis_raw_path, target_mri_subject_id, clean_hash, eventsFile, eventsHash)
-        }
-    native_epochs = epochs(native_epoch_input_ch)
-    native_epoch_subject_ch = native_epochs.epoch_subjects
-    native_epoch_with_hash_ch = native_epoch_subject_ch
-        .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash ->
-            def epochHash = fileStatFingerprint(epoch_path)
-            def analysisHash = fileStatFingerprint(analysis_raw_path)
-            tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epochHash, analysisHash)
-        }
+    native_clean_subject_ch = Channel.empty()
+    if (megPlan.runIca) {
+        native_ica_inputs_ch = native_artifacts_with_hash
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifactHash ->
+                asMap(effective_config._steps).megStage >= 1 && !asMap(effective_config._steps).skipIca
+            }
+        native_ica = run_ica(native_ica_inputs_ch)
+        native_ica_with_hash_ch = native_ica.ica_subjects
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_source, ica_file_path ->
+                def icaHash = fileStatFingerprint(ica_file_path)
+                def icaLabelCodeHash
+                synchronized (icaLabelFingerprints) {
+                    if (!icaLabelFingerprints.containsKey(effective_config.code_dir)) {
+                        icaLabelFingerprints[effective_config.code_dir] =
+                            icaLabelImplementationFingerprint(effective_config.code_dir)
+                    }
+                    icaLabelCodeHash = icaLabelFingerprints[effective_config.code_dir]
+                }
+                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_source, ica_file_path, icaHash, icaLabelCodeHash)
+            }
+        native_labels = run_ic_label(native_ica_with_hash_ch)
+        native_labelled_with_hash = native_labels.labelled_subjects
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_hash, marked_components ->
+                def markedHash = fileSha256(marked_components)
+                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, ica_hash, marked_components, markedHash)
+            }
+        native_clean = apply_ica(native_labelled_with_hash)
+        native_clean_subject_ch = native_clean.clean_subjects
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, logical_clean_hash ->
+                def cleanFileHash = fileStatFingerprint(clean_raw_path)
+                def cleanHash = "${logical_clean_hash}|file:${cleanFileHash}"
+                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, cleanHash)
+            }
+    }
 
-    native_source_clean_ch = native_non_reference_clean_subject_ch
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-            asMap(effective_config._steps).megStage >= 3
-        }
-    native_cov_epochs_inputs_ch = native_epoch_with_hash_ch
-        .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-            asMap(effective_config._steps).megStage >= 3 &&
-                cfgText(effective_config, ['covariance', 'type'], 'epochs').equalsIgnoreCase('epochs')
-        }
-        .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-            def datasetName = subjectKey[0]
-            def sourceMode = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
-            if (!(sourceMode in ['epochs', 'raw'])) {
-                throw new IllegalArgumentException("Invalid source.type for ${subjectKey}: ${sourceMode}")
+    native_non_reference_clean_subject_ch = Channel.empty()
+    native_epoch_with_hash_ch = Channel.empty()
+    if (megPlan.runEpochs) {
+        native_non_reference_preproc_with_hash_ch = native_preproc_with_hash_ch
+            .combine(native_raw_cov_reference_keys_v)
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash, reference_keys ->
+                !isRawCovarianceReferenceKey(reference_keys, dataset_name, orig_raw_path)
             }
-            def sourceDataFile = sourceMode == 'epochs' ? epoch_path : analysis_raw_path
-            def sourceDataHash = sourceMode == 'epochs' ? epoch_hash : analysis_hash
-            def origRawPath = cfgText(effective_config, ['_recording', 'meta', 'path'], '')
-            def eventsFile = origRawPath.replaceAll(/_meg\..*/, '_events.tsv')
-            tuple(subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, subjectKey, analysis_raw_path, analysis_hash, eventsFile, events_hash, clean_hash, sourceUsesLcmv(effective_config))
-        }
-    native_cov_raw_requests_ch = native_epoch_with_hash_ch
-        .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-            asMap(effective_config._steps).megStage >= 3 &&
-                cfgText(effective_config, ['covariance', 'type'], 'epochs').equalsIgnoreCase('raw')
-        }
-        .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-            def datasetName = subjectKey[0]
-            def sourceMode = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
-            if (!(sourceMode in ['epochs', 'raw'])) {
-                throw new IllegalArgumentException("Invalid source.type for ${subjectKey}: ${sourceMode}")
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash, reference_keys ->
+                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash)
             }
-            def sourceDataFile = sourceMode == 'epochs' ? epoch_path : analysis_raw_path
-            def sourceDataHash = sourceMode == 'epochs' ? epoch_hash : analysis_hash
-            def origRawPath = cfgText(effective_config, ['_recording', 'meta', 'path'], '')
-            def rawCovTask = cfgText(effective_config, ['covariance', 'raw_covariance_task_id'], 'emptr')
-            def pairedRawPath = replaceRecordingTaskEntity(origRawPath, rawCovTask)
-            def pairingKey = recordingKey(datasetName, pairedRawPath)
-            tuple(pairingKey, subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, clean_hash)
-        }
-    native_cov_raw_candidates_ch = native_clean_subject_ch
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-            tuple(recordingKey(dataset_name, orig_raw_path), clean_raw_path, clean_hash, cfgText(effective_config, ['_recording', 'profile_name'], ''))
-        }
-    native_cov_raw_inputs_ch = native_cov_raw_requests_ch
-        .combine(native_cov_raw_candidates_ch, by: 0)
-        .map { pairingKey, subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash, noiseDataFile, noiseInputHash, noiseProfile ->
-            log.info "Raw covariance pairing: target=${subjectKey}, noise=${pairingKey}, noise_profile=${noiseProfile ?: '<default>'}"
-            tuple(subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, pairingKey, noiseDataFile, noiseInputHash, '', 'not-used', cleanHash, sourceUsesLcmv(effective_config))
-        }
-    native_cov_inputs_ch = native_cov_epochs_inputs_ch.mix(native_cov_raw_inputs_ch)
-    native_cov = compute_covariance(native_cov_inputs_ch)
+        native_non_reference_clean_subject_ch = native_clean_subject_ch
+            .combine(native_raw_cov_reference_keys_v)
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, reference_keys ->
+                !isRawCovarianceReferenceKey(reference_keys, dataset_name, orig_raw_path)
+            }
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, reference_keys ->
+                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
+            }
 
-    native_coreg_existing_inputs_ch = native_source_clean_ch
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-            !asMap(effective_config._steps).runAnatomy
-        }
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-            def subjectKey = recordingKey(dataset_name, orig_raw_path)
-            def anatomyHash = anatomyModelFingerprint(fs_subjects_dir, target_mri_subject_id)
-            tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, clean_raw_path, clean_hash, anatomyHash)
-        }
-    native_coreg_anatomy_subject_ch = native_source_clean_ch
-        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-            asMap(effective_config._steps).runAnatomy
-        }
-        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-            def subjectKey = recordingKey(dataset_name, orig_raw_path)
-            tuple([dataset_name, target_mri_subject_id], subjectKey, dataset_name, output_dir, preproc_dir, effective_config, target_mri_subject_id, clean_raw_path, clean_hash)
-        }
-    native_anatomy_by_subject_ch = native_anatomy_subject_ch.map { dataset_name, output_dir, preproc_dir, subject_name, fs_subjects_dir, subject_dir, effective_config ->
-        def anatomyHash = anatomyModelFingerprint(fs_subjects_dir, subject_name)
-        tuple([dataset_name, subject_name], fs_subjects_dir, anatomyHash)
-    }.unique { mriKey, fsSubjectsDir, anatomyHash -> mriKey }
-    native_coreg_from_anatomy_inputs_ch = native_coreg_anatomy_subject_ch
-        .combine(native_anatomy_by_subject_ch, by: 0)
-        .map { mri_key, subjectKey, dataset_name, output_dir, preproc_dir, effective_config, target_mri_subject_id, clean_raw_path, clean_hash, fs_subjects_dir, anatomyHash ->
-            tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, clean_raw_path, clean_hash, anatomyHash)
-        }
-    native_coreg_inputs = native_coreg_existing_inputs_ch.mix(native_coreg_from_anatomy_inputs_ch)
-    native_trans = coregistration(native_coreg_inputs)
-    native_trans_with_hash = native_trans.trans_subjects
-        .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, clean_hash, anatomy_hash ->
-            def transHash = fileSha256(trans_path)
-            tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, clean_hash, transHash, anatomy_hash)
-        }
-    native_source_epoch_subject_ch = native_epoch_with_hash_ch
-        .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-            asMap(effective_config._steps).megStage >= 3
-        }
-    native_fwd_inputs = native_trans_with_hash
-        .join(
-            native_source_epoch_subject_ch,
-            by: 0,
-            failOnDuplicate: true,
-            failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')
-        )
-        .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, epoch_output_dir, epoch_preproc_dir, epoch_fs_subjects_dir, epoch_effective_config, epoch_path, analysis_raw_path, epoch_clean_hash, epoch_events_hash, epoch_hash, analysis_hash ->
-            if (output_dir != epoch_output_dir || preproc_dir != epoch_preproc_dir || fs_subjects_dir != epoch_fs_subjects_dir) {
-                throw new IllegalStateException("Forward routing path mismatch for ${key}")
+        native_epoch_from_preproc_ch = native_non_reference_preproc_with_hash_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash ->
+                asMap(effective_config._steps).megStage >= 2 && asMap(effective_config._steps).skipIca
             }
-            if (configJson(effective_config) != configJson(epoch_effective_config)) {
-                throw new IllegalStateException("Forward routing config mismatch for ${key}")
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash ->
+                def subjectKey = recordingKey(dataset_name, orig_raw_path)
+                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, '', preproc_hash)
             }
-            if (coreg_clean_hash != epoch_clean_hash) {
-                throw new IllegalStateException("Forward routing clean lineage mismatch for ${key}")
+        native_epoch_from_clean_ch = native_non_reference_clean_subject_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                asMap(effective_config._steps).megStage >= 2
             }
-            tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, epoch_output_dir, epoch_preproc_dir, epoch_fs_subjects_dir, epoch_effective_config, epoch_path, analysis_raw_path, epoch_clean_hash, epoch_events_hash, epoch_hash, analysis_hash)
-        }
-    native_fwds = forward_solution(native_fwd_inputs)
-    native_fwds_with_hash_ch = native_fwds.fwd_subjects
-        .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash ->
-            def fwdHash = fileStatFingerprint(fwd_file)
-            tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, fwdHash)
-        }
-    native_cov_with_hash_ch = native_cov.cov_subjects
-        .map { key, output_dir, preproc_dir, effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash ->
-            def covarianceHash = fileStatFingerprint(bl_cov_file)
-            def dataCovarianceHash = needs_lcmv ? fileStatFingerprint(lcmv_data_cov_file) : 'not-required'
-            def resolvedRankHash = fileSha256(resolved_rank_file)
-            tuple(key, output_dir, preproc_dir, effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash, covarianceHash, dataCovarianceHash, resolvedRankHash)
-        }
-    native_source_inputs = native_fwds_with_hash_ch
-        .join(
-            native_cov_with_hash_ch,
-            by: 0,
-            failOnDuplicate: true,
-            failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')
-        )
-        .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, fwd_hash, cov_output_dir, cov_preproc_dir, cov_effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, cov_clean_hash, covariance_source_hash, noise_key, covariance_input_hash, covariance_hash, data_covariance_hash, resolved_rank_hash ->
-            if (output_dir != cov_output_dir || preproc_dir != cov_preproc_dir) {
-                throw new IllegalStateException("Source routing path mismatch for ${key}")
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                def subjectKey = recordingKey(dataset_name, orig_raw_path)
+                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
             }
-            if (configJson(effective_config) != configJson(cov_effective_config)) {
-                throw new IllegalStateException("Source routing config mismatch for ${key}")
+        native_epoch_input_ch = native_epoch_from_preproc_ch
+            .mix(native_epoch_from_clean_ch)
+            .map { subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, analysis_raw_path, target_mri_subject_id, clean_hash ->
+                def eventsFile = orig_raw_path.toString().replaceAll(/_meg\..*/, '_events.tsv')
+                def eventsHash = fileSha256(eventsFile)
+                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, analysis_raw_path, target_mri_subject_id, clean_hash, eventsFile, eventsHash)
             }
-            if (epoch_clean_hash != cov_clean_hash) {
-                throw new IllegalStateException("Source routing clean lineage mismatch for ${key}")
+        native_epochs = epochs(native_epoch_input_ch)
+        native_epoch_subject_ch = native_epochs.epoch_subjects
+        native_epoch_with_hash_ch = native_epoch_subject_ch
+            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash ->
+                def epochHash = fileStatFingerprint(epoch_path)
+                def analysisHash = fileStatFingerprint(analysis_raw_path)
+                tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epochHash, analysisHash)
             }
-            def sourceType = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
-            def expectedSourceHash = sourceType == 'epochs' ? epoch_hash : analysis_hash
-            if (covariance_source_hash != expectedSourceHash) {
-                throw new IllegalStateException("Covariance/source input lineage mismatch for ${key}")
+    }
+
+    native_source_subject_ch = Channel.empty()
+    if (megPlan.runSource) {
+        native_source_clean_ch = native_non_reference_clean_subject_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                asMap(effective_config._steps).megStage >= 3
             }
-            def expectedLcmv = sourceUsesLcmv(effective_config)
-            if (needs_lcmv != expectedLcmv) {
-                throw new IllegalStateException("LCMV covariance requirement mismatch for ${key}")
+        native_cov_epochs_inputs_ch = native_epoch_with_hash_ch
+            .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
+                asMap(effective_config._steps).megStage >= 3 &&
+                    cfgText(effective_config, ['covariance', 'type'], 'epochs').equalsIgnoreCase('epochs')
             }
-            if (expectedLcmv && !lcmv_data_cov_file) {
-                throw new IllegalStateException("LCMV data covariance was not routed for ${key}")
+            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
+                def datasetName = subjectKey[0]
+                def sourceMode = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
+                if (!(sourceMode in ['epochs', 'raw'])) {
+                    throw new IllegalArgumentException("Invalid source.type for ${subjectKey}: ${sourceMode}")
+                }
+                def sourceDataFile = sourceMode == 'epochs' ? epoch_path : analysis_raw_path
+                def sourceDataHash = sourceMode == 'epochs' ? epoch_hash : analysis_hash
+                def origRawPath = cfgText(effective_config, ['_recording', 'meta', 'path'], '')
+                def eventsFile = origRawPath.replaceAll(/_meg\..*/, '_events.tsv')
+                tuple(subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, subjectKey, analysis_raw_path, analysis_hash, eventsFile, events_hash, clean_hash, sourceUsesLcmv(effective_config))
             }
-            if (!resolved_rank_file) {
-                throw new IllegalStateException("Resolved target rank was not routed for ${key}")
+        native_cov_raw_requests_ch = native_epoch_with_hash_ch
+            .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
+                asMap(effective_config._steps).megStage >= 3 &&
+                    cfgText(effective_config, ['covariance', 'type'], 'epochs').equalsIgnoreCase('raw')
             }
-            tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, fwd_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, covariance_hash, data_covariance_hash, resolved_rank_hash, covariance_source_hash, noise_key, covariance_input_hash)
-        }
-    native_source = source_imaging(native_source_inputs)
+            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
+                def datasetName = subjectKey[0]
+                def sourceMode = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
+                if (!(sourceMode in ['epochs', 'raw'])) {
+                    throw new IllegalArgumentException("Invalid source.type for ${subjectKey}: ${sourceMode}")
+                }
+                def sourceDataFile = sourceMode == 'epochs' ? epoch_path : analysis_raw_path
+                def sourceDataHash = sourceMode == 'epochs' ? epoch_hash : analysis_hash
+                def origRawPath = cfgText(effective_config, ['_recording', 'meta', 'path'], '')
+                def rawCovTask = cfgText(effective_config, ['covariance', 'raw_covariance_task_id'], 'emptr')
+                def pairedRawPath = replaceRecordingTaskEntity(origRawPath, rawCovTask)
+                def pairingKey = recordingKey(datasetName, pairedRawPath)
+                tuple(pairingKey, subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, clean_hash)
+            }
+        native_cov_raw_candidates_ch = native_clean_subject_ch
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                tuple(recordingKey(dataset_name, orig_raw_path), clean_raw_path, clean_hash, cfgText(effective_config, ['_recording', 'profile_name'], ''))
+            }
+        native_cov_raw_inputs_ch = native_cov_raw_requests_ch
+            .combine(native_cov_raw_candidates_ch, by: 0)
+            .map { pairingKey, subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash, noiseDataFile, noiseInputHash, noiseProfile ->
+                log.info "Raw covariance pairing: target=${subjectKey}, noise=${pairingKey}, noise_profile=${noiseProfile ?: '<default>'}"
+                tuple(subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, pairingKey, noiseDataFile, noiseInputHash, '', 'not-used', cleanHash, sourceUsesLcmv(effective_config))
+            }
+        native_cov_inputs_ch = native_cov_epochs_inputs_ch.mix(native_cov_raw_inputs_ch)
+        native_cov = compute_covariance(native_cov_inputs_ch)
+
+        native_coreg_existing_inputs_ch = native_source_clean_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                !asMap(effective_config._steps).runAnatomy
+            }
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                def subjectKey = recordingKey(dataset_name, orig_raw_path)
+                def anatomyHash = anatomyModelFingerprint(fs_subjects_dir, target_mri_subject_id)
+                tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, clean_raw_path, clean_hash, anatomyHash)
+            }
+        native_coreg_anatomy_subject_ch = native_source_clean_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                asMap(effective_config._steps).runAnatomy
+            }
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                def subjectKey = recordingKey(dataset_name, orig_raw_path)
+                tuple([dataset_name, target_mri_subject_id], subjectKey, dataset_name, output_dir, preproc_dir, effective_config, target_mri_subject_id, clean_raw_path, clean_hash)
+            }
+        native_anatomy_by_subject_ch = native_anatomy_subject_ch.map { dataset_name, output_dir, preproc_dir, subject_name, fs_subjects_dir, subject_dir, effective_config ->
+            def anatomyHash = anatomyModelFingerprint(fs_subjects_dir, subject_name)
+            tuple([dataset_name, subject_name], fs_subjects_dir, anatomyHash)
+        }.unique { mriKey, fsSubjectsDir, anatomyHash -> mriKey }
+        native_coreg_from_anatomy_inputs_ch = native_coreg_anatomy_subject_ch
+            .combine(native_anatomy_by_subject_ch, by: 0)
+            .map { mri_key, subjectKey, dataset_name, output_dir, preproc_dir, effective_config, target_mri_subject_id, clean_raw_path, clean_hash, fs_subjects_dir, anatomyHash ->
+                tuple(subjectKey, dataset_name, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, clean_raw_path, clean_hash, anatomyHash)
+            }
+        native_coreg_inputs = native_coreg_existing_inputs_ch.mix(native_coreg_from_anatomy_inputs_ch)
+        native_trans = coregistration(native_coreg_inputs)
+        native_trans_with_hash = native_trans.trans_subjects
+            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, clean_hash, anatomy_hash ->
+                def transHash = fileSha256(trans_path)
+                tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, clean_hash, transHash, anatomy_hash)
+            }
+        native_source_epoch_subject_ch = native_epoch_with_hash_ch
+            .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
+                asMap(effective_config._steps).megStage >= 3
+            }
+        native_fwd_inputs = native_trans_with_hash
+            .join(
+                native_source_epoch_subject_ch,
+                by: 0,
+                failOnDuplicate: true,
+                failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')
+            )
+            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, epoch_output_dir, epoch_preproc_dir, epoch_fs_subjects_dir, epoch_effective_config, epoch_path, analysis_raw_path, epoch_clean_hash, epoch_events_hash, epoch_hash, analysis_hash ->
+                if (output_dir != epoch_output_dir || preproc_dir != epoch_preproc_dir || fs_subjects_dir != epoch_fs_subjects_dir) {
+                    throw new IllegalStateException("Forward routing path mismatch for ${key}")
+                }
+                if (configJson(effective_config) != configJson(epoch_effective_config)) {
+                    throw new IllegalStateException("Forward routing config mismatch for ${key}")
+                }
+                if (coreg_clean_hash != epoch_clean_hash) {
+                    throw new IllegalStateException("Forward routing clean lineage mismatch for ${key}")
+                }
+                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, epoch_output_dir, epoch_preproc_dir, epoch_fs_subjects_dir, epoch_effective_config, epoch_path, analysis_raw_path, epoch_clean_hash, epoch_events_hash, epoch_hash, analysis_hash)
+            }
+        native_fwds = forward_solution(native_fwd_inputs)
+        native_fwds_with_hash_ch = native_fwds.fwd_subjects
+            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash ->
+                def fwdHash = fileStatFingerprint(fwd_file)
+                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, fwdHash)
+            }
+        native_cov_with_hash_ch = native_cov.cov_subjects
+            .map { key, output_dir, preproc_dir, effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash ->
+                def covarianceHash = fileStatFingerprint(bl_cov_file)
+                def dataCovarianceHash = needs_lcmv ? fileStatFingerprint(lcmv_data_cov_file) : 'not-required'
+                def resolvedRankHash = fileSha256(resolved_rank_file)
+                tuple(key, output_dir, preproc_dir, effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash, covarianceHash, dataCovarianceHash, resolvedRankHash)
+            }
+        native_source_inputs = native_fwds_with_hash_ch
+            .join(
+                native_cov_with_hash_ch,
+                by: 0,
+                failOnDuplicate: true,
+                failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')
+            )
+            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, fwd_hash, cov_output_dir, cov_preproc_dir, cov_effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, cov_clean_hash, covariance_source_hash, noise_key, covariance_input_hash, covariance_hash, data_covariance_hash, resolved_rank_hash ->
+                if (output_dir != cov_output_dir || preproc_dir != cov_preproc_dir) {
+                    throw new IllegalStateException("Source routing path mismatch for ${key}")
+                }
+                if (configJson(effective_config) != configJson(cov_effective_config)) {
+                    throw new IllegalStateException("Source routing config mismatch for ${key}")
+                }
+                if (epoch_clean_hash != cov_clean_hash) {
+                    throw new IllegalStateException("Source routing clean lineage mismatch for ${key}")
+                }
+                def sourceType = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
+                def expectedSourceHash = sourceType == 'epochs' ? epoch_hash : analysis_hash
+                if (covariance_source_hash != expectedSourceHash) {
+                    throw new IllegalStateException("Covariance/source input lineage mismatch for ${key}")
+                }
+                def expectedLcmv = sourceUsesLcmv(effective_config)
+                if (needs_lcmv != expectedLcmv) {
+                    throw new IllegalStateException("LCMV covariance requirement mismatch for ${key}")
+                }
+                if (expectedLcmv && !lcmv_data_cov_file) {
+                    throw new IllegalStateException("LCMV data covariance was not routed for ${key}")
+                }
+                if (!resolved_rank_file) {
+                    throw new IllegalStateException("Resolved target rank was not routed for ${key}")
+                }
+                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, fwd_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, covariance_hash, data_covariance_hash, resolved_rank_hash, covariance_source_hash, noise_key, covariance_input_hash)
+            }
+        native_source = source_imaging(native_source_inputs)
+        native_source_subject_ch = native_source.source_subjects
+    }
 
     dataset_token_ch = native_dataset_ch
         .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config ->
@@ -2916,7 +2974,7 @@ workflow {
     epoch_token_ch = native_epoch_with_hash_ch.map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
         tuple(subjectKey[0], 'epochs')
     }
-    source_token_ch = native_source.source_subjects.map { key, output_dir, preproc_dir, source_dir ->
+    source_token_ch = native_source_subject_ch.map { key, output_dir, preproc_dir, source_dir ->
         tuple(key[0], 'source')
     }
     // collect() yields a value channel that keeps the session alive while all
@@ -2930,11 +2988,13 @@ workflow {
         .mix(source_token_ch)
         .collect()
 
-    native_reports = generate_static_html_report(
-        native_dataset_report_row_ch,
-        report_completion_tokens
-    )
-    if (corpusMode) {
-        generate_corpus_static_html_report(native_reports.dataset_reports.map { dataset_name, output_dir, preproc_dir, marker -> marker }.collect())
+    if (megPlan.runReports) {
+        native_reports = generate_static_html_report(
+            native_dataset_report_row_ch,
+            report_completion_tokens
+        )
+        if (corpusMode) {
+            generate_corpus_static_html_report(native_reports.dataset_reports.map { dataset_name, output_dir, preproc_dir, marker -> marker }.collect())
+        }
     }
 }

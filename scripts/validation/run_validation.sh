@@ -30,6 +30,22 @@ run_unittest_gate() {
     "${PYTHON_BIN}" "${UNITTEST_GATE}" "$@"
 }
 
+report_duration() {
+    local label="$1"
+    local started_at="$2"
+    local elapsed=$((SECONDS - started_at))
+    printf '%s completed in %dm %02ds\n' \
+        "${label}" "$((elapsed / 60))" "$((elapsed % 60))"
+}
+
+run_timed_unittest_gate() {
+    local label="$1"
+    shift
+    local started_at=${SECONDS}
+    run_unittest_gate "$@"
+    report_duration "${label}" "${started_at}"
+}
+
 resolve_nextflow() {
     if [[ -n "${MEGFLOW_NEXTFLOW:-}" ]]; then
         [[ -x "${MEGFLOW_NEXTFLOW}" ]] || die "MEGFLOW_NEXTFLOW is not executable: ${MEGFLOW_NEXTFLOW}"
@@ -47,10 +63,62 @@ resolve_nextflow() {
     fi
 }
 
-run_routing() {
+parse_shipped_configs() {
+    local started_at=${SECONDS}
+    local configs=()
+    local tracked_config
+    while IFS= read -r tracked_config; do
+        configs+=("${ROOT_DIR}/${tracked_config}")
+    done < <(git -C "${ROOT_DIR}" ls-files 'nextflow/*.config')
+
+    [[ ${#configs[@]} -gt 0 ]] || die "no tracked Nextflow configs found"
+    local config
+    for config in "${configs[@]}"; do
+        "${MEGFLOW_NEXTFLOW}" -C "${config}" config "${ROOT_DIR}/nextflow/megflow.nf" -o flat >/dev/null
+        printf 'parsed %s\n' "${config#${ROOT_DIR}/}"
+    done
+    report_duration "Shipped config parsing" "${started_at}"
+}
+
+run_routing_ci() {
+    local started_at=${SECONDS}
     resolve_nextflow
-    printf '\n== Routing and resume validation ==\n'
-    run_unittest_gate \
+
+    printf '\n== CI static routing contracts ==\n'
+    run_timed_unittest_gate "CI static routing contracts" \
+        test_documentation_config_examples.DocumentationConfigExamplesTests \
+        test_nextflow_execution_config \
+        test_docker_entrypoint_options \
+        test_docker_image_namespace \
+        test_install_scripts \
+        test_megnet_retrained_nextflow_contract \
+        test_validation_runner
+
+    printf '\n== CI Nextflow routing smoke matrix ==\n'
+    run_timed_unittest_gate "CI Nextflow routing smoke matrix" \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_anatomy_step_matrix_schedules_only_selected_method \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_with_anatomy_modifier_stops_at_requested_meg_stage \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_recording_level_steps_reduce_the_dataset_stage \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_dataset_and_recording_overrides_do_not_cross_route \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_mne_and_osl_kwargs_survive_default_dataset_recording_merges \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_raw_covariance_pairs_with_the_correct_dataset_noise_recording \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_lcmv_data_covariance_is_conditional_and_uses_exact_source_input \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_missing_raw_covariance_pair_fails_instead_of_silently_skipping_source \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_resume_invalidates_event_dependent_lineage_and_new_inputs \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_strict_processing_failure_terminates_before_report_submission \
+        test_nextflow_report_layout_integration.NextflowReportLayoutIntegrationTests.test_live_trace_survives_dataset_and_corpus_report_rebuild
+
+    printf '\n== Shipped Nextflow config parsing ==\n'
+    parse_shipped_configs
+    report_duration "CI routing validation" "${started_at}"
+}
+
+run_routing() {
+    local started_at=${SECONDS}
+    resolve_nextflow
+    printf '\n== Full local routing and resume validation ==\n'
+    run_timed_unittest_gate "Full local routing and resume validation" \
+        test_documentation_config_examples \
         test_nextflow_execution_config \
         test_docker_entrypoint_options \
         test_docker_image_namespace \
@@ -61,13 +129,8 @@ run_routing() {
         test_nextflow_report_layout_integration
 
     printf '\n== Shipped Nextflow config parsing ==\n'
-    local configs=("${ROOT_DIR}"/nextflow/*.config)
-    [[ -e "${configs[0]}" ]] || die "no shipped Nextflow configs found"
-    local config
-    for config in "${configs[@]}"; do
-        "${MEGFLOW_NEXTFLOW}" -C "${config}" config "${ROOT_DIR}/nextflow/megflow.nf" -o flat >/dev/null
-        printf 'parsed %s\n' "${config#${ROOT_DIR}/}"
-    done
+    parse_shipped_configs
+    report_duration "Full local routing validation" "${started_at}"
 }
 
 run_scientific() {
@@ -87,7 +150,7 @@ if actual != expected:
 print(f"MNE {mne.__version__}; NumPy {numpy.__version__}; SciPy {scipy.__version__}")
 print(f"OSL-ephys source: {actual}")
 '
-    run_unittest_gate \
+    run_timed_unittest_gate "Scientific MNE/OSL validation" \
         test_deepreject_input \
         test_epochs_preproc \
         test_ica_category_switches \
@@ -126,10 +189,13 @@ run_all() {
 }
 
 if [[ $# -gt 1 ]]; then
-    die "usage: $0 [routing|scientific|all]"
+    die "usage: $0 [routing-ci|routing|scientific|all]"
 fi
 
 case "${1:-all}" in
+    routing-ci)
+        run_routing_ci
+        ;;
     routing)
         run_routing
         ;;
@@ -140,6 +206,6 @@ case "${1:-all}" in
         run_all
         ;;
     *)
-        die "unknown validation mode '$1'; expected routing, scientific, or all"
+        die "unknown validation mode '$1'; expected routing-ci, routing, scientific, or all"
         ;;
 esac

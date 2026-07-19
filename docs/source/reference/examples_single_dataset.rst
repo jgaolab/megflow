@@ -272,9 +272,12 @@ override is required. Use MNE dictionaries for direct ``rank`` fields:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.source.LCMV = [
-     data_covariance: [tmin: 0.01, tmax: 0.40, rank: [meg: 60]],
-     make_lcmv: [reg: 0.05, rank: [meg: 60]]
+   params.megflow.datasets.docker_input.source = [
+     source_methods: ["dSPM", "LCMV"],
+     LCMV: [
+       data_covariance: [tmin: 0.01, tmax: 0.40, rank: [meg: 60]],
+       make_lcmv: [reg: 0.05, rank: [meg: 60]]
+     ]
    ]
 
 These explicit values override ``rank_policy`` independently. The compatibility
@@ -365,19 +368,23 @@ the full list because ``preproc.steps`` lists are replaced as a whole.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.MEGIN_SITE_A.preproc = [steps: [
-     [maxwell_filter: [
-       calibration: "/data/site-a/calibration/sss_cal.dat",
-       cross_talk: "/data/site-a/calibration/ct_sparse.fif",
-       st_duration: 10.0,
-       st_correlation: 0.98,
-       origin: "auto",
-       coord_frame: "head"
-     ]],
-     [filter: [l_freq: 1.0, h_freq: 100.0]],
-     [notch_filter: [freqs: [50, 100]]],
-     [resample: [sfreq: 250]]
-   ]]
+   params.megflow.datasets.MEGIN_SITE_A = [
+     dataset_dir: "/data/site-a/bids",
+     steps: "meg_ica",
+     preproc: [steps: [
+       [maxwell_filter: [
+         calibration: "/data/site-a/calibration/sss_cal.dat",
+         cross_talk: "/data/site-a/calibration/ct_sparse.fif",
+         st_duration: 10.0,
+         st_correlation: 0.98,
+         origin: "auto",
+         coord_frame: "head"
+       ]],
+       [filter: [l_freq: 1.0, h_freq: 100.0]],
+       [notch_filter: [freqs: [50, 100]]],
+       [resample: [sfreq: 250]]
+     ]]
+   ]
 
 The input Raw must already contain reliable bad-channel markings before this
 stage. See :ref:`the full configuration contract

@@ -355,7 +355,50 @@ class StaticManifestScopeTests(unittest.TestCase):
         self.assertNotIn("into <code>preprocessed/logs/</code>", rendered)
         self.assertIn("dataset output root", rendered)
 
-    def test_full_workflow_diagram_uses_actual_branch_dependencies(self):
+    def test_full_workflow_diagram_uses_scientific_branch_dependencies(self):
+        manifest = {
+            "steps_raw": "all",
+            "parsed": {
+                "primary": "all",
+                "meg_stage": 3,
+                "run_meg": True,
+                "run_anatomy": True,
+                "skip_ica": False,
+            },
+            "params_snapshot": {
+                "effective_config": {
+                    "megqc": {"enabled": False},
+                    "covariance": {"type": "epochs"},
+                    "source": {"type": "epochs"},
+                }
+            },
+        }
+
+        nodes, _ = workflow_report.build_workflow_nodes(manifest, "manifest")
+        dependencies = {
+            node["key"]: set(node.get("depends_on", [])) for node in nodes
+        }
+        labels = {node["key"]: node["label"] for node in nodes}
+        lanes = {node["key"]: node["lane"] for node in nodes}
+
+        self.assertEqual(dependencies["covariance"], {"epochs"})
+        self.assertEqual(
+            dependencies["coregistration"],
+            {"ica", "anatomy_structural"},
+        )
+        self.assertEqual(
+            dependencies["headmodel"],
+            {"coregistration", "anatomy_structural"},
+        )
+        self.assertEqual(
+            dependencies["source"],
+            {"epochs", "covariance", "headmodel"},
+        )
+        self.assertEqual(labels["headmodel"], "Head model")
+        self.assertEqual(lanes["coregistration"], "model")
+        self.assertEqual(lanes["headmodel"], "model")
+
+    def test_raw_covariance_and_raw_source_branch_from_clean_meg(self):
         manifest = {
             "steps_raw": "meg_all",
             "parsed": {
@@ -364,6 +407,38 @@ class StaticManifestScopeTests(unittest.TestCase):
                 "run_meg": True,
                 "run_anatomy": False,
                 "skip_ica": False,
+            },
+            "params_snapshot": {
+                "effective_config": {
+                    "megqc": {"enabled": False},
+                    "covariance": {"type": "raw"},
+                    "source": {"type": "raw"},
+                }
+            },
+        }
+
+        nodes, _ = workflow_report.build_workflow_nodes(manifest, "manifest")
+        dependencies = {
+            node["key"]: set(node.get("depends_on", [])) for node in nodes
+        }
+
+        self.assertEqual(dependencies["covariance"], {"ica"})
+        self.assertEqual(dependencies["coregistration"], {"ica"})
+        self.assertEqual(dependencies["headmodel"], {"coregistration"})
+        self.assertEqual(
+            dependencies["source"],
+            {"ica", "covariance", "headmodel"},
+        )
+
+    def test_skip_ica_connects_artifacts_directly_to_epochs(self):
+        manifest = {
+            "steps_raw": "meg_epochs,skip_ica",
+            "parsed": {
+                "primary": "meg_epochs",
+                "meg_stage": 2,
+                "run_meg": True,
+                "run_anatomy": False,
+                "skip_ica": True,
             },
             "params_snapshot": {
                 "effective_config": {"megqc": {"enabled": False}}
@@ -375,15 +450,120 @@ class StaticManifestScopeTests(unittest.TestCase):
             node["key"]: set(node.get("depends_on", [])) for node in nodes
         }
 
-        self.assertEqual(dependencies["covariance"], {"epochs"})
-        self.assertEqual(dependencies["coregistration"], {"ica"})
-        self.assertEqual(dependencies["headmodel"], {"epochs", "coregistration"})
-        self.assertEqual(dependencies["source"], {"covariance", "headmodel"})
+        self.assertNotIn("ica", dependencies)
+        self.assertEqual(dependencies["epochs"], {"artifacts"})
+
+    def test_workflow_svg_routes_explicit_anatomy_edges_orthogonally(self):
+        manifest = {
+            "steps_raw": "all",
+            "parsed": {
+                "primary": "all",
+                "meg_stage": 3,
+                "run_meg": True,
+                "run_anatomy": True,
+                "skip_ica": False,
+            },
+            "params_snapshot": {
+                "effective_config": {
+                    "megqc": {"enabled": False},
+                    "covariance": {"type": "epochs"},
+                    "source": {"type": "epochs"},
+                }
+            },
+        }
+        nodes, _ = workflow_report.build_workflow_nodes(manifest, "manifest")
 
         rendered = workflow_report._render_svg(nodes, lambda _node: "done")
-        self.assertIn('data-from="epochs" data-to="covariance"', rendered)
-        self.assertIn('data-from="coregistration" data-to="headmodel"', rendered)
-        self.assertNotIn('data-from="covariance" data-to="coregistration"', rendered)
+
+        self.assertIn('class="wf-edge wf-edge-direct"', rendered)
+        self.assertIn(
+            'class="wf-edge wf-edge-routed wf-edge-cross-lane"',
+            rendered,
+        )
+        self.assertIn(
+            'data-from="anatomy_structural" data-to="coregistration"',
+            rendered,
+        )
+        self.assertIn(
+            'data-from="anatomy_structural" data-to="headmodel"',
+            rendered,
+        )
+        self.assertIn(
+            'data-from="anatomy_structural" data-to="coregistration">'
+            '<title>Structural MRI -&gt; Coregistration</title>'
+            '<path d="M330.0,270.0 V332.0 H584.0 V310.0"',
+            rendered,
+        )
+        self.assertIn(
+            'data-from="anatomy_structural" data-to="headmodel">'
+            '<title>Structural MRI -&gt; Head model</title>'
+            '<path d="M260.0,310.0 V344.0 H746.0 V310.0"',
+            rendered,
+        )
+        self.assertNotIn('d="M330.0,270.0 H514.0"', rendered)
+        self.assertIn(
+            "<title>Structural MRI -&gt; Coregistration</title>",
+            rendered,
+        )
+        self.assertIn(
+            "<title>Structural MRI -&gt; Head model</title>",
+            rendered,
+        )
+        self.assertIn('class="wf-port"', rendered)
+        self.assertNotRegex(rendered, r'd="[^"]*\bC')
+        self.assertNotIn("wf-edge-branch", rendered)
+
+    def test_full_workflow_svg_uses_requested_cross_lane_ports_and_small_marker(self):
+        manifest = {
+            "steps_raw": "meg_all",
+            "parsed": {
+                "primary": "meg_all",
+                "meg_stage": 3,
+                "run_meg": True,
+                "run_anatomy": False,
+                "skip_ica": False,
+            },
+            "params_snapshot": {
+                "effective_config": {
+                    "megqc": {"enabled": True},
+                    "covariance": {"type": "epochs"},
+                    "source": {"type": "epochs"},
+                }
+            },
+        }
+        nodes, _ = workflow_report.build_workflow_nodes(manifest, "manifest")
+
+        rendered = workflow_report._render_svg(nodes, lambda _node: "done")
+
+        self.assertIn(
+            'markerWidth="7" markerHeight="7" refX="6.5" refY="3.5" '
+            'orient="auto" markerUnits="userSpaceOnUse"',
+            rendered,
+        )
+        self.assertIn(
+            'data-from="ica" data-to="coregistration"><title>ICA -&gt; '
+            'Coregistration</title><path d="M584.0,146.0 V270.0 H676.0"',
+            rendered,
+        )
+        self.assertIn(
+            'data-from="headmodel" data-to="source"><title>Head model -&gt; '
+            'Source localization</title><path d="M978.0,270.0 H1070.0 V146.0"',
+            rendered,
+        )
+        self.assertIn('data-from="epochs" data-to="source"', rendered)
+        self.assertIn('data-from="covariance" data-to="source"', rendered)
+        self.assertIn('r="2.6" class="wf-port"', rendered)
+
+    def test_workflow_connector_css_restores_light_visual_hierarchy(self):
+        css = static_report.REPORT_CSS
+
+        self.assertIn("fill: rgba(66, 103, 213, 0.38);", css)
+        self.assertIn("stroke: rgba(66, 103, 213, 0.26);", css)
+        self.assertIn("stroke-width: 1.8;", css)
+        self.assertNotIn("rgba(57, 80, 157, 0.82)", css)
+        self.assertNotIn("rgba(57, 80, 157, 0.68)", css)
+        self.assertNotIn("rgba(77, 92, 151, 0.66)", css)
+        self.assertNotIn("rgba(41, 91, 137, 0.72)", css)
 
 
 class CorpusDatasetStepsTests(unittest.TestCase):
