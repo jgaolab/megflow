@@ -138,9 +138,9 @@ Add these methods after `test_help_and_installation_list_the_same_entrypoint_opt
 Run:
 
 ```bash
-python -m unittest \
-  tests.test_docker_entrypoint_options.DockerEntrypointOptionTests.test_quickstart_ships_a_safe_downloadable_project_overlay \
-  tests.test_docker_entrypoint_options.DockerEntrypointOptionTests.test_quickstart_covers_smn4lang_results_and_beginner_goals -v
+python scripts/validation/run_unittest_gate.py \
+  test_docker_entrypoint_options.DockerEntrypointOptionTests.test_quickstart_ships_a_safe_downloadable_project_overlay \
+  test_docker_entrypoint_options.DockerEntrypointOptionTests.test_quickstart_covers_smn4lang_results_and_beginner_goals
 ```
 
 Expected: both tests fail on the missing `nextflow/quickstart.config` or missing
@@ -441,9 +441,9 @@ Insert before the authoritative Docker-default bullet in
 Run:
 
 ```bash
-python -m unittest \
-  tests.test_docker_entrypoint_options.DockerEntrypointOptionTests.test_quickstart_ships_a_safe_downloadable_project_overlay \
-  tests.test_docker_entrypoint_options.DockerEntrypointOptionTests.test_quickstart_covers_smn4lang_results_and_beginner_goals -v
+python scripts/validation/run_unittest_gate.py \
+  test_docker_entrypoint_options.DockerEntrypointOptionTests.test_quickstart_ships_a_safe_downloadable_project_overlay \
+  test_docker_entrypoint_options.DockerEntrypointOptionTests.test_quickstart_covers_smn4lang_results_and_beginner_goals
 ```
 
 Expected: `Ran 2 tests` and `OK`.
@@ -453,7 +453,7 @@ Expected: `Ran 2 tests` and `OK`.
 Run:
 
 ```bash
-python -m unittest tests.test_docker_entrypoint_options -v
+python scripts/validation/run_unittest_gate.py test_docker_entrypoint_options
 ```
 
 Expected: every test passes and the module ends with `OK`.
@@ -504,7 +504,9 @@ configuration.
 Run:
 
 ```bash
-python -m unittest tests.test_nextflow_execution_config tests.test_docker_entrypoint_options -v
+python scripts/validation/run_unittest_gate.py \
+  test_nextflow_execution_config \
+  test_docker_entrypoint_options
 ```
 
 Expected: every test passes with `OK`.
