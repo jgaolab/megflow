@@ -947,7 +947,7 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
 
     ports: set[tuple[float, float]] = set()
     top_route_index = 0
-    bottom_route_index = 0
+    bottom_route_index = 1 if "anatomy_structural" in pos_by_key else 0
     cross_route_index = 0
 
     def has_intermediate_node(source_key: str, target_key: str, lane: str) -> bool:
@@ -988,15 +988,9 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
             target_lane = semantic_lane(target_node)
             same_lane = source_lane == target_lane
             forward = column_by_key[source_key] < column_by_key[target_node["key"]]
-            anatomy_to_coregistration = (
-                same_lane
-                and source_key == "anatomy_structural"
-                and target_node["key"] == "coregistration"
-            )
             direct = (
                 same_lane
                 and forward
-                and not anatomy_to_coregistration
                 and not has_intermediate_node(source_key, target_node["key"], source_lane)
             )
 
@@ -1014,19 +1008,6 @@ def _render_svg(nodes: list[dict[str, Any]], status_fn) -> str:
 
             source_center_x = source_x + box_w / 2.0
             target_center_x = target_x + box_w / 2.0
-            if anatomy_to_coregistration:
-                track_y = source_y + box_h + 22.0 + bottom_route_index * 12.0
-                bottom_route_index += 1
-                start = (source_x + box_w, source_y + box_h / 2.0)
-                end = (target_center_x, target_y + box_h)
-                ports.update((start, end))
-                path_data = (
-                    f"M{start[0]:.1f},{start[1]:.1f} V{track_y:.1f} "
-                    f"H{end[0]:.1f} V{end[1]:.1f}"
-                )
-                append_edge(source, target_node, path_data, "wf-edge wf-edge-routed")
-                continue
-
             if (
                 not same_lane
                 and target_node["key"] == "coregistration"

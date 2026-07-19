@@ -491,7 +491,8 @@ class StaticManifestScopeTests(unittest.TestCase):
         self.assertIn(
             'data-from="anatomy_structural" data-to="coregistration">'
             '<title>Structural MRI -&gt; Coregistration</title>'
-            '<path d="M330.0,270.0 V332.0 H584.0 V310.0"',
+            '<path d="M330.0,270.0 H514.0" '
+            'class="wf-edge wf-edge-direct"',
             rendered,
         )
         self.assertIn(
@@ -500,7 +501,9 @@ class StaticManifestScopeTests(unittest.TestCase):
             '<path d="M260.0,310.0 V344.0 H746.0 V310.0"',
             rendered,
         )
-        self.assertNotIn('d="M330.0,270.0 H514.0"', rendered)
+        self.assertNotIn(
+            '<path d="M330.0,270.0 V332.0 H584.0 V310.0"', rendered
+        )
         self.assertIn(
             "<title>Structural MRI -&gt; Coregistration</title>",
             rendered,
