@@ -96,7 +96,26 @@ if [[ "$NEXTFLOW_BIN" == */* ]]; then
 else
     command -v "$NEXTFLOW_BIN" >/dev/null 2>&1 || die "Nextflow is not available on PATH"
 fi
-if [ -n "$WORK_DIR" ]; then mkdir -p "$WORK_DIR" || exit 1; fi
-if [ -n "$LOG_FILE" ]; then mkdir -p "$(dirname "$LOG_FILE")" || exit 1; fi
-"${nextflow_cmd[@]}"
+if [ -n "$WORK_DIR" ]; then
+    if [ -e "$WORK_DIR" ] && { [ ! -d "$WORK_DIR" ] || [ ! -w "$WORK_DIR" ]; }; then
+        die "work directory is not writable: $WORK_DIR"
+    fi
+    if [ ! -e "$WORK_DIR" ]; then mkdir -p "$WORK_DIR" || die "could not create work directory: $WORK_DIR"; fi
+    [ -d "$WORK_DIR" ] && [ -w "$WORK_DIR" ] || die "work directory is not writable: $WORK_DIR"
+fi
+if [ -n "$LOG_FILE" ]; then
+    LOG_PARENT="$(dirname "$LOG_FILE")"
+    if [ -e "$LOG_FILE" ] && { [ ! -f "$LOG_FILE" ] || [ ! -w "$LOG_FILE" ]; }; then
+        die "log file is not writable: $LOG_FILE"
+    fi
+    if [ -e "$LOG_PARENT" ] && { [ ! -d "$LOG_PARENT" ] || [ ! -w "$LOG_PARENT" ]; }; then
+        die "log directory is not writable: $LOG_PARENT"
+    fi
+    if [ ! -e "$LOG_PARENT" ]; then mkdir -p "$LOG_PARENT" || die "could not create log directory: $LOG_PARENT"; fi
+    [ -d "$LOG_PARENT" ] && [ -w "$LOG_PARENT" ] || die "log directory is not writable: $LOG_PARENT"
+fi
+if ! "${nextflow_cmd[@]}"; then
+    printf 'Error: Nextflow launch failed\n' >&2
+    exit 1
+fi
 printf 'Corpus report: %s/corpus_static_html_report/index.html\n' "${OUTPUT_ROOT:-configured output directory}"

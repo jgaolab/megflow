@@ -76,12 +76,14 @@ if [ -e "$SMRI" ] && { [ ! -d "$SMRI" ] || [ ! -w "$SMRI" ]; }; then
     die "smri path is not a writable directory: $SMRI"
 fi
 
-if [ "$DRY_RUN" != true ]; then
-    command -v docker >/dev/null 2>&1 || die "Docker is not available on PATH"
-    if [ ! -e "$OUTPUT" ]; then mkdir -p "$OUTPUT" || exit 1; fi
-    [ -d "$OUTPUT" ] && [ -w "$OUTPUT" ] || die "output directory is not writable: $OUTPUT"
-    if [ ! -e "$SMRI" ]; then mkdir -p "$SMRI" || exit 1; fi
-fi
+if [ ! -e "$OUTPUT" ]; then mkdir -p "$OUTPUT" || die "could not create output directory: $OUTPUT"; fi
+[ -d "$OUTPUT" ] && [ -w "$OUTPUT" ] || die "output directory is not writable: $OUTPUT"
+if [ ! -e "$SMRI" ]; then mkdir -p "$SMRI" || die "could not create smri directory: $SMRI"; fi
+[ -d "$SMRI" ] && [ -w "$SMRI" ] || die "smri path is not a writable directory: $SMRI"
+INPUT="$(cd "$INPUT" && pwd -P)"
+OUTPUT="$(cd "$OUTPUT" && pwd -P)"
+SMRI="$(cd "$SMRI" && pwd -P)"
+if [ "$DRY_RUN" != true ]; then command -v docker >/dev/null 2>&1 || die "Docker is not available on PATH"; fi
 
 CONFIG_PATH="$(cd "$(dirname "$CONFIG")" && pwd)/$(basename "$CONFIG")"
 docker_args=(run --rm)
@@ -103,5 +105,8 @@ if [ "$RESUME" = true ]; then megflow_args+=(--resume); fi
 printf 'MEGFlow corpus Docker run\nInput: %s\nOutput: %s\n' "$INPUT" "$OUTPUT"
 print_command docker "${docker_args[@]}" "$IMAGE" "${megflow_args[@]}"
 if [ "$DRY_RUN" = true ]; then exit 0; fi
-docker "${docker_args[@]}" "$IMAGE" "${megflow_args[@]}"
+if ! docker "${docker_args[@]}" "$IMAGE" "${megflow_args[@]}"; then
+    printf 'Error: Docker launch failed\n' >&2
+    exit 1
+fi
 printf 'Corpus report: %s/corpus_static_html_report/index.html\n' "$OUTPUT"

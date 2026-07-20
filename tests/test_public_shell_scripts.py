@@ -41,13 +41,14 @@ class PublicShellScriptContractTests(unittest.TestCase):
 
     def test_canonical_public_scripts_exist_and_parse(self):
         self.assertTrue(all(path.is_file() for path in PUBLIC_SCRIPTS))
-        result = subprocess.run(
-            ["bash", "-n", *(str(path) for path in PUBLIC_SCRIPTS)],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
+        for path in PUBLIC_SCRIPTS:
+            result = subprocess.run(
+                ["bash", "-n", str(path)],
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+            self.assertEqual(result.returncode, 0, f"{path}: {result.stderr}")
 
     def test_public_scripts_share_the_portable_contract(self):
         for path in PUBLIC_SCRIPTS:
@@ -175,3 +176,139 @@ class PublicShellScriptContractTests(unittest.TestCase):
             report_calls = calls_path.read_text(encoding="utf-8")
             self.assertIn("-r", report_calls)
             self.assertIn("8501:8501", report_calls)
+
+    def test_docker_launchers_resolve_relative_host_paths_before_mounting(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            input_directory = root / "input"
+            input_directory.mkdir()
+            corpus = root / "corpus"
+            (corpus / "dataset_a").mkdir(parents=True)
+            output = root / "output"
+            corpus_output = root / "corpus_output"
+            report_output = root / "report_output"
+            report_output.mkdir()
+            config = root / "config"
+            config.write_text("params { }\n", encoding="utf-8")
+            env, calls_path = self._stub_environment(root, "docker")
+
+            single = self._run_script(
+                RUN_SCRIPTS[0],
+                "--input", "input", "--output", "output", "--config", "config",
+                env=env, cwd=root,
+            )
+            corpus_result = self._run_script(
+                RUN_SCRIPTS[1],
+                "--input", "corpus", "--output", "corpus_output", "--config", "config",
+                env=env, cwd=root,
+            )
+            report = self._run_script(
+                RUN_SCRIPTS[3], "--output", "report_output", env=env, cwd=root
+            )
+
+            self.assertEqual(single.returncode, 0, single.stderr)
+            self.assertEqual(corpus_result.returncode, 0, corpus_result.stderr)
+            self.assertEqual(report.returncode, 0, report.stderr)
+            calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn(f"{input_directory}:/input:ro", calls)
+            self.assertIn(f"{output}:/output", calls)
+            self.assertIn(f"{corpus}:/input:ro", calls)
+            self.assertIn(f"{corpus_output}:/output", calls)
+            self.assertIn(f"{report_output}:/output", calls)
+
+    def test_source_launcher_rejects_unwritable_work_destination_before_launch(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            config = root / "corpus.config"
+            config.write_text("params { }\n", encoding="utf-8")
+            pipeline = root / "megflow.nf"
+            pipeline.write_text("nextflow.enable.dsl=2\n", encoding="utf-8")
+            work_file = root / "not_a_directory"
+            work_file.write_text("blocked\n", encoding="utf-8")
+            env, calls_path = self._stub_environment(root, "nextflow")
+
+            result = self._run_script(
+                RUN_SCRIPTS[2],
+                "--config", str(config), "--pipeline", str(pipeline),
+                "--work-dir", str(work_file), env=env,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertFalse(calls_path.exists())
+
+    def test_launchers_normalize_external_failure_to_one(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            self._write_stub(bin_dir, "docker", "exit 42\n")
+            self._write_stub(bin_dir, "nextflow", "exit 42\n")
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+            input_directory = root / "input"
+            input_directory.mkdir()
+            corpus = root / "corpus"
+            (corpus / "dataset_a").mkdir(parents=True)
+            report_output = root / "report_output"
+            report_output.mkdir()
+            config = root / "config"
+            config.write_text("params { }\n", encoding="utf-8")
+            source_config = root / "source.config"
+            source_config.write_text("params { }\n", encoding="utf-8")
+            pipeline = root / "megflow.nf"
+            pipeline.write_text("nextflow.enable.dsl=2\n", encoding="utf-8")
+
+            results = (
+                self._run_script(RUN_SCRIPTS[0], "--input", str(input_directory), "--output", str(root / "output"), "--config", str(config), env=env),
+                self._run_script(RUN_SCRIPTS[1], "--input", str(corpus), "--output", str(root / "corpus_output"), "--config", str(config), env=env),
+                self._run_script(RUN_SCRIPTS[2], "--config", str(source_config), "--pipeline", str(pipeline), env=env),
+                self._run_script(RUN_SCRIPTS[3], "--output", str(report_output), env=env),
+            )
+
+            self.assertTrue(all(result.returncode == 1 for result in results))
+
+    def test_launchers_reject_unknown_and_missing_options(self):
+        missing_value_options = (
+            (RUN_SCRIPTS[0], "--input"),
+            (RUN_SCRIPTS[1], "--input"),
+            (RUN_SCRIPTS[2], "--config"),
+            (RUN_SCRIPTS[3], "--output"),
+        )
+        for script, option in missing_value_options:
+            self.assertEqual(self._run_script(script, option).returncode, 2, script)
+            self.assertEqual(self._run_script(script, "--unknown").returncode, 2, script)
+
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            output = Path(temporary_directory) / "output"
+            output.mkdir()
+            result = self._run_script(
+                RUN_SCRIPTS[3], "--output", str(output), "--port", "9" * 100
+            )
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertNotIn("integer expression expected", result.stderr)
+
+    def test_dry_run_launchers_do_not_call_external_runtimes(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            input_directory = root / "input"
+            input_directory.mkdir()
+            corpus = root / "corpus"
+            (corpus / "dataset_a").mkdir(parents=True)
+            report_output = root / "report_output"
+            report_output.mkdir()
+            config = root / "config"
+            config.write_text("params { }\n", encoding="utf-8")
+            pipeline = root / "megflow.nf"
+            pipeline.write_text("nextflow.enable.dsl=2\n", encoding="utf-8")
+            env, calls_path = self._stub_environment(root, "docker")
+            self._write_stub(root / "bin", "nextflow", "printf 'called\\n' >> \"$MEGFLOW_TEST_CALLS\"\n")
+
+            results = (
+                self._run_script(RUN_SCRIPTS[0], "--input", str(input_directory), "--output", str(root / "output"), "--config", str(config), "--dry-run", env=env),
+                self._run_script(RUN_SCRIPTS[1], "--input", str(corpus), "--output", str(root / "corpus_output"), "--config", str(config), "--dry-run", env=env),
+                self._run_script(RUN_SCRIPTS[2], "--config", str(config), "--pipeline", str(pipeline), "--dry-run", env=env),
+                self._run_script(RUN_SCRIPTS[3], "--output", str(report_output), "--dry-run", env=env),
+            )
+
+            self.assertTrue(all(result.returncode == 0 for result in results))
+            self.assertFalse(calls_path.exists())

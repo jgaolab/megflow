@@ -31,7 +31,6 @@ Options:
 EOF
 }
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 OUTPUT="${MEGFLOW_OUTPUT:-}"
 SMRI="${MEGFLOW_SMRI:-}"
 IMAGE="${MEGFLOW_IMAGE:-cplmeg/megflow:latest}"
@@ -57,7 +56,13 @@ case "$PORT" in ""|*[!0-9]*) die "--port must be an integer from 1 through 65535
 PORT_NUMBER="$PORT"
 while [ "${PORT_NUMBER#0}" != "$PORT_NUMBER" ]; do PORT_NUMBER="${PORT_NUMBER#0}"; done
 [ -n "$PORT_NUMBER" ] || PORT_NUMBER=0
-[ "$PORT_NUMBER" -ge 1 ] && [ "$PORT_NUMBER" -le 65535 ] || die "--port must be an integer from 1 through 65535"
+if [ "${#PORT_NUMBER}" -gt 5 ] || { [ "${#PORT_NUMBER}" -eq 5 ] && [ "$PORT_NUMBER" \> 65535 ]; }; then
+    die "--port must be an integer from 1 through 65535"
+fi
+[ "$PORT_NUMBER" -ge 1 ] || die "--port must be an integer from 1 through 65535"
+
+OUTPUT="$(cd "$OUTPUT" && pwd -P)"
+if [ -n "$SMRI" ]; then SMRI="$(cd "$SMRI" && pwd -P)"; fi
 
 if [ "$DRY_RUN" != true ]; then command -v docker >/dev/null 2>&1 || die "Docker is not available on PATH"; fi
 docker_args=(run --rm)
@@ -68,4 +73,7 @@ if [ -n "$SMRI" ]; then docker_args+=(-v "${SMRI}:/smri:ro"); fi
 printf 'MEGFlow interactive report\nOutput: %s\nViewer: http://localhost:%s\n' "$OUTPUT" "$PORT"
 print_command docker "${docker_args[@]}" "$IMAGE" -r
 if [ "$DRY_RUN" = true ]; then exit 0; fi
-docker "${docker_args[@]}" "$IMAGE" -r
+if ! docker "${docker_args[@]}" "$IMAGE" -r; then
+    printf 'Error: Docker launch failed\n' >&2
+    exit 1
+fi
