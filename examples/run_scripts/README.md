@@ -1,7 +1,8 @@
 # Runnable MEGFlow examples
 
-These launchers are portable starting points for a local checkout. Run them
-from any directory; each resolves the repository root from the script location.
+These launchers are portable starting points for a local checkout. The commands
+below assume the current directory is the repository root. Each script resolves
+the repository root once invoked; from another directory, use its absolute path.
 Use `--help` to see every option before replacing the placeholder paths below.
 
 | Goal | Script | First command |
@@ -16,8 +17,9 @@ Use `--help` to see every option before replacing the placeholder paths below.
 All four scripts use strict Bash mode, quote supplied paths, reject unknown or
 incomplete options, and print the final command. `--help` works without Docker
 or Nextflow. Use `--dry-run` to inspect a launch command without starting an
-external runtime. Processing launchers create only the output and anatomy
-directories selected for that invocation; they never change ownership or
+external runtime. The Docker processing launchers create only the output and
+anatomy directories selected for that invocation; the source launcher may also
+create its selected work and log directories. None changes ownership or
 permissions recursively. Configuration and license mounts are read-only.
 
 The Docker launchers use `-it` when attached to a terminal and fall back to
