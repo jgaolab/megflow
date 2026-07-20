@@ -588,6 +588,48 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
         )
         self.assertEqual(result.returncode, 0, result.stderr)
 
+    def test_public_readme_and_rst_script_references_are_tracked(self):
+        tracked_result = subprocess.run(
+            ["git", "ls-files"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        tracked = set(tracked_result.stdout.splitlines())
+        documentation = sorted(
+            relative_path
+            for relative_path in tracked
+            if relative_path.endswith((".md", ".rst"))
+            and not relative_path.startswith(
+                ("docs/superpowers/", "megflow/tools/")
+            )
+        )
+        reference_pattern = re.compile(
+            r"(?<![A-Za-z0-9_/.])"
+            r"((?:\.\.?/)?(?:[A-Za-z0-9_.-]+/)+[A-Za-z0-9_.-]+\.sh)\b"
+        )
+        missing = []
+        for relative_document in documentation:
+            document = REPO_ROOT / relative_document
+            text = document.read_text(encoding="utf-8", errors="replace")
+            for reference in reference_pattern.findall(text):
+                candidates = []
+                for base in (REPO_ROOT, document.parent):
+                    resolved = (base / reference).resolve()
+                    try:
+                        candidates.append(resolved.relative_to(REPO_ROOT).as_posix())
+                    except ValueError:
+                        continue
+                if not any(candidate in tracked for candidate in candidates):
+                    missing.append(f"{relative_document}: {reference}")
+
+        self.assertEqual(
+            missing,
+            [],
+            "README/RST script references must resolve to tracked files",
+        )
+
 
 @unittest.skipUnless(NEXTFLOW, "set MEGFLOW_NEXTFLOW or install Nextflow")
 class DocumentationConfigExamplesIntegrationTests(unittest.TestCase):
