@@ -347,7 +347,7 @@ def write_runtime_config(path, block, profiles, root):
 class DocumentationConfigExamplesTests(unittest.TestCase):
     maxDiff = None
 
-    def test_readme_links_canonical_public_scripts_without_cleanup_helper(self):
+    def test_readme_links_canonical_public_scripts_without_cleanup_helpers(self):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         run_scripts = (
             "examples/run_scripts/single_dataset_docker.sh",
@@ -359,13 +359,23 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
             "scripts/development/build_megflow.sh",
             "scripts/development/build_docs.sh",
             "scripts/development/docker2sif.sh",
-            "scripts/development/rm_none_docker.sh",
         )
 
         for script in run_scripts + development_scripts:
             with self.subTest(script=script):
                 self.assertIn(f"]({script})", readme)
         self.assertNotIn("clean_docker.sh", readme)
+        self.assertNotIn("rm_none_docker.sh", readme)
+
+        docker2sif_row = next(
+            line for line in readme.splitlines()
+            if "](scripts/development/docker2sif.sh)" in line
+        )
+        self.assertIn(
+            "bash scripts/development/docker2sif.sh --image cplmeg/megflow:local`",
+            docker2sif_row,
+        )
+        self.assertNotIn("--dry-run", docker2sif_row)
 
     def test_readme_development_uses_the_public_helper_workflow_order(self):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
@@ -378,7 +388,6 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
             "### Building and Strictly Validating Documentation",
             "### Validation and Regression-Test Modes",
             "### Advanced Local Docker-to-SIF Conversion",
-            "### Dangling-Image Cleanup Safety",
             "### Pull-Request Workflow",
         )
         positions = [readme.index(subsection, development) for subsection in subsections]

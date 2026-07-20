@@ -698,10 +698,9 @@ MEGFlow environment is needed instead of the distributed image.
 | :--- | :--- | :--- |
 | [build_megflow.sh](scripts/development/build_megflow.sh) | Build the local `cplmeg/megflow:local` image: `bash scripts/development/build_megflow.sh --dry-run` | Docker is required outside dry-run; builds from `megflow.Dockerfile` and does not overwrite a release tag by default. |
 | [build_docs.sh](scripts/development/build_docs.sh) | Build documentation: `bash scripts/development/build_docs.sh --strict` | Python/Sphinx dependencies are required; writes HTML under `docs/build/html` by default. |
-| [docker2sif.sh](scripts/development/docker2sif.sh) | Convert an existing local image: `bash scripts/development/docker2sif.sh --dry-run` | Apptainer or Singularity is required even for dry-run; Docker and the local-image check are required only for conversion. It neither pulls nor builds an image and refuses an existing output unless `--force` is explicit. |
-| [rm_none_docker.sh](scripts/development/rm_none_docker.sh) | Preview dangling image IDs: `bash scripts/development/rm_none_docker.sh` | Docker is required; default execution is preview-only and prints an opt-in command. |
+| [docker2sif.sh](scripts/development/docker2sif.sh) | Convert an existing local image: `bash scripts/development/docker2sif.sh --image cplmeg/megflow:local` | Apptainer or Singularity is required even for dry-run; Docker and the local-image check are required only for conversion. It neither pulls nor builds an image and refuses an existing output unless `--force` is explicit. |
 
-All four helpers provide `--help`. Read their option descriptions before using
+All three helpers provide `--help`. Read their option descriptions before using
 them on a shared workstation or cluster.
 
 ### Building the Docker Image
@@ -770,18 +769,6 @@ so one of those runtimes is required for dry-run too. Docker availability and
 the local-image check apply only to an actual conversion. The helper writes a
 sanitized `.sif` filename unless `--output` is specified and does not build or
 pull an image automatically.
-
-### Dangling-Image Cleanup Safety
-
-Preview dangling Docker image IDs without changing Docker state:
-
-```bash
-bash scripts/development/rm_none_docker.sh
-```
-
-Default execution is preview-only. Deletion requires the explicit `--yes`
-confirmation after reviewing the listed IDs; do not use it casually on shared
-or production Docker hosts.
 
 ### Pull-Request Workflow
 
