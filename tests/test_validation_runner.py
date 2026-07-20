@@ -168,8 +168,12 @@ class ValidationRunnerTests(unittest.TestCase):
     def test_public_shell_script_contracts_run_in_both_routing_gates(self):
         text = VALIDATION_RUNNER.read_text(encoding="utf-8")
         function_pattern = re.compile(
-            r"(?ms)^(?P<name>[A-Za-z_][A-Za-z0-9_]*)\(\) \{\n"
-            r"(?P<body>.*?)(?=^\}\n)"
+            r"(?ms)^[ \t]*(?P<name>[A-Za-z_][A-Za-z0-9_]*)[ \t]*"
+            r"\([ \t]*\)[ \t]*\{[ \t]*(?:#[^\n]*)?\n"
+            r"(?P<body>.*?)(?=^[ \t]*\}[ \t]*(?:#[^\n]*)?$)"
+        )
+        active_argument_pattern = re.compile(
+            r"(?m)^[ \t]*test_public_shell_scripts[ \t]+\\[ \t]*$"
         )
         function_bodies = {
             match.group("name"): match.group("body")
@@ -180,19 +184,23 @@ class ValidationRunnerTests(unittest.TestCase):
         self.assertTrue(expected_functions.issubset(function_bodies))
         for function_name in expected_functions:
             self.assertEqual(
-                function_bodies[function_name].count("test_public_shell_scripts"),
+                len(
+                    active_argument_pattern.findall(
+                        function_bodies[function_name]
+                    )
+                ),
                 1,
                 f"{function_name} must run test_public_shell_scripts exactly once",
             )
 
         unexpected_functions = {
-            function_name: body.count("test_public_shell_scripts")
+            function_name: len(active_argument_pattern.findall(body))
             for function_name, body in function_bodies.items()
             if function_name not in expected_functions
-            and "test_public_shell_scripts" in body
+            and active_argument_pattern.search(body)
         }
         self.assertEqual(unexpected_functions, {})
-        self.assertEqual(text.count("test_public_shell_scripts"), 2)
+        self.assertEqual(len(active_argument_pattern.findall(text)), 2)
 
     def test_windows_validator_rejects_a_missing_powershell_parser(self):
         with tempfile.TemporaryDirectory() as empty_path:
