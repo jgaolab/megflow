@@ -44,6 +44,7 @@ run_MultiDatasets.sh
 run_MultiDatasets_sourcecode.sh
 !scripts/validation/run_validation.sh
 start_vpn.sh
+clean_docker.sh
 license.txt
 _misc
 megflow/docs/build/
