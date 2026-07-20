@@ -126,8 +126,9 @@ For more details, see `scripts/install-dev/README.md`.
 ### Manual Docker Pull
 
 If you prefer to install manually, install Docker following the
-[Docker official documentation](https://docs.docker.com/get-docker/) and pull the
-image directly:
+[Docker official documentation](https://docs.docker.com/get-docker/). Browse the
+[MEGFlow images and available version tags on Docker Hub](https://hub.docker.com/r/cplmeg/megflow),
+then pull the selected image directly:
 
 ```bash
 docker pull cplmeg/megflow:<version>
