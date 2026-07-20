@@ -173,7 +173,7 @@ class ValidationRunnerTests(unittest.TestCase):
             r"(?P<body>.*?)(?=^[ \t]*\}[ \t]*(?:#[^\n]*)?$)"
         )
         active_argument_pattern = re.compile(
-            r"(?m)^[ \t]*test_public_shell_scripts[ \t]+\\[ \t]*$"
+            r"(?m)^[ \t]*test_public_shell_scripts(?:[ \t]+\\)?[ \t]*$"
         )
         function_bodies = {
             match.group("name"): match.group("body")
