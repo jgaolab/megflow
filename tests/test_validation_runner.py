@@ -167,10 +167,32 @@ class ValidationRunnerTests(unittest.TestCase):
 
     def test_public_shell_script_contracts_run_in_both_routing_gates(self):
         text = VALIDATION_RUNNER.read_text(encoding="utf-8")
-        self.assertEqual(
-            text.splitlines().count("        test_public_shell_scripts " + chr(92)),
-            2,
+        function_pattern = re.compile(
+            r"(?ms)^(?P<name>[A-Za-z_][A-Za-z0-9_]*)\(\) \{\n"
+            r"(?P<body>.*?)(?=^\}\n)"
         )
+        function_bodies = {
+            match.group("name"): match.group("body")
+            for match in function_pattern.finditer(text)
+        }
+        expected_functions = {"run_routing_ci", "run_routing"}
+
+        self.assertTrue(expected_functions.issubset(function_bodies))
+        for function_name in expected_functions:
+            self.assertEqual(
+                function_bodies[function_name].count("test_public_shell_scripts"),
+                1,
+                f"{function_name} must run test_public_shell_scripts exactly once",
+            )
+
+        unexpected_functions = {
+            function_name: body.count("test_public_shell_scripts")
+            for function_name, body in function_bodies.items()
+            if function_name not in expected_functions
+            and "test_public_shell_scripts" in body
+        }
+        self.assertEqual(unexpected_functions, {})
+        self.assertEqual(text.count("test_public_shell_scripts"), 2)
 
     def test_windows_validator_rejects_a_missing_powershell_parser(self):
         with tempfile.TemporaryDirectory() as empty_path:
