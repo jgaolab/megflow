@@ -8,6 +8,7 @@ die() {
 
 require_value() {
     [ "$#" -ge 2 ] && [ -n "$2" ] || die "$1 requires a value"
+    case "$2" in --*) die "$1 requires a value (got option: $2)" ;; esac
 }
 
 print_command() {
@@ -35,13 +36,13 @@ EOF
 }
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-INPUT="${MEGFLOW_INPUT:-}"
-OUTPUT="${MEGFLOW_OUTPUT:-}"
-CONFIG="${MEGFLOW_CONFIG:-${REPO_ROOT}/nextflow/nextflow_for_docker.config}"
-SMRI="${MEGFLOW_SMRI:-}"
-LICENSE_FILE="${MEGFLOW_LICENSE:-}"
-IMAGE="${MEGFLOW_IMAGE:-cplmeg/megflow:latest}"
-STEPS="${MEGFLOW_STEPS:-meg_ica}"
+INPUT=""
+OUTPUT=""
+CONFIG="${REPO_ROOT}/nextflow/nextflow_for_docker.config"
+SMRI=""
+LICENSE_FILE=""
+IMAGE="cplmeg/megflow:latest"
+STEPS="meg_ica"
 RESUME=false
 DRY_RUN=false
 
@@ -63,7 +64,7 @@ done
 
 [ -n "$INPUT" ] || die "--input is required"
 [ -n "$OUTPUT" ] || die "--output is required"
-[ -d "$INPUT" ] && [ -r "$INPUT" ] || die "input directory is not readable: $INPUT"
+[ -d "$INPUT" ] && [ -r "$INPUT" ] && [ -x "$INPUT" ] || die "input directory is not readable and traversable: $INPUT"
 [ -f "$CONFIG" ] && [ -r "$CONFIG" ] || die "config file is not readable: $CONFIG"
 HAS_DATASET=false
 for DATASET_DIR in "$INPUT"/* "$INPUT"/.[!.]* "$INPUT"/..?*; do
@@ -79,14 +80,14 @@ if [ -z "$SMRI" ]; then SMRI="${OUTPUT}/smri"; fi
 if [ -n "$LICENSE_FILE" ]; then
     [ -f "$LICENSE_FILE" ] && [ -r "$LICENSE_FILE" ] || die "license file is not readable: $LICENSE_FILE"
 fi
-if [ -e "$SMRI" ] && { [ ! -d "$SMRI" ] || [ ! -w "$SMRI" ]; }; then
-    die "smri path is not a writable directory: $SMRI"
+if [ -e "$SMRI" ] && { [ ! -d "$SMRI" ] || [ ! -w "$SMRI" ] || [ ! -x "$SMRI" ]; }; then
+    die "smri path is not a writable and traversable directory: $SMRI"
 fi
 
 if [ ! -e "$OUTPUT" ]; then mkdir -p "$OUTPUT" || die "could not create output directory: $OUTPUT"; fi
-[ -d "$OUTPUT" ] && [ -w "$OUTPUT" ] || die "output directory is not writable: $OUTPUT"
+[ -d "$OUTPUT" ] && [ -w "$OUTPUT" ] && [ -x "$OUTPUT" ] || die "output directory is not writable and traversable: $OUTPUT"
 if [ ! -e "$SMRI" ]; then mkdir -p "$SMRI" || die "could not create smri directory: $SMRI"; fi
-[ -d "$SMRI" ] && [ -w "$SMRI" ] || die "smri path is not a writable directory: $SMRI"
+[ -d "$SMRI" ] && [ -w "$SMRI" ] && [ -x "$SMRI" ] || die "smri path is not a writable and traversable directory: $SMRI"
 INPUT="$(cd "$INPUT" && pwd -P)"
 OUTPUT="$(cd "$OUTPUT" && pwd -P)"
 SMRI="$(cd "$SMRI" && pwd -P)"

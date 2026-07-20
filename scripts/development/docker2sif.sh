@@ -26,6 +26,12 @@ require_value() {
         error "Option $1 requires a value."
         exit 2
     fi
+    case "$2" in
+        --*)
+            error "Option $1 requires a value (got option: $2)."
+            exit 2
+            ;;
+    esac
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -91,8 +97,8 @@ case "$OUTPUT" in
     *) OUTPUT_PATH="$REPO_ROOT/$OUTPUT" ;;
 esac
 OUTPUT_DIR="$(dirname "$OUTPUT_PATH")"
-if [ ! -d "$OUTPUT_DIR" ] || [ ! -w "$OUTPUT_DIR" ]; then
-    error "Output directory is not writable: $OUTPUT_DIR"
+if [ ! -d "$OUTPUT_DIR" ] || [ ! -w "$OUTPUT_DIR" ] || [ ! -x "$OUTPUT_DIR" ]; then
+    error "Output directory is not writable and traversable: $OUTPUT_DIR"
     exit 2
 fi
 if [ -e "$OUTPUT_PATH" ] && [ "$FORCE" != true ]; then

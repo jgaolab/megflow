@@ -577,7 +577,7 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
         self.assertIn('"LCMV"', methods.group(1))
 
     def test_documented_source_runner_exists_and_has_valid_bash(self):
-        runner = REPO_ROOT / "run_MultiDatasets_sourcecode.sh"
+        runner = REPO_ROOT / "examples" / "run_scripts" / "corpus_source.sh"
         self.assertTrue(runner.is_file())
         result = subprocess.run(
             ["bash", "-n", str(runner)],

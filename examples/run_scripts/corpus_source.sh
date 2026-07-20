@@ -8,6 +8,7 @@ die() {
 
 require_value() {
     [ "$#" -ge 2 ] && [ -n "$2" ] || die "$1 requires a value"
+    case "$2" in --*) die "$1 requires a value (got option: $2)" ;; esac
 }
 
 print_command() {
@@ -38,13 +39,13 @@ EOF
 }
 
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-CONFIG="${MEGFLOW_CONFIG:-}"
-PIPELINE="${MEGFLOW_PIPELINE:-${REPO_ROOT}/nextflow/megflow.nf}"
-NEXTFLOW_BIN="${MEGFLOW_NEXTFLOW:-nextflow}"
-PROFILE="${MEGFLOW_PROFILE:-local,strict}"
-CONDA_ENV="${MEGFLOW_CONDA_ENV:-}"
-WORK_DIR="${MEGFLOW_WORK_DIR:-}"
-LOG_FILE="${MEGFLOW_LOG_FILE:-}"
+CONFIG=""
+PIPELINE="${REPO_ROOT}/nextflow/megflow.nf"
+NEXTFLOW_BIN="nextflow"
+PROFILE="local,strict"
+CONDA_ENV=""
+WORK_DIR=""
+LOG_FILE=""
 RESUME=true
 DRY_RUN=false
 
@@ -97,22 +98,22 @@ else
     command -v "$NEXTFLOW_BIN" >/dev/null 2>&1 || die "Nextflow is not available on PATH"
 fi
 if [ -n "$WORK_DIR" ]; then
-    if [ -e "$WORK_DIR" ] && { [ ! -d "$WORK_DIR" ] || [ ! -w "$WORK_DIR" ]; }; then
-        die "work directory is not writable: $WORK_DIR"
+    if [ -e "$WORK_DIR" ] && { [ ! -d "$WORK_DIR" ] || [ ! -w "$WORK_DIR" ] || [ ! -x "$WORK_DIR" ]; }; then
+        die "work directory is not writable and traversable: $WORK_DIR"
     fi
     if [ ! -e "$WORK_DIR" ]; then mkdir -p "$WORK_DIR" || die "could not create work directory: $WORK_DIR"; fi
-    [ -d "$WORK_DIR" ] && [ -w "$WORK_DIR" ] || die "work directory is not writable: $WORK_DIR"
+    [ -d "$WORK_DIR" ] && [ -w "$WORK_DIR" ] && [ -x "$WORK_DIR" ] || die "work directory is not writable and traversable: $WORK_DIR"
 fi
 if [ -n "$LOG_FILE" ]; then
     LOG_PARENT="$(dirname "$LOG_FILE")"
     if [ -e "$LOG_FILE" ] && { [ ! -f "$LOG_FILE" ] || [ ! -w "$LOG_FILE" ]; }; then
         die "log file is not writable: $LOG_FILE"
     fi
-    if [ -e "$LOG_PARENT" ] && { [ ! -d "$LOG_PARENT" ] || [ ! -w "$LOG_PARENT" ]; }; then
-        die "log directory is not writable: $LOG_PARENT"
+    if [ -e "$LOG_PARENT" ] && { [ ! -d "$LOG_PARENT" ] || [ ! -w "$LOG_PARENT" ] || [ ! -x "$LOG_PARENT" ]; }; then
+        die "log directory is not writable and traversable: $LOG_PARENT"
     fi
     if [ ! -e "$LOG_PARENT" ]; then mkdir -p "$LOG_PARENT" || die "could not create log directory: $LOG_PARENT"; fi
-    [ -d "$LOG_PARENT" ] && [ -w "$LOG_PARENT" ] || die "log directory is not writable: $LOG_PARENT"
+    [ -d "$LOG_PARENT" ] && [ -w "$LOG_PARENT" ] && [ -x "$LOG_PARENT" ] || die "log directory is not writable and traversable: $LOG_PARENT"
 fi
 if ! "${nextflow_cmd[@]}"; then
     printf 'Error: Nextflow launch failed\n' >&2

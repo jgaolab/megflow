@@ -24,6 +24,31 @@ require_value() {
         error "Option $1 requires a value."
         exit 2
     fi
+    case "$2" in
+        --*)
+            error "Option $1 requires a value (got option: $2)."
+            exit 2
+            ;;
+    esac
+}
+
+resolve_path_allow_missing() {
+    local target="$1"
+    local suffix=""
+    local component
+    local parent
+    local resolved
+
+    while [ ! -e "$target" ] && [ ! -L "$target" ]; do
+        component="$(basename "$target")"
+        parent="$(dirname "$target")"
+        [ "$parent" != "$target" ] || return 1
+        suffix="/${component}${suffix}"
+        target="$parent"
+    done
+    [ -d "$target" ] || return 1
+    resolved="$(cd -P "$target" && pwd)" || return 1
+    printf '%s%s\n' "$resolved" "$suffix"
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -80,28 +105,40 @@ case "$OUTPUT_PATH" in
         ;;
 esac
 
-if [ "$CLEAN" = true ] && [ -e "$OUTPUT_PATH" ]; then
-    RESOLVED_DOCS_BUILD_ROOT="$(cd -P "$DOCS_BUILD_ROOT" && pwd)"
-    RESOLVED_OUTPUT_PARENT="$(cd -P "$(dirname "$OUTPUT_PATH")" && pwd)"
-    RESOLVED_OUTPUT="$RESOLVED_OUTPUT_PARENT/$(basename "$OUTPUT_PATH")"
-    case "$RESOLVED_OUTPUT" in
-        "$RESOLVED_DOCS_BUILD_ROOT"/*) OUTPUT_PATH="$RESOLVED_OUTPUT" ;;
-        *)
-            error "Documentation output must resolve under $RESOLVED_DOCS_BUILD_ROOT."
-            exit 2
-            ;;
-    esac
-fi
-
-if [ ! -d "$DOCS_SOURCE" ]; then
-    error "Documentation source not found: $DOCS_SOURCE"
+RESOLVED_DOCS_DIR="$(cd -P "$REPO_ROOT/docs" && pwd)"
+EXPECTED_DOCS_BUILD_ROOT="$RESOLVED_DOCS_DIR/build"
+if ! RESOLVED_DOCS_BUILD_ROOT="$(resolve_path_allow_missing "$DOCS_BUILD_ROOT")"; then
+    error "Could not resolve documentation build root: $DOCS_BUILD_ROOT"
     exit 2
 fi
-if ! command -v "${PYTHON:-python}" >/dev/null 2>&1; then
+if [ "$RESOLVED_DOCS_BUILD_ROOT" != "$EXPECTED_DOCS_BUILD_ROOT" ]; then
+    error "Documentation build root must not resolve outside $RESOLVED_DOCS_DIR."
+    exit 2
+fi
+if ! RESOLVED_OUTPUT="$(resolve_path_allow_missing "$OUTPUT_PATH")"; then
+    error "Could not safely resolve documentation output: $OUTPUT_PATH"
+    exit 2
+fi
+case "$RESOLVED_OUTPUT" in
+    "$RESOLVED_DOCS_BUILD_ROOT"/*) OUTPUT_PATH="$RESOLVED_OUTPUT" ;;
+    *)
+        error "Documentation output must resolve under $RESOLVED_DOCS_BUILD_ROOT."
+        exit 2
+        ;;
+esac
+
+if [ ! -d "$DOCS_SOURCE" ] || [ ! -r "$DOCS_SOURCE" ] || [ ! -x "$DOCS_SOURCE" ]; then
+    error "Documentation source is not readable and traversable: $DOCS_SOURCE"
+    exit 2
+fi
+if command -v python >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python)"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="$(command -v python3)"
+else
     error 'Python is required.'
     exit 2
 fi
-PYTHON_BIN="$(command -v "${PYTHON:-python}")"
 if ! "$PYTHON_BIN" -c 'import sphinx' >/dev/null 2>&1; then
     error 'The active Python environment must provide Sphinx.'
     exit 2
@@ -117,8 +154,8 @@ if [ "$STRICT" = true ]; then
 fi
 SPHINX_ARGS+=("$DOCS_SOURCE" "$OUTPUT_PATH")
 
-printf 'Documentation command: python'
-printf ' %q' "${SPHINX_ARGS[@]}"
+printf 'Documentation command:'
+printf ' %q' "$PYTHON_BIN" "${SPHINX_ARGS[@]}"
 printf '\nOutput: %s\n' "$OUTPUT_PATH"
 if ! "$PYTHON_BIN" "${SPHINX_ARGS[@]}"; then
     error 'Documentation build failed.'

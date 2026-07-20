@@ -8,6 +8,7 @@ die() {
 
 require_value() {
     [ "$#" -ge 2 ] && [ -n "$2" ] || die "$1 requires a value"
+    case "$2" in --*) die "$1 requires a value (got option: $2)" ;; esac
 }
 
 print_command() {
@@ -31,10 +32,10 @@ Options:
 EOF
 }
 
-OUTPUT="${MEGFLOW_OUTPUT:-}"
-SMRI="${MEGFLOW_SMRI:-}"
-IMAGE="${MEGFLOW_IMAGE:-cplmeg/megflow:latest}"
-PORT="${MEGFLOW_PORT:-8501}"
+OUTPUT=""
+SMRI=""
+IMAGE="cplmeg/megflow:latest"
+PORT="8501"
 DRY_RUN=false
 
 while [ "$#" -gt 0 ]; do
@@ -50,8 +51,8 @@ while [ "$#" -gt 0 ]; do
 done
 
 [ -n "$OUTPUT" ] || die "--output is required"
-[ -d "$OUTPUT" ] && [ -r "$OUTPUT" ] && [ -w "$OUTPUT" ] || die "output directory must exist and be writable: $OUTPUT"
-if [ -n "$SMRI" ]; then [ -d "$SMRI" ] && [ -r "$SMRI" ] || die "smri directory is not readable: $SMRI"; fi
+[ -d "$OUTPUT" ] && [ -r "$OUTPUT" ] && [ -w "$OUTPUT" ] && [ -x "$OUTPUT" ] || die "output directory must exist and be readable, writable, and traversable: $OUTPUT"
+if [ -n "$SMRI" ]; then [ -d "$SMRI" ] && [ -r "$SMRI" ] && [ -x "$SMRI" ] || die "smri directory is not readable and traversable: $SMRI"; fi
 case "$PORT" in ""|*[!0-9]*) die "--port must be an integer from 1 through 65535" ;; esac
 PORT_NUMBER="$PORT"
 while [ "${PORT_NUMBER#0}" != "$PORT_NUMBER" ]; do PORT_NUMBER="${PORT_NUMBER#0}"; done

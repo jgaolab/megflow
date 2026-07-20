@@ -148,10 +148,11 @@ docker run --rm -it cplmeg/megflow:<version> [nextflow_options]
 ### Runnable Examples
 
 Choose a public script by goal. The relative commands below assume the current
-directory is the repository root. Once invoked, each script resolves the
-repository root itself; from another directory, use an absolute script path
-and absolute paths for inputs such as `--config`. Each script offers `--help`
-plus `--dry-run` where it launches an external runtime.
+directory is the repository root. Launchers that use bundled configuration or
+pipeline files resolve the repository root themselves; from another directory,
+use an absolute script path and absolute paths for inputs such as `--config`.
+Each script offers `--help` plus `--dry-run` where it launches an external
+runtime.
 
 | Goal | Public script |
 | :--- | :--- |

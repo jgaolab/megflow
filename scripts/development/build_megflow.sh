@@ -27,6 +27,12 @@ require_value() {
         error "Option $1 requires a value."
         exit 2
     fi
+    case "$2" in
+        --*)
+            error "Option $1 requires a value (got option: $2)."
+            exit 2
+            ;;
+    esac
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -89,8 +95,8 @@ if [ ! -f "$DOCKERFILE_PATH" ]; then
     error "Dockerfile not found: $DOCKERFILE_PATH"
     exit 2
 fi
-if [ ! -d "$REPO_ROOT" ]; then
-    error "Build context not found: $REPO_ROOT"
+if [ ! -d "$REPO_ROOT" ] || [ ! -r "$REPO_ROOT" ] || [ ! -x "$REPO_ROOT" ]; then
+    error "Build context is not readable and traversable: $REPO_ROOT"
     exit 2
 fi
 

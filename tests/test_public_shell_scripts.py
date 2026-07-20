@@ -1,4 +1,5 @@
 import os
+import re
 import subprocess
 import tempfile
 import textwrap
@@ -60,6 +61,27 @@ class PublicShellScriptContractTests(unittest.TestCase):
             result = self._run_script(path, "--help")
             self.assertEqual(result.returncode, 0, f"{path}: {result.stderr}")
 
+    def test_run_script_guide_lists_every_help_option(self):
+        guide = (REPO_ROOT / "examples" / "run_scripts" / "README.md").read_text(
+            encoding="utf-8"
+        )
+        for index, script in enumerate(RUN_SCRIPTS):
+            heading = f"### `{script.name}`"
+            start = guide.index(heading)
+            following_starts = [
+                guide.find(f"### `{candidate.name}`", start + len(heading))
+                for candidate in RUN_SCRIPTS[index + 1 :]
+            ]
+            following_starts.append(guide.find("## Troubleshooting", start))
+            end = min(position for position in following_starts if position >= 0)
+            section = guide[start:end]
+            help_result = self._run_script(script, "--help")
+            self.assertEqual(help_result.returncode, 0, help_result.stderr)
+            options = set(re.findall(r"(?m)^\s+(--[a-z][a-z-]*)", help_result.stdout))
+            for option in options:
+                with self.subTest(script=script.name, option=option):
+                    self.assertIn(f"`{option}", section)
+
     def test_cleanup_helper_is_preview_first_and_clean_docker_is_out_of_scope(self):
         text = DEVELOPMENT_SCRIPTS[-1].read_text(encoding="utf-8")
         self.assertIn('APPLY=false', text)
@@ -100,6 +122,24 @@ class PublicShellScriptContractTests(unittest.TestCase):
             )
 
             self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_docs_rejects_nonexistent_output_beneath_symlink_escape(self):
+        docs_build = REPO_ROOT / "docs" / "build"
+        docs_build.mkdir(parents=True, exist_ok=True)
+        with tempfile.TemporaryDirectory(dir=docs_build) as inside_directory:
+            with tempfile.TemporaryDirectory() as outside_directory:
+                escape = Path(inside_directory) / "escape"
+                escape.symlink_to(outside_directory, target_is_directory=True)
+                root = Path(outside_directory)
+                env, _ = self._stub_environment(root, "python")
+
+                result = self._run_script(
+                    DEVELOPMENT_SCRIPTS[1],
+                    "--output", str(escape / "new-html"),
+                    env=env,
+                )
+
+                self.assertEqual(result.returncode, 2, result.stderr)
 
     def test_cleanup_helper_help_and_empty_preview_never_apply_deletions(self):
         text = DEVELOPMENT_SCRIPTS[-1].read_text(encoding="utf-8")
@@ -182,6 +222,9 @@ class PublicShellScriptContractTests(unittest.TestCase):
             input_directory = root / "input"
             input_directory.mkdir()
             output = root / "output"
+            smri = root / "smri"
+            license_file = root / "license.txt"
+            license_file.write_text("test-license\n", encoding="utf-8")
             config = root / "quickstart.config"
             config.write_text("params { }\n", encoding="utf-8")
             env, calls_path = self._stub_environment(root, "docker")
@@ -191,7 +234,10 @@ class PublicShellScriptContractTests(unittest.TestCase):
                 "--input", str(input_directory),
                 "--output", str(output),
                 "--config", str(config),
+                "--smri", str(smri),
+                "--license", str(license_file),
                 "--steps", "meg_ica",
+                "--anat-method", "deepprep",
                 "--resume",
                 env=env,
             )
@@ -201,6 +247,11 @@ class PublicShellScriptContractTests(unittest.TestCase):
             self.assertIn(f"{input_directory}:/input:ro", calls)
             self.assertIn(f"{output}:/output", calls)
             self.assertIn(f"{config}:/config/nextflow.config:ro", calls)
+            self.assertIn(f"{smri}:/smri", calls)
+            self.assertIn(f"{license_file}:/fs_license.txt:ro", calls)
+            self.assertIn("--fs_subjects_dir\n/smri", calls)
+            self.assertIn("--fs_license_file\n/fs_license.txt", calls)
+            self.assertIn("--anat-method\ndeepprep", calls)
             self.assertIn("--steps\nmeg_ica", calls)
             self.assertIn("--resume", calls)
 
@@ -210,7 +261,11 @@ class PublicShellScriptContractTests(unittest.TestCase):
             output = root / "output"
             config = root / "corpus.config"
             config.write_text(
-                f'params {{ megflow {{ output_dir = "{output}" }} }}\n',
+                "params {\n"
+                "    megflow {\n"
+                f'        output_dir = "{output}"\n'
+                "    }\n"
+                "}\n",
                 encoding="utf-8",
             )
             pipeline = root / "megflow.nf"
@@ -227,6 +282,11 @@ class PublicShellScriptContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             source_calls = calls_path.read_text(encoding="utf-8")
             self.assertIn("-profile\nlocal,strict", source_calls)
+            self.assertIn(f"-w\n{output / 'work'}", source_calls)
+            self.assertIn(
+                f"-log\n{output / 'corpus_static_html_report' / 'nextflow' / 'nextflow.log'}",
+                source_calls,
+            )
 
     def test_interactive_report_maps_the_viewer_port_and_report_option(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -307,6 +367,28 @@ class PublicShellScriptContractTests(unittest.TestCase):
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertFalse(calls_path.exists())
 
+    def test_docker_launcher_rejects_an_untraversable_input_directory(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            input_directory = root / "input"
+            input_directory.mkdir()
+            input_directory.chmod(0o600)
+            config = root / "quickstart.config"
+            config.write_text("params { }\n", encoding="utf-8")
+            try:
+                result = self._run_script(
+                    RUN_SCRIPTS[0],
+                    "--input", str(input_directory),
+                    "--output", str(root / "output"),
+                    "--config", str(config),
+                    "--dry-run",
+                )
+            finally:
+                input_directory.chmod(0o700)
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+            self.assertIn("traversable", result.stderr)
+
     def test_launchers_normalize_external_failure_to_one(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -357,6 +439,54 @@ class PublicShellScriptContractTests(unittest.TestCase):
             )
             self.assertEqual(result.returncode, 2, result.stderr)
             self.assertNotIn("integer expression expected", result.stderr)
+
+    def test_value_options_reject_an_adjacent_option_as_their_value(self):
+        cases = (
+            (RUN_SCRIPTS[0], ("--input", "--output")),
+            (RUN_SCRIPTS[1], ("--input", "--output")),
+            (RUN_SCRIPTS[2], ("--profile", "--no-resume")),
+            (RUN_SCRIPTS[3], ("--output", "--dry-run")),
+            (DEVELOPMENT_SCRIPTS[0], ("--image", "--dry-run")),
+            (DEVELOPMENT_SCRIPTS[1], ("--output", "--strict")),
+            (DEVELOPMENT_SCRIPTS[2], ("--runtime", "--dry-run")),
+        )
+        for script, arguments in cases:
+            with self.subTest(script=script.name):
+                result = self._run_script(script, *arguments)
+                self.assertEqual(result.returncode, 2, result.stderr)
+                self.assertIn("requires a value", result.stderr)
+
+    def test_required_cli_options_ignore_undocumented_environment_values(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            input_directory = root / "input"
+            input_directory.mkdir()
+            corpus = root / "corpus"
+            (corpus / "dataset_a").mkdir(parents=True)
+            output = root / "output"
+            output.mkdir()
+            config = root / "config"
+            config.write_text("params { }\n", encoding="utf-8")
+            pipeline = root / "megflow.nf"
+            pipeline.write_text("nextflow.enable.dsl=2\n", encoding="utf-8")
+            env = os.environ.copy()
+            env.update(
+                {
+                    "MEGFLOW_INPUT": str(input_directory),
+                    "MEGFLOW_OUTPUT": str(output),
+                    "MEGFLOW_CONFIG": str(config),
+                    "MEGFLOW_PIPELINE": str(pipeline),
+                }
+            )
+
+            results = (
+                self._run_script(RUN_SCRIPTS[0], "--dry-run", env=env),
+                self._run_script(RUN_SCRIPTS[1], "--dry-run", env=env),
+                self._run_script(RUN_SCRIPTS[2], "--dry-run", env=env),
+                self._run_script(RUN_SCRIPTS[3], "--dry-run", env=env),
+            )
+
+            self.assertTrue(all(result.returncode == 2 for result in results))
 
     def test_dry_run_launchers_do_not_call_external_runtimes(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
