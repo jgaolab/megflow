@@ -60,6 +60,14 @@ def packaged_docker_runner() -> Path:
     return DOCKER_RUNNER if DOCKER_RUNNER.is_file() else REPO_ROOT / "nextflow" / "run.sh"
 
 
+def workflow_job(workflow: str, job_name: str) -> str:
+    match = re.search(
+        rf"(?ms)^  {re.escape(job_name)}:\n(.*?)(?=^  [A-Za-z0-9_-]+:\n|\Z)",
+        workflow,
+    )
+    return "" if match is None else match.group(1)
+
+
 class NextflowExecutionConfigTests(unittest.TestCase):
     def test_profile_integration_uses_a_test_local_nextflow_launch_directory(self):
         text = PROFILE_INTEGRATION_TEST.read_text(encoding="utf-8")
@@ -154,6 +162,36 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("run_timed_unittest_gate", runner)
         self.assertIn("parse_shipped_configs", ci_body)
         self.assertIn("parse_shipped_configs", full_body)
+
+    def test_installer_validation_jobs_are_native_and_nonduplicated(self):
+        workflow = VALIDATION_WORKFLOW.read_text(encoding="utf-8")
+        runner = VALIDATION_RUNNER.read_text(encoding="utf-8")
+        ci_body = runner.split("run_routing_ci() {", 1)[1].split("\n}", 1)[0]
+        full_body = runner.split("run_routing() {", 1)[1].split("\n}", 1)[0]
+
+        linux_job = workflow_job(workflow, "linux-installer")
+        macos_job = workflow_job(workflow, "macos-installer")
+        windows_job = workflow_job(workflow, "windows-installer")
+
+        self.assertIn("runs-on: ubuntu-latest", linux_job)
+        self.assertIn("test_install_scripts.InstallerMetadataContractTests", linux_job)
+        self.assertIn("test_install_scripts.LinuxInstallerContractTests", linux_job)
+
+        self.assertIn("runs-on: macos-latest", macos_job)
+        self.assertIn("test_install_scripts.MacOSInstallerContractTests", macos_job)
+
+        self.assertIn("runs-on: windows-latest", windows_job)
+        self.assertIn("validate_windows_installer.py", windows_job)
+        self.assertIn("test_install_scripts.WindowsInstallerContractTests", windows_job)
+
+        self.assertNotRegex(
+            ci_body,
+            r"(?m)^\s+test_install_scripts\s*\\?$",
+        )
+        self.assertRegex(
+            full_body,
+            r"(?m)^\s+test_install_scripts\s*\\?$",
+        )
 
     def test_validation_workflow_local_inputs_are_tracked(self):
         required_paths = (

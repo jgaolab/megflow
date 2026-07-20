@@ -64,7 +64,41 @@ jobs:
       - name: Run real MNE and OSL scientific contracts
         run: bash scripts/validation/run_validation.sh scientific
 
+  linux-installer:
+    name: Linux installer contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Validate Linux installer contracts
+        run: >-
+          python scripts/validation/run_unittest_gate.py
+          test_install_scripts.InstallerMetadataContractTests
+          test_install_scripts.LinuxInstallerContractTests
+
+  macos-installer:
+    name: macOS installer contracts
+    runs-on: macos-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+
+      - name: Validate macOS installer contracts
+        run: >-
+          python scripts/validation/run_unittest_gate.py
+          test_install_scripts.MacOSInstallerContractTests
+
   windows-installer:
+    name: Windows installer contracts
     runs-on: windows-latest
     timeout-minutes: 10
     steps:
@@ -76,6 +110,11 @@ jobs:
 
       - name: Parse the Windows installer with PowerShell
         run: python scripts/validation/validate_windows_installer.py
+
+      - name: Validate Windows installer contracts
+        run: >-
+          python scripts/validation/run_unittest_gate.py
+          test_install_scripts.WindowsInstallerContractTests
 
   documentation:
     runs-on: ubuntu-latest

@@ -94,7 +94,6 @@ run_routing_ci() {
         test_nextflow_execution_config \
         test_docker_entrypoint_options \
         test_docker_image_namespace \
-        test_install_scripts \
         test_megnet_retrained_nextflow_contract \
         test_quality_score_nextflow_contract \
         test_validation_runner

@@ -14,7 +14,7 @@ WINDOWS_INSTALLER = REPO_ROOT / "scripts/install/install_megflow_windows.ps1"
 INSTALL_README = REPO_ROOT / "scripts/install/README.md"
 
 
-class InstallScriptContractTests(unittest.TestCase):
+class _InstallerContractTestCase(unittest.TestCase):
     def _write_stub(self, bin_dir: Path, name: str, body: str) -> None:
         path = bin_dir / name
         path.write_text("#!/usr/bin/env bash\n" + textwrap.dedent(body), encoding="utf-8")
@@ -54,15 +54,17 @@ class InstallScriptContractTests(unittest.TestCase):
             )
             return result, calls
 
-    def test_all_bash_installers_parse(self):
-        result = subprocess.run(
-            ["bash", "-n", str(LINUX_INSTALLER), str(MACOS_INSTALLER), str(DEV_INSTALLER)],
-            text=True,
-            capture_output=True,
-            check=False,
-        )
-        self.assertEqual(result.returncode, 0, result.stderr)
 
+class InstallerMetadataContractTests(unittest.TestCase):
+    def test_installer_documentation_uses_current_release_examples(self):
+        readme = INSTALL_README.read_text(encoding="utf-8")
+        self.assertNotIn("0.0.3", readme)
+        self.assertIn("install_megflow_linux.sh 1.0.0 apptainer", readme)
+        self.assertIn("install_megflow_macos.sh 1.0.0", readme)
+        self.assertIn("-ImageTag 1.0.0", readme)
+
+
+class WindowsInstallerContractTests(unittest.TestCase):
     def test_windows_installer_checks_native_docker_exit_codes(self):
         script = WINDOWS_INSTALLER.read_text(encoding="utf-8")
         self.assertIn("$LASTEXITCODE", script)
@@ -70,12 +72,16 @@ class InstallScriptContractTests(unittest.TestCase):
         self.assertIn('Invoke-Docker -Arguments @("pull", $Image)', script)
         self.assertIn('Invoke-Docker -Arguments @("run", "--rm", $Image, "-h")', script)
 
-    def test_installer_documentation_uses_current_release_examples(self):
-        readme = INSTALL_README.read_text(encoding="utf-8")
-        self.assertNotIn("0.0.3", readme)
-        self.assertIn("install_megflow_linux.sh 1.0.0 apptainer", readme)
-        self.assertIn("install_megflow_macos.sh 1.0.0", readme)
-        self.assertIn("-ImageTag 1.0.0", readme)
+
+class LinuxInstallerContractTests(_InstallerContractTestCase):
+    def test_linux_bash_installers_parse(self):
+        result = subprocess.run(
+            ["bash", "-n", str(LINUX_INSTALLER), str(DEV_INSTALLER)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_linux_apptainer_arguments_pull_and_validate_requested_tag(self):
         result, calls = self._run_with_stubs(
@@ -183,6 +189,17 @@ class InstallScriptContractTests(unittest.TestCase):
                 "run --rm cplmeg/megflow:1.0.0 -h",
             ],
         )
+
+
+class MacOSInstallerContractTests(_InstallerContractTestCase):
+    def test_macos_bash_installer_parses(self):
+        result = subprocess.run(
+            ["bash", "-n", str(MACOS_INSTALLER)],
+            text=True,
+            capture_output=True,
+            check=False,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
     def test_macos_docker_arguments_pull_and_validate_requested_tag(self):
         result, calls = self._run_with_stubs(
