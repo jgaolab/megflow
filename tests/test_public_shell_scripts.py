@@ -67,6 +67,68 @@ class PublicShellScriptContractTests(unittest.TestCase):
         self.assertIn('if [ "$APPLY" != true ]', text)
         self.assertNotIn("clean_docker.sh", text)
 
+    def test_development_helpers_assemble_safe_build_commands(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            env, calls_path = self._stub_environment(root, "python")
+            self._write_stub(root / "bin", "apptainer", "exit 0\n")
+
+            build = self._run_script(DEVELOPMENT_SCRIPTS[0], "--dry-run", env=env)
+            docs = self._run_script(DEVELOPMENT_SCRIPTS[1], "--strict", env=env)
+            sif = self._run_script(
+                DEVELOPMENT_SCRIPTS[2], "--dry-run", "--runtime", "apptainer", env=env
+            )
+
+            self.assertEqual(build.returncode, 0, build.stderr)
+            self.assertIn("build", build.stdout)
+            self.assertIn("cplmeg/megflow:local", build.stdout)
+            self.assertEqual(docs.returncode, 0, docs.stderr)
+            docs_output = docs.stdout + calls_path.read_text(encoding="utf-8")
+            self.assertIn("python", docs_output)
+            self.assertIn("sphinx", docs_output)
+            self.assertEqual(sif.returncode, 0, sif.stderr)
+            self.assertIn("docker-daemon://cplmeg/megflow:local", sif.stdout)
+
+    def test_docs_clean_rejects_an_output_that_resolves_outside_docs_build(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            env, _ = self._stub_environment(root, "python")
+
+            result = self._run_script(
+                DEVELOPMENT_SCRIPTS[1],
+                "--clean", "--output", "docs/build/../outside", env=env,
+            )
+
+            self.assertEqual(result.returncode, 2, result.stderr)
+
+    def test_cleanup_helper_help_and_empty_preview_never_apply_deletions(self):
+        text = DEVELOPMENT_SCRIPTS[-1].read_text(encoding="utf-8")
+        self.assertIn('APPLY=false', text)
+        self.assertIn('if [ "$APPLY" != true ]', text)
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            self._write_stub(
+                bin_dir,
+                "docker",
+                '''
+                if [ "$1" = "images" ]; then
+                    exit 0
+                fi
+                exit 99
+                ''',
+            )
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+
+            help_result = self._run_script(DEVELOPMENT_SCRIPTS[-1], "--help", env=env)
+            preview = self._run_script(DEVELOPMENT_SCRIPTS[-1], env=env)
+
+            self.assertEqual(help_result.returncode, 0, help_result.stderr)
+            self.assertEqual(preview.returncode, 0, preview.stderr)
+            self.assertIn("No dangling Docker images found", preview.stdout)
+
     def _stub_environment(self, root: Path, command: str):
         bin_dir = root / "bin"
         bin_dir.mkdir()
