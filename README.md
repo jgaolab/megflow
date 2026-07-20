@@ -147,8 +147,11 @@ docker run --rm -it cplmeg/megflow:<version> [nextflow_options]
 
 ### Runnable Examples
 
-Choose a public script by goal; each works from any current directory and
-offers `--help` plus `--dry-run` where it launches an external runtime.
+Choose a public script by goal. The relative commands below assume the current
+directory is the repository root. Once invoked, each script resolves the
+repository root itself; from another directory, use an absolute script path
+and absolute paths for inputs such as `--config`. Each script offers `--help`
+plus `--dry-run` where it launches an external runtime.
 
 | Goal | Public script |
 | :--- | :--- |
@@ -663,7 +666,9 @@ When reporting a bug, please include:
 ## 🛠️ Development
 
 Contributions to MEGFlow are welcome. The public helpers below resolve the
-repository root themselves, so their commands can be run from any directory.
+repository root once invoked. The shown relative invocations assume the current
+directory is the repository root; use an absolute script path, and absolute
+input or config paths, when invoking them from elsewhere.
 
 ### Prerequisites
 
@@ -692,7 +697,7 @@ MEGFlow environment is needed instead of the distributed image.
 | :--- | :--- | :--- |
 | [build_megflow.sh](scripts/development/build_megflow.sh) | Build the local `cplmeg/megflow:local` image: `bash scripts/development/build_megflow.sh --dry-run` | Docker is required outside dry-run; builds from `megflow.Dockerfile` and does not overwrite a release tag by default. |
 | [build_docs.sh](scripts/development/build_docs.sh) | Build documentation: `bash scripts/development/build_docs.sh --strict` | Python/Sphinx dependencies are required; writes HTML under `docs/build/html` by default. |
-| [docker2sif.sh](scripts/development/docker2sif.sh) | Convert an existing local image: `bash scripts/development/docker2sif.sh --dry-run` | Apptainer or Singularity is required outside dry-run; it neither pulls nor builds an image and refuses an existing output unless `--force` is explicit. |
+| [docker2sif.sh](scripts/development/docker2sif.sh) | Convert an existing local image: `bash scripts/development/docker2sif.sh --dry-run` | Apptainer or Singularity is required even for dry-run; Docker and the local-image check are required only for conversion. It neither pulls nor builds an image and refuses an existing output unless `--force` is explicit. |
 | [rm_none_docker.sh](scripts/development/rm_none_docker.sh) | Preview dangling image IDs: `bash scripts/development/rm_none_docker.sh` | Docker is required; default execution is preview-only and prints an opt-in command. |
 
 All four helpers provide `--help`. Read their option descriptions before using
@@ -751,16 +756,19 @@ scientific dependencies are in `requirements_validation.txt`.
 
 ### Advanced Local Docker-to-SIF Conversion
 
-Convert a development image that already exists on the local Docker daemon:
+Preview or convert a development image that already exists on the local Docker
+daemon:
 
 ```bash
 bash scripts/development/docker2sif.sh --image cplmeg/megflow:local --dry-run
 bash scripts/development/docker2sif.sh --image cplmeg/megflow:local
 ```
 
-The helper prefers Apptainer, falls back to Singularity, and writes a sanitized
-`.sif` filename unless `--output` is specified. It does not build or pull an
-image automatically.
+The helper discovers Apptainer or Singularity before assembling either command,
+so one of those runtimes is required for dry-run too. Docker availability and
+the local-image check apply only to an actual conversion. The helper writes a
+sanitized `.sif` filename unless `--output` is specified and does not build or
+pull an image automatically.
 
 ### Dangling-Image Cleanup Safety
 

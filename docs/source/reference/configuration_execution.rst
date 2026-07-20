@@ -33,9 +33,8 @@ The repository also provides
 <https://github.com/jgaolab/megflow/blob/main/nextflow/nextflow_multi_dataset_demo.config>`__
 for a WAND, SMN4Lang, and MEG-MASC source-mode run. It contains site-specific
 host paths and process resources. After checking those paths, launch it with
-``examples/run_scripts/corpus_source.sh --config
-nextflow/nextflow_multi_dataset_demo.config``. See :doc:`examples` for both
-workflows and for recording-level task overrides.
+``examples/run_scripts/corpus_source.sh --config nextflow/nextflow_multi_dataset_demo.config``.
+See :doc:`examples` for both workflows and for recording-level task overrides.
 
 **Worked examples:** :ref:`example-docker-corpus` and
 :ref:`example-source-multi-dataset`.
