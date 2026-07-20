@@ -65,3 +65,113 @@ class PublicShellScriptContractTests(unittest.TestCase):
         self.assertIn('--yes', text)
         self.assertIn('if [ "$APPLY" != true ]', text)
         self.assertNotIn("clean_docker.sh", text)
+
+    def _stub_environment(self, root: Path, command: str):
+        bin_dir = root / "bin"
+        bin_dir.mkdir()
+        self._write_stub(
+            bin_dir,
+            command,
+            '''
+            printf '%s\\n' "$@" >> "$MEGFLOW_TEST_CALLS"
+            ''',
+        )
+        calls = root / "calls.txt"
+        env = os.environ.copy()
+        env["PATH"] = f"{bin_dir}{os.pathsep}{env.get('PATH', '')}"
+        env["MEGFLOW_TEST_CALLS"] = str(calls)
+        return env, calls
+
+    def test_corpus_docker_assembles_corpus_entrypoint_arguments(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            corpus = root / "corpus"
+            (corpus / "dataset_a").mkdir(parents=True)
+            output = root / "output"
+            smri = root / "smri"
+            config = root / "corpus.config"
+            config.write_text("params { }\\n", encoding="utf-8")
+            env, calls_path = self._stub_environment(root, "docker")
+
+            result = self._run_script(
+                RUN_SCRIPTS[1],
+                "--input", str(corpus),
+                "--output", str(output),
+                "--smri", str(smri),
+                "--config", str(config),
+                "--steps", "meg_ica",
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn("--corpus", calls)
+            self.assertIn("--steps\nmeg_ica", calls)
+
+    def test_single_dataset_docker_assembles_entrypoint_arguments(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            input_directory = root / "input"
+            input_directory.mkdir()
+            output = root / "output"
+            config = root / "quickstart.config"
+            config.write_text("params { }\n", encoding="utf-8")
+            env, calls_path = self._stub_environment(root, "docker")
+
+            result = self._run_script(
+                RUN_SCRIPTS[0],
+                "--input", str(input_directory),
+                "--output", str(output),
+                "--config", str(config),
+                "--steps", "meg_ica",
+                "--resume",
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn(f"{input_directory}:/input:ro", calls)
+            self.assertIn(f"{output}:/output", calls)
+            self.assertIn(f"{config}:/config/nextflow.config:ro", calls)
+            self.assertIn("--steps\nmeg_ica", calls)
+            self.assertIn("--resume", calls)
+
+    def test_corpus_source_assembles_local_strict_nextflow_profile(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            output = root / "output"
+            config = root / "corpus.config"
+            config.write_text(
+                f'params {{ megflow {{ output_dir = "{output}" }} }}\n',
+                encoding="utf-8",
+            )
+            pipeline = root / "megflow.nf"
+            pipeline.write_text("nextflow.enable.dsl=2\n", encoding="utf-8")
+            env, calls_path = self._stub_environment(root, "nextflow")
+
+            result = self._run_script(
+                RUN_SCRIPTS[2],
+                "--config", str(config),
+                "--pipeline", str(pipeline),
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            source_calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn("-profile\nlocal,strict", source_calls)
+
+    def test_interactive_report_maps_the_viewer_port_and_report_option(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            output = root / "output"
+            output.mkdir()
+            env, calls_path = self._stub_environment(root, "docker")
+
+            result = self._run_script(
+                RUN_SCRIPTS[3], "--output", str(output), env=env
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            report_calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn("-r", report_calls)
+            self.assertIn("8501:8501", report_calls)
