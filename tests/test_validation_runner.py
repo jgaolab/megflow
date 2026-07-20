@@ -165,6 +165,13 @@ class ValidationRunnerTests(unittest.TestCase):
         self.assertIn('cd "${ROOT_DIR}"', text)
         self.assertIn("git ls-files 'nextflow/*.config'", text)
 
+    def test_public_shell_script_contracts_run_in_both_routing_gates(self):
+        text = VALIDATION_RUNNER.read_text(encoding="utf-8")
+        self.assertEqual(
+            text.splitlines().count("        test_public_shell_scripts " + chr(92)),
+            2,
+        )
+
     def test_windows_validator_rejects_a_missing_powershell_parser(self):
         with tempfile.TemporaryDirectory() as empty_path:
             env = dict(os.environ)
