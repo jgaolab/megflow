@@ -6,6 +6,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+README = REPO_ROOT / "README.md"
 DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
 INSTALLATION_DOC = REPO_ROOT / "docs" / "source" / "quickstart" / "installation.rst"
 QUICKSTART_DOC = REPO_ROOT / "docs" / "source" / "quickstart" / "quick_guide.rst"
@@ -133,6 +134,15 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         )
         for method in ("freesurfer", "deepprep", "pseudomri"):
             self.assertIn(f"``{method}``", docs)
+
+    def test_readme_meg_all_step_includes_default_nmdq_scoring(self):
+        readme = README.read_text(encoding="utf-8")
+        meg_all_row = next(
+            line for line in readme.splitlines() if line.startswith("| `meg_all` |")
+        )
+        self.assertIn("NMDQ score", meg_all_row)
+        self.assertIn("`megqc.enabled`", meg_all_row)
+        self.assertIn("default", meg_all_row.lower())
 
     def test_quickstart_ships_a_safe_downloadable_project_overlay(self):
         self.assertTrue(QUICKSTART_CONFIG.is_file())

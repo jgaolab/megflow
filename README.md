@@ -149,7 +149,7 @@ The file [`nextflow/megflow.nf`](nextflow/megflow.nf) is controlled by **`params
 
 | Primary `steps` | What it does |
 | :--- | :--- |
-| `meg_all` | **Default.** Full MEG processing (import → basic preprocessing → artifacts → ICA → epochs → covariance → coregistration → forward → source) using the existing **`fs_subjects_dir`**; does **not** run the T1/FreeSurfer/DeepPrep structural pipeline. |
+| `meg_all` | **Default.** Full MEG processing (import → NMDQ score when **`megqc.enabled` = `true`** [default] → basic preprocessing → artifacts → ICA → epochs → covariance → coregistration → forward → source) using the existing **`fs_subjects_dir`**; does **not** run the T1/FreeSurfer/DeepPrep structural pipeline. |
 | `all` | Run **structural imaging** (T1 import, recon, BEM; or Pseudo-MRI fallback when configured) **and** the full MEG chain in one go. |
 | `anatomy` | **Structural imaging only** (no MEG). |
 | `meg_artifacts` | MEG up to **artifact detection** (after basic preprocessing), then the static HTML QC report. |
@@ -314,37 +314,6 @@ params {
 
 Set `params.megflow.defaults.steps` in your `nextflow.config` for a project default. For Docker runs, the entrypoint's `--steps` option writes this override into the runtime config.
 
-### Validation
-
-Run the fast routing gate used by GitHub Actions from an activated MEGFlow
-environment:
-
-```bash
-export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
-bash scripts/validation/run_validation.sh routing-ci
-```
-
-`routing-ci` runs all static routing contracts, parses every tracked Nextflow
-config, and executes a representative Nextflow 24.10.3 smoke matrix covering
-step selection, anatomy-only and simultaneous anatomy/MEG routing, nested
-dataset/recording overrides, MNE/OSL parameter passthrough, raw-noise and LCMV
-covariance pairing, resume invalidation, strict failure, and report rebuilding.
-
-Use `routing` for the exhaustive local routing, resume-deletion, failure, report,
-and documentation-example matrices. Use `scientific` for real synthetic MNE/OSL
-filtering, epochs, covariance, source-call, MEGQC, DeepReject-input,
-MEGNet/ICA-label, and report tests. `all` runs both complete local gates and
-builds the documentation when its dependencies are installed. Requested gates
-fail when dependencies are missing, no tests are discovered, or any test is
-skipped. A coverage contract also fails when a new tracked `tests/test_*.py`
-module is not assigned to a complete local gate.
-
-GitHub runs `routing-ci`, `scientific`, a native PowerShell parser check for the
-Windows installer, and the strict documentation build for every push and pull
-request. The exhaustive `routing` matrix remains a local pre-release test so
-routine CI stays focused and timely. Pinned lightweight scientific dependencies
-are in `requirements_validation.txt`.
-
 ### Resume and interactive edits
 
 MEGFlow relies on Nextflow `-resume` for normal task caching. Unchanged tasks
@@ -422,10 +391,10 @@ that links back to each dataset report.
 params {
   megflow {
     corpus_root = "/data/corpus"
-    dataset_include = ["WAND_Extracted", "SMN4Lang", "MEG-MASC"]
+    dataset_include = ["WAND", "SMN4Lang", "MEG-MASC"]
     datasets {
-      WAND_Extracted {
-        fs_subjects_dir = "/data/corpus/WAND_Extracted/smri"
+      WAND {
+        fs_subjects_dir = "/data/corpus/WAND/smri"
         meg_import {
           task = ["visual"]
           subject_id = "first:10"
@@ -704,6 +673,37 @@ Contributions to MEGFlow are welcome. To contribute code or documentation:
     ```bash
     nextflow run <script.nf> -with-trace
     ```
+
+### Validation
+
+Run the fast routing gate used by GitHub Actions from an activated MEGFlow
+environment:
+
+```bash
+export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
+bash scripts/validation/run_validation.sh routing-ci
+```
+
+`routing-ci` runs all static routing contracts, parses every tracked Nextflow
+config, and executes a representative Nextflow 24.10.3 smoke matrix covering
+step selection, anatomy-only and simultaneous anatomy/MEG routing, nested
+dataset/recording overrides, MNE/OSL parameter passthrough, raw-noise and LCMV
+covariance pairing, resume invalidation, strict failure, and report rebuilding.
+
+Use `routing` for the exhaustive local routing, resume-deletion, failure, report,
+and documentation-example matrices. Use `scientific` for real synthetic MNE/OSL
+filtering, epochs, covariance, source-call, MEGQC, DeepReject-input,
+MEGNet/ICA-label, and report tests. `all` runs both complete local gates and
+builds the documentation when its dependencies are installed. Requested gates
+fail when dependencies are missing, no tests are discovered, or any test is
+skipped. A coverage contract also fails when a new tracked `tests/test_*.py`
+module is not assigned to a complete local gate.
+
+GitHub runs `routing-ci`, `scientific`, a native PowerShell parser check for the
+Windows installer, and the strict documentation build for every push and pull
+request. The exhaustive `routing` matrix remains a local pre-release test so
+routine CI stays focused and timely. Pinned lightweight scientific dependencies
+are in `requirements_validation.txt`.
 
 3.  **Build Docker Image Locally (Optional):**
     If you modified the Dockerfile or dependencies, you can build the image manually using Docker or the provided helper script.

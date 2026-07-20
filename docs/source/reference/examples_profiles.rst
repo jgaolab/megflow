@@ -165,7 +165,7 @@ profiles and dataset filters.
 .. code-block:: text
 
    /data/corpus/
-   |-- WAND_Extracted/
+   |-- WAND/
    |-- SMN4Lang/
    `-- MEG-MASC/
 
@@ -175,7 +175,7 @@ Example ``corpus.config``:
 
    params {
      megflow {
-       dataset_include = ["WAND_Extracted", "SMN4Lang", "MEG-MASC"]
+       dataset_include = ["WAND", "SMN4Lang", "MEG-MASC"]
        dataset_exclude = []
        defaults {
          steps = "meg_ica"
@@ -184,7 +184,7 @@ Example ``corpus.config``:
          }
        }
        datasets {
-         WAND_Extracted {
+         WAND {
            meg_import {
              session_id = ["01"]
              task = ["visual"]

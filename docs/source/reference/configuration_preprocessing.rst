@@ -542,11 +542,14 @@ ICA and Component Labeling
 --------------------------
 
 ICA derivatives use the fixed internal ``ica_report`` directory.
-``ica.num_components`` defaults to ``60`` and is passed as MNE ICA
-``n_components``; ``ica.compute_explained_variance`` defaults to false because
-per-component figure computation is expensive. ICA uses FastICA, the configured
-``seeds.ica``, excludes bad channels, and fits with
-``reject_by_annotation=True``.
+``ica.num_components`` defaults to ``0.9999`` and is passed directly as MNE ICA
+``n_components``. A float between 0 and 1 selects enough principal components
+to exceed that cumulative explained-variance fraction; values closer to 1
+usually retain more components. An integer such as ``60`` remains supported
+when a fixed component count is required. ``ica.compute_explained_variance``
+defaults to false because per-component figure computation is expensive. ICA
+uses FastICA, the configured ``seeds.ica``, excludes bad channels, and fits
+with ``reject_by_annotation=True``.
 
 The ``ic_label`` block has two control layers. Method switches select which
 detectors may run. The ``ic_ecg``, ``ic_eog``, and ``ic_outlier`` category

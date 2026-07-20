@@ -350,6 +350,32 @@ class NextflowExecutionConfigTests(unittest.TestCase):
             self.assertLess(filter_index, notch_index, config.name)
             self.assertLess(notch_index, resample_index, config.name)
 
+    def test_ica_component_default_uses_explained_variance(self):
+        canonical_configs = (
+            SOURCE_CONFIG,
+            DOCKER_CONFIG,
+            CORPUS_EXAMPLE,
+            MULTI_DATASET_DEMO,
+        )
+        for config in canonical_configs:
+            text = config.read_text(encoding="utf-8")
+            self.assertRegex(
+                text,
+                r"(?s)\bica\s*\{.*?\bnum_components\s*=\s*0\.9999\b",
+                config.name,
+            )
+            self.assertNotRegex(
+                text,
+                r"\bnum_components\s*=\s*60\b",
+                config.name,
+            )
+
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn(
+            "num_ic = cfgGet(ica_config, ['num_components'], 0.9999)",
+            pipeline,
+        )
+
     def test_outer_container_does_not_enable_nested_docker(self):
         text = packaged_docker_config().read_text(encoding="utf-8")
         self.assertRegex(text, r"(?s)docker\s*\{\s*enabled\s*=\s*false\s*\}")

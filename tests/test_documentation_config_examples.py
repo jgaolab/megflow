@@ -118,7 +118,7 @@ GROOVY_RUNTIME_PROFILES = {
         "LanguageStudy",
     ),
     block_key("examples_profiles.rst", "example-docker-corpus", "groovy"): (
-        "WAND_Extracted",
+        "WAND",
         "SMN4Lang",
         "MEG-MASC",
     ),
@@ -346,6 +346,40 @@ def write_runtime_config(path, block, profiles, root):
 
 class DocumentationConfigExamplesTests(unittest.TestCase):
     maxDiff = None
+
+    def test_readme_places_validation_in_development(self):
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        development = readme.index("## 🛠️ Development")
+        environment_setup = readme.index("2. **Environment Setup:", development)
+        validation = readme.index("### Validation")
+        docker_build = readme.index(
+            "3.  **Build Docker Image Locally (Optional):", development
+        )
+
+        self.assertLess(environment_setup, validation)
+        self.assertLess(validation, docker_build)
+
+    def test_user_facing_wand_examples_use_clean_display_name(self):
+        doc_paths = [REPO_ROOT / "README.md"]
+        doc_paths.extend(
+            path
+            for path in (REPO_ROOT / "docs" / "source").rglob("*.rst")
+            if not path.name.startswith("._")
+        )
+        offenders = {
+            str(path.relative_to(REPO_ROOT)): [
+                index
+                for index, line in enumerate(
+                    path.read_text(encoding="utf-8").splitlines(), start=1
+                )
+                if "WAND_Extracted" in line
+            ]
+            for path in doc_paths
+        }
+        self.assertEqual(
+            {path: lines for path, lines in offenders.items() if lines},
+            {},
+        )
 
     def test_validation_runner_executes_documented_examples(self):
         runner = VALIDATION_RUNNER.read_text(encoding="utf-8")

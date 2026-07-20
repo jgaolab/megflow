@@ -1530,7 +1530,7 @@ process run_ica {
     raw_subject_dir_basename = file(preproc_raw_path).getParent().getName()
     ica_config = moduleConfig(effective_config, 'ica')
     ica_output_dir = processOutputDir('ica')
-    num_ic = cfgGet(ica_config, ['num_components'], 60)
+    num_ic = cfgGet(ica_config, ['num_components'], 0.9999)
     compute_explained_variance = cfgBool(ica_config, ['compute_explained_variance'], false)
     ica_seed = cfgGet(effective_config, ['seeds', 'ica'], 2025)
     """

@@ -22,6 +22,7 @@ sys.modules.setdefault("autoreject", autoreject)
 import compute_covariance
 import epochs as epochs_module
 import meg_preproc_osl
+import run_ica as run_ica_module
 import source_localization
 
 
@@ -602,6 +603,38 @@ class SourceConfigContractTests(unittest.TestCase):
         self.assertEqual(make_lcmv.call_args.kwargs["weight_norm"], "nai")
         self.assertEqual(make_lcmv.call_args.kwargs["rank"], {"mag": 2})
         apply_lcmv.assert_called_once_with(evoked, filters, verbose="ERROR")
+
+
+class IcaNumComponentsContractTests(unittest.TestCase):
+    def _run_main_with_num_components(self, value):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            args = types.SimpleNamespace(
+                raw_file=str(temp_path / "sub-01_raw.fif"),
+                num_IC=float(value),
+                output_dir=str(temp_path / "output"),
+                fname_bad_channels=str(temp_path / "bad_channels.txt"),
+                fname_bad_segments=str(temp_path / "bad_segments.txt"),
+                seed=2025,
+                compute_explained_variance=False,
+            )
+            with mock.patch.object(
+                run_ica_module, "parse_arguments", return_value=args
+            ), mock.patch.object(run_ica_module, "run_ica") as run_ica:
+                run_ica_module.main()
+        return run_ica.call_args.kwargs["n_IC"]
+
+    def test_explained_variance_threshold_remains_float(self):
+        value = self._run_main_with_num_components(0.9999)
+
+        self.assertIsInstance(value, float)
+        self.assertEqual(value, 0.9999)
+
+    def test_integer_component_count_remains_supported(self):
+        value = self._run_main_with_num_components(60)
+
+        self.assertIsInstance(value, int)
+        self.assertEqual(value, 60)
 
 
 if __name__ == "__main__":
