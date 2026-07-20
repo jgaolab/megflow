@@ -118,6 +118,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
         expected_ci_contracts = (
             "test_documentation_config_examples.DocumentationConfigExamplesTests",
+            "test_all_documented_groovy_blocks_parse_together",
             "test_quality_score_nextflow_contract",
             "test_anatomy_step_matrix_schedules_only_selected_method",
             "test_with_anatomy_modifier_stops_at_requested_meg_stage",
@@ -247,7 +248,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
     def test_observability_outputs_are_enabled_and_scoped_to_output_dir(self):
         for config in available_configs():
             text = config.read_text(encoding="utf-8")
-            self.assertIn('report_scope: "dataset"', text)
+            self.assertIn('report_scope = "dataset"', text)
             self.assertIn("params.megflow.report_scope == 'corpus'", text)
             self.assertIn("'corpus_static_html_report'", text)
             self.assertIn("'static_html_report'", text)
@@ -332,7 +333,8 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         for config in configs:
             text = config.read_text(encoding="utf-8")
             match = re.search(
-                r"(?s)megqc:\s*\[(.*?)\n\s{12}preproc:\s*\[",
+                r"(?s)\bmegqc\s*(?:\{|:\s*\[)(.*?)"
+                r"\n\s{12}preproc\s*(?:\{|:\s*\[)",
                 text,
             )
             self.assertIsNotNone(match, config.name)
@@ -340,7 +342,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
             if "[filter:" not in qc_block:
                 # Omitting megqc.preproc selects the scorer's tested
                 # reference-aligned fallback; a partial explicit recipe does not.
-                self.assertNotIn("preproc:", qc_block, config.name)
+                self.assertNotRegex(qc_block, r"\bpreproc\s*(?:=|:)", config.name)
                 continue
             filter_index = qc_block.index("[filter:")
             notch_index = qc_block.index("[notch_filter:")
@@ -426,37 +428,36 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertTrue(MULTI_DATASET_DEMO.is_file())
         text = MULTI_DATASET_DEMO.read_text(encoding="utf-8")
         self.assertIn('includeConfig "nextflow.config"', text)
-        self.assertIn('report_scope: "corpus"', text)
+        self.assertIn('report_scope = "corpus"', text)
         for profile in ("WAND_visual", "SMN4Lang_RDR", "MEG_MASC_word"):
-            self.assertRegex(text, rf"(?m)^\s{{12}}{profile}:\s*\[")
-        self.assertIn('deepreject: [', text)
-        self.assertIn('mode: "lenient"', text)
+            self.assertRegex(text, rf"(?m)^\s+{profile}\s*\{{")
+        self.assertIn('deepreject {', text)
+        self.assertIn('mode = "lenient"', text)
         self.assertNotIn("params.dataset_dir", text)
 
     def test_opm_cog_example_covers_all_three_profile_levels(self):
         self.assertTrue(OPM_COG_TASK_OVERRIDE_EXAMPLE.is_file())
         text = OPM_COG_TASK_OVERRIDE_EXAMPLE.read_text(encoding="utf-8")
         self.assertIn('includeConfig "nextflow.config"', text)
-        self.assertIn('params.megflow.defaults.steps = "meg_all"', text)
-        self.assertIn("params.megflow.defaults.epochs.epochs.tmin = -0.2", text)
-        self.assertIn("params.megflow.datasets = [", text)
-        self.assertRegex(text, r"(?m)^\s{4}OPM_COG:\s*\[")
-        self.assertRegex(text, r"(?m)^\s{8}recordings:\s*\[")
+        self.assertRegex(text, r"(?s)params\s*\{.*megflow\s*\{.*defaults\s*\{")
+        self.assertRegex(text, r"(?s)defaults\s*\{.*steps\s*=\s*\"meg_all\"")
+        self.assertRegex(text, r"(?s)epochs\s*\{.*epochs\s*\{.*tmin\s*=\s*-0\.2")
+        self.assertRegex(text, r"(?s)datasets\s*\{.*OPM_COG\s*\{.*recordings\s*\{")
         for task in ("aef", "vef", "tap", "ssvef"):
-            self.assertIn(f'match: [task: "{task}"]', text)
-        self.assertIn('task: ["aef", "vef", "tap", "ssvef"]', text)
-        self.assertGreaterEqual(text.count("forward: [epoch_label:"), 4)
-        self.assertGreaterEqual(text.count("visualization: ["), 4)
+            self.assertRegex(text, rf'(?s)match\s*\{{\s*task\s*=\s*"{task}"\s*\}}')
+        self.assertIn('task = ["aef", "vef", "tap", "ssvef"]', text)
+        self.assertGreaterEqual(text.count("forward {"), 5)
+        self.assertGreaterEqual(text.count("visualization {"), 4)
 
     def test_maxwell_tsss_example_uses_declarative_profile_configuration(self):
         self.assertTrue(MAXWELL_TSSS_EXAMPLE.is_file())
         text = MAXWELL_TSSS_EXAMPLE.read_text(encoding="utf-8")
         self.assertIn('includeConfig "nextflow.config"', text)
         self.assertNotRegex(text, r"(?m)^def\s+")
-        self.assertIn('params.megflow.defaults.preproc = [', text)
-        self.assertIn('params.megflow.datasets = [', text)
-        self.assertRegex(text, r"(?m)^\s{4}MEGIN_SITE_A:\s*\[")
-        self.assertRegex(text, r"(?m)^\s{8}recordings:\s*\[")
+        self.assertRegex(text, r"(?s)params\s*\{.*megflow\s*\{.*defaults\s*\{")
+        self.assertGreaterEqual(text.count('preproc {'), 3)
+        self.assertRegex(text, r"(?s)datasets\s*\{.*MEGIN_SITE_A\s*\{")
+        self.assertRegex(text, r"(?m)^\s+recordings\s*\{")
         self.assertEqual(text.count("[maxwell_filter: ["), 3)
         self.assertIn("st_duration: 10.0", text)
         self.assertIn("st_duration: 20.0", text)
@@ -480,6 +481,87 @@ class NextflowExecutionConfigTests(unittest.TestCase):
             self.assertNotIn("params.megflow = params.megflow +", text, config.name)
             self.assertNotRegex(text, r"\binherited[A-Z]\w*", config.name)
             self.assertNotIn("params.megflow.datasets.clear()", text, config.name)
+
+    def test_user_facing_configs_and_docs_use_nested_megflow_blocks(self):
+        non_nested_syntax = re.compile(
+            r"(?:params\.megflow(?:\.[A-Za-z_]\w*)+\s*=(?!=)"
+            r"|(?m:^\s*megflow\s*=\s*\[)"
+            r"|\bdatasets\s*=\s*\["
+            r"|\brecordings\s*[:=]\s*\[)"
+        )
+        paths = [REPO_ROOT / "README.md"]
+        for pattern in ("*.rst", "*.md"):
+            paths.extend((REPO_ROOT / "docs" / "source").rglob(pattern))
+        paths.extend((REPO_ROOT / "examples").rglob("*.config"))
+        paths.extend((REPO_ROOT / "nextflow").glob("*.config"))
+        paths = [
+            path
+            for path in paths
+            if not path.name.startswith("._")
+            and path.name != "deepprep.common.config"
+        ]
+
+        offenders = {}
+        for path in paths:
+            matches = non_nested_syntax.findall(path.read_text(encoding="utf-8"))
+            if matches:
+                offenders[str(path.relative_to(REPO_ROOT))] = matches
+
+        self.assertEqual(offenders, {})
+
+    def test_documented_groovy_configs_show_the_complete_outer_scope(self):
+        def rst_groovy_blocks(text):
+            lines = text.splitlines()
+            blocks = []
+            index = 0
+            while index < len(lines):
+                if lines[index].strip() != ".. code-block:: groovy":
+                    index += 1
+                    continue
+                index += 1
+                block = []
+                while index < len(lines) and (
+                    not lines[index].strip() or lines[index].startswith("   ")
+                ):
+                    if lines[index].startswith("   "):
+                        block.append(lines[index][3:])
+                    index += 1
+                blocks.append(block)
+            return blocks
+
+        def markdown_groovy_blocks(text):
+            return [
+                match.group(1).splitlines()
+                for match in re.finditer(r"(?ms)^```groovy\s*\n(.*?)^```\s*$", text)
+            ]
+
+        offenders = []
+        doc_paths = sorted(
+            path
+            for path in (REPO_ROOT / "docs" / "source").rglob("*.rst")
+            if not path.name.startswith("._")
+        )
+        doc_paths.append(REPO_ROOT / "README.md")
+        for path in doc_paths:
+            text = path.read_text(encoding="utf-8")
+            blocks = (
+                markdown_groovy_blocks(text)
+                if path.suffix == ".md"
+                else rst_groovy_blocks(text)
+            )
+            for block_index, block in enumerate(blocks, start=1):
+                significant = [
+                    line.strip()
+                    for line in block
+                    if line.strip() and not line.strip().startswith("//")
+                ]
+                first_line = significant[0] if significant else ""
+                if first_line not in {"params {", "process {"}:
+                    offenders.append(
+                        f"{path.relative_to(REPO_ROOT)} block {block_index}: {first_line}"
+                    )
+
+        self.assertEqual(offenders, [])
 
     def test_multi_dataset_source_runner_uses_demo_config_without_docker(self):
         self.assertTrue(MULTI_DATASET_SOURCE_RUNNER.is_file())
@@ -507,8 +589,16 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         for config in DOCKER_OVERLAY_EXAMPLES:
             self.assertTrue(config.is_file(), config)
             text = config.read_text(encoding="utf-8")
-            self.assertIn("params.megflow.datasets.docker_input.", text, config.name)
-            self.assertNotIn("params.megflow = [", text, config.name)
+            self.assertRegex(
+                text,
+                r"(?s)params\s*\{.*megflow\s*\{.*datasets\s*\{.*docker_input\s*\{",
+                config.name,
+            )
+            self.assertNotRegex(
+                text,
+                r"(?m)^\s*params\.megflow(?:\.[A-Za-z_]\w*)+\s*=",
+                config.name,
+            )
 
     def test_pseudomri_docker_overlay_resolves_both_base_config_locations(self):
         overlay = PSEUDOMRI_DOCKER_OVERLAY.read_text(encoding="utf-8")
@@ -523,9 +613,9 @@ class NextflowExecutionConfigTests(unittest.TestCase):
     def test_shipped_corpus_example_has_explicit_dataset_profiles(self):
         self.assertTrue(CORPUS_EXAMPLE.is_file())
         text = CORPUS_EXAMPLE.read_text(encoding="utf-8")
-        self.assertIn('report_scope: "corpus"', text)
+        self.assertIn('report_scope = "corpus"', text)
         for profile in ("WAND_visual", "SMN4Lang_RDR", "MEG_MASC_word"):
-            self.assertRegex(text, rf"(?m)^\s{{12}}{profile}:\s*\[")
+            self.assertRegex(text, rf"(?m)^\s+{profile}\s*\{{")
 
     def test_recording_identity_and_source_inputs_are_routed_explicitly(self):
         text = PIPELINE.read_text(encoding="utf-8")
@@ -567,8 +657,8 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
         for config in available_configs():
             text = config.read_text(encoding="utf-8")
-            self.assertIn('rank_policy: "auto"', text, config.name)
-            self.assertIn("data_covariance: [", text, config.name)
+            self.assertRegex(text, r'rank_policy\s*(?:=|:)\s*"auto"', config.name)
+            self.assertRegex(text, r"data_covariance\s*(?:\{|:\s*\[)", config.name)
 
         self.assertIn('--source_data_file "${source_data_file}"', pipeline_text)
         self.assertIn('--data_covariance_file \\"${lcmv_data_cov_file}\\"', pipeline_text)
@@ -627,9 +717,9 @@ class NextflowExecutionConfigTests(unittest.TestCase):
             if path.is_file()
         )
         for config in default_configs:
-            self.assertIn(
-                "lambda2: 0.1111111111111111",
+            self.assertRegex(
                 config.read_text(encoding="utf-8"),
+                r"lambda2\s*(?:=|:)\s*0\.1111111111111111",
                 config.name,
             )
 

@@ -552,7 +552,7 @@ else:
                     origin_raw.set_annotations(bad_seg_anat)
                     bad_channels_list = bad_ch_df['Bad-channel name'].tolist()
                     origin_raw.info['bads'] = bad_channels_list
-                    origin_raw.save(file_path, overwrite=True)
+                    # origin_raw.save(file_path, overwrite=True)
 
                     # Reset navigation to first segment (or keep current if still valid)
                     new_bad_segments = load_bad_segments(bad_segments_file, origin_raw)

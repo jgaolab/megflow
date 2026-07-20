@@ -211,14 +211,20 @@ The default reference-aligned operation order is:
 
 .. code-block:: groovy
 
-   megqc: [
-     preproc: [
-       [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
-                 iir_params: [order: 5, ftype: "butter"]]],
-       [notch_filter: [freqs: 50]],
-       [resample: [sfreq: 250]]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         megqc {
+           preproc = [
+             [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
+                       iir_params: [order: 5, ftype: "butter"]]],
+             [notch_filter: [freqs: 50]],
+             [resample: [sfreq: 250]]
+           ]
+         }
+       }
+     }
+   }
 
 The scorer also carries this sequence as its internal fallback. Omitting
 ``megqc.preproc`` or setting it to an empty list therefore still applies the
@@ -239,14 +245,20 @@ Continuous Preprocessing
 
 .. code-block:: groovy
 
-   preproc: [
-     steps: [
-       [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
-                 iir_params: [order: 5, ftype: "butter"]]],
-       [notch_filter: [freqs: "50 100"]],
-       [resample: [sfreq: 250]]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         preproc {
+           steps = [
+             [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
+                       iir_params: [order: 5, ftype: "butter"]]],
+             [notch_filter: [freqs: "50 100"]],
+             [resample: [sfreq: 250]]
+           ]
+         }
+       }
+     }
+   }
 
 Operations run from top to bottom. A dataset- or recording-level
 ``preproc.steps`` list replaces the inherited list, so repeat every operation
@@ -275,22 +287,28 @@ not part of the shipped filter/notch/resample recipe:
 
 .. code-block:: groovy
 
-   preproc: [
-     steps: [
-       [filter: [
-         l_freq: 2.0, h_freq: 40.0, method: "iir",
-         iir_params: [order: 3, ftype: "butter"]
-       ]],
-       [bad_segments: [
-         picks: "meg",
-         segment_len: 500,
-         significance_level: 0.01,
-         metric: "kurtosis",
-         detect_zeros: false
-       ]],
-       [resample: [sfreq: 200, npad: "auto", window: "boxcar"]]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         preproc {
+           steps = [
+             [filter: [
+               l_freq: 2.0, h_freq: 40.0, method: "iir",
+               iir_params: [order: 3, ftype: "butter"]
+             ]],
+             [bad_segments: [
+               picks: "meg",
+               segment_len: 500,
+               significance_level: 0.01,
+               metric: "kurtosis",
+               detect_zeros: false
+             ]],
+             [resample: [sfreq: 200, npad: "auto", window: "boxcar"]]
+           ]
+         }
+       }
+     }
+   }
 
 This list replaces the inherited list, so the default notch stage is omitted
 intentionally. OSL resolves each stage in this order: an OSL wrapper, an MNE
@@ -319,32 +337,38 @@ to ``null`` performs SSS without the temporal extension.
 
 .. code-block:: groovy
 
-   preproc: [
-     steps: [
-       [maxwell_filter: [
-         origin: "auto",
-         int_order: 8,
-         ext_order: 3,
-         calibration: "/data/site-a/calibration/sss_cal.dat",
-         cross_talk: "/data/site-a/calibration/ct_sparse.fif",
-         st_duration: 10.0,
-         st_correlation: 0.98,
-         coord_frame: "head",
-         destination: null,
-         regularize: "in",
-         bad_condition: "warning",
-         st_fixed: true,
-         st_only: false,
-         skip_by_annotation: ["edge", "bad_acq_skip"]
-       ]],
-       [filter: [
-         l_freq: 1.0, h_freq: 100.0, method: "iir",
-         iir_params: [order: 5, ftype: "butter"]
-       ]],
-       [notch_filter: [freqs: [50, 100]]],
-       [resample: [sfreq: 250]]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         preproc {
+           steps = [
+             [maxwell_filter: [
+               origin: "auto",
+               int_order: 8,
+               ext_order: 3,
+               calibration: "/data/site-a/calibration/sss_cal.dat",
+               cross_talk: "/data/site-a/calibration/ct_sparse.fif",
+               st_duration: 10.0,
+               st_correlation: 0.98,
+               coord_frame: "head",
+               destination: null,
+               regularize: "in",
+               bad_condition: "warning",
+               st_fixed: true,
+               st_only: false,
+               skip_by_annotation: ["edge", "bad_acq_skip"]
+             ]],
+             [filter: [
+               l_freq: 1.0, h_freq: 100.0, method: "iir",
+               iir_params: [order: 5, ftype: "butter"]
+             ]],
+             [notch_filter: [freqs: [50, 100]]],
+             [resample: [sfreq: 250]]
+           ]
+         }
+       }
+     }
+   }
 
 This ordering applies Maxwell/tSSS before temporal filtering, notch filtering,
 and resampling. ``calibration`` and ``cross_talk`` are site/system-specific;
@@ -535,15 +559,21 @@ and may be enabled at the same time:
 
 .. code-block:: groovy
 
-   ic_label: [
-       ic_ecg: true,
-       ic_eog: true,
-       ic_outlier: false,
-       mne_icalabel: true,
-       megnet_retrained: false,
-       mne_algorithm: true,
-       rules_algorithm: true
-   ]
+   params {
+     megflow {
+       defaults {
+         ic_label {
+           ic_ecg = true
+           ic_eog = true
+           ic_outlier = false
+           mne_icalabel = true
+           megnet_retrained = false
+           mne_algorithm = true
+           rules_algorithm = true
+         }
+       }
+     }
+   }
 
 .. list-table::
    :header-rows: 1
@@ -605,15 +635,21 @@ produces no automatic ICA exclusions:
 
 .. code-block:: groovy
 
-   ic_label: [
-       ic_ecg: false,
-       ic_eog: false,
-       ic_outlier: false,
-       mne_icalabel: true,
-       megnet_retrained: false,
-       mne_algorithm: false,
-       rules_algorithm: false
-   ]
+   params {
+     megflow {
+       defaults {
+         ic_label {
+           ic_ecg = false
+           ic_eog = false
+           ic_outlier = false
+           mne_icalabel = true
+           megnet_retrained = false
+           mne_algorithm = false
+           rules_algorithm = false
+         }
+       }
+     }
+   }
 
 All enabled-category indices are normalized and de-duplicated before ICA
 application. ``ecg_eog_scores.json`` writes ``ecg_indices``, ``eog_indices``,
@@ -750,15 +786,25 @@ rate.
 
 .. code-block:: groovy
 
-   epochs: [
-     preproc: [
-       [filter: [l_freq: 1.0, h_freq: 30.0, method: "iir",
-                 iir_params: [order: 5, ftype: "butter"]]],
-       [resample: [sfreq: 250]]
-     ],
-     event_source: "event_file",
-     epochs: [event_id: 1, tmin: -0.2, tmax: 0.8]
-   ]
+   params {
+     megflow {
+       defaults {
+         epochs {
+           preproc = [
+             [filter: [l_freq: 1.0, h_freq: 30.0, method: "iir",
+                       iir_params: [order: 5, ftype: "butter"]]],
+             [resample: [sfreq: 250]]
+           ]
+           event_source = "event_file"
+           epochs {
+             event_id = 1
+             tmin = -0.2
+             tmax = 0.8
+           }
+         }
+       }
+     }
+   }
 
 Use ``preproc: []`` or omit the key to preserve the cleaned Raw without any
 analysis-specific preprocessing.
@@ -778,13 +824,27 @@ should be removed before adding any MEG stimulus-delivery delay.
 
 .. code-block:: groovy
 
-   epochs: [
-     event_source: "event_file",
-     event_time_shift_sec: 0.0395,
-     epochs: [event_id: 1, tmin: -0.2, tmax: 0.8]
-   ],
-   covariance: [
-     event_source: "event_file",
-     event_time_shift_sec: 0.0395,
-     epochs: [event_id: 1, tmin: -0.2, tmax: 0.0]
-   ]
+   params {
+     megflow {
+       defaults {
+         epochs {
+           event_source = "event_file"
+           event_time_shift_sec = 0.0395
+           epochs {
+             event_id = 1
+             tmin = -0.2
+             tmax = 0.8
+           }
+         }
+         covariance {
+           event_source = "event_file"
+           event_time_shift_sec = 0.0395
+           epochs {
+             event_id = 1
+             tmin = -0.2
+             tmax = 0.0
+           }
+         }
+       }
+     }
+   }

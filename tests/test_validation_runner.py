@@ -159,6 +159,12 @@ class ValidationRunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
         self.assertIn("unknown validation mode", result.stderr)
 
+    def test_shipped_config_discovery_does_not_require_git_dash_c(self):
+        text = VALIDATION_RUNNER.read_text(encoding="utf-8")
+        self.assertNotIn('git -C "${ROOT_DIR}"', text)
+        self.assertIn('cd "${ROOT_DIR}"', text)
+        self.assertIn("git ls-files 'nextflow/*.config'", text)
+
     def test_windows_validator_rejects_a_missing_powershell_parser(self):
         with tempfile.TemporaryDirectory() as empty_path:
             env = dict(os.environ)

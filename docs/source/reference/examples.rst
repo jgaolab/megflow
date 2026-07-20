@@ -64,7 +64,13 @@ before applying this file with Nextflow ``-c``:
 .. code-block:: groovy
 
    // Project-specific overrides start immediately.
-   params.megflow.defaults.steps = "meg_ica"
+   params {
+     megflow {
+       defaults {
+         steps = "meg_ica"
+       }
+     }
+   }
 
 Mount that overlay at a container path such as ``/config/project.config`` and
 pass the path through ``--config``. This keeps the project file visibly

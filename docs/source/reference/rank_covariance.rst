@@ -68,14 +68,26 @@ Example:
 
 .. code-block:: groovy
 
-   params.megflow.defaults.rank_policy = "auto"
-
-   params.megflow.datasets.MyDataset.recordings = [
-     known_sss_rank: [
-       match: [task: "auditory", run: "01"],
-       rank_policy: [meg: 60]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         rank_policy = "auto"
+       }
+       datasets {
+         MyDataset {
+           recordings {
+             known_sss_rank {
+               match {
+                 task = "auditory"
+                 run = "01"
+               }
+               rank_policy = [meg: 60]
+             }
+           }
+         }
+       }
+     }
+   }
 
 The rank describes the linear sensor subspace used by the analysis. Noise and
 data covariance are different statistical matrices, but they use the same
@@ -124,23 +136,29 @@ the affected covariance/source lineage.
 
 .. code-block:: groovy
 
-   source: [
-     source_methods: ["dSPM", "LCMV"],
-     type: "epochs",
-     data_type: "meg",
-     LCMV: [
-       data_covariance: [
-         tmin: 0.01,
-         tmax: 0.40,
-         method: "auto"
-       ],
-       make_lcmv: [
-         reg: 0.05,
-         pick_ori: null,
-         weight_norm: "unit-noise-gain-invariant"
-       ]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         source {
+           source_methods = ["dSPM", "LCMV"]
+           type = "epochs"
+           data_type = "meg"
+           LCMV {
+             data_covariance {
+               tmin = 0.01
+               tmax = 0.40
+               method = "auto"
+             }
+             make_lcmv {
+               reg = 0.05
+               pick_ori = null
+               weight_norm = "unit-noise-gain-invariant"
+             }
+           }
+         }
+       }
+     }
+   }
 
 The ``data_covariance`` map is passed to ``mne.compute_covariance`` for Epochs
 or ``mne.compute_raw_covariance`` for Raw. ``make_lcmv`` is passed separately

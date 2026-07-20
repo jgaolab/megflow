@@ -20,14 +20,22 @@ covariance, and source-model assumptions during the first quality check.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.meg_import = [
-     subject_id: "first:10",
-     session_id: null,
-     task: ["rest"],
-     run_id: null,
-     raw_include_keywords: null,
-     raw_exclude_keywords: null
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           meg_import = [
+             subject_id: "first:10",
+             session_id: null,
+             task: ["rest"],
+             run_id: null,
+             raw_include_keywords: null,
+             raw_exclude_keywords: null
+           ]
+         }
+       }
+     }
+   }
 
 .. code-block:: bash
 
@@ -54,17 +62,25 @@ effective ``anatomy.fs_license_file`` field.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.mri_import = [
-     subject_id: ["05", "09", "11", "14", "15", "17", "18", "23", "24", "25"],
-     session_id: null,
-     task: null,
-     run_id: null
-   ]
-   params.megflow.datasets.docker_input.anatomy = [
-     method: "deepprep",
-     is_bids: true,
-     deepprep_device: "cpu"
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           mri_import = [
+             subject_id: ["05", "09", "11", "14", "15", "17", "18", "23", "24", "25"],
+             session_id: null,
+             task: null,
+             run_id: null
+           ]
+           anatomy = [
+             method: "deepprep",
+             is_bids: true,
+             deepprep_device: "cpu"
+           ]
+         }
+       }
+     }
+   }
 
 .. code-block:: bash
 
@@ -103,35 +119,43 @@ selection, and :doc:`configuration_source` for covariance and source settings.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.meg_import = [
-     subject_id: "first:10",
-     session_id: null,
-     task: ["RDR"],
-     run_id: ["1"],
-     raw_include_keywords: null,
-     raw_exclude_keywords: null
-   ]
-   params.megflow.datasets.docker_input.epochs = [
-     task_type: "task",
-     event_source: "event_file",
-     event_time_shift_sec: -10.6105,
-     event_file: [trial_type: [char: 1]],
-     epochs: [event_id: 1, tmin: -0.2, tmax: 0.8,
-              baseline: [null, 0.0], reject_by_annotation: true]
-   ]
-   params.megflow.datasets.docker_input.covariance = [
-     type: "epochs",
-     event_source: "event_file",
-     event_time_shift_sec: -10.6105,
-     event_file: [trial_type: [char: 1]],
-     epochs: [event_id: 1, tmin: -0.2, tmax: 0.0,
-              baseline: [null, 0.0], reject_by_annotation: true]
-   ]
-   params.megflow.datasets.docker_input.forward = [epoch_label: "char_onset"]
-   params.megflow.datasets.docker_input.source = [
-     epoch_label: "char_onset",
-     source_methods: ["dSPM"]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           meg_import = [
+             subject_id: "first:10",
+             session_id: null,
+             task: ["RDR"],
+             run_id: ["1"],
+             raw_include_keywords: null,
+             raw_exclude_keywords: null
+           ]
+           epochs = [
+             task_type: "task",
+             event_source: "event_file",
+             event_time_shift_sec: -10.6105,
+             event_file: [trial_type: [char: 1]],
+             epochs: [event_id: 1, tmin: -0.2, tmax: 0.8,
+                      baseline: [null, 0.0], reject_by_annotation: true]
+           ]
+           covariance = [
+             type: "epochs",
+             event_source: "event_file",
+             event_time_shift_sec: -10.6105,
+             event_file: [trial_type: [char: 1]],
+             epochs: [event_id: 1, tmin: -0.2, tmax: 0.0,
+                      baseline: [null, 0.0], reject_by_annotation: true]
+           ]
+           forward = [epoch_label: "char_onset"]
+           source = [
+             epoch_label: "char_onset",
+             source_methods: ["dSPM"]
+           ]
+         }
+       }
+     }
+   }
 
 .. code-block:: bash
 
@@ -161,20 +185,28 @@ optional epoch stage creates fixed-length events from the cleaned recording.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.epochs = [
-     task_type: "resting",
-     resting: [fixed_length_duration: 2.0],
-     epochs: [
-       event_id: null,
-       tmin: 0.0,
-       tmax: 2.0,
-       reject_by_annotation: true,
-       picks: "meg",
-       baseline: null,
-       preload: true,
-       detrend: null
-     ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           epochs = [
+             task_type: "resting",
+             resting: [fixed_length_duration: 2.0],
+             epochs: [
+               event_id: null,
+               tmin: 0.0,
+               tmax: 2.0,
+               reject_by_annotation: true,
+               picks: "meg",
+               baseline: null,
+               preload: true,
+               detrend: null
+             ]
+           ]
+         }
+       }
+     }
+   }
 
 .. _example-bids-events:
 
@@ -190,19 +222,27 @@ sections in :doc:`configuration_preprocessing`.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.epochs = [
-     task_type: "task",
-     event_source: "event_file",
-     event_time_shift_sec: 0.0395,
-     event_file: [trial_type: [target: 1, standard: 2]],
-     epochs: [
-       event_id: [1, 2],
-       tmin: -0.2,
-       tmax: 0.8,
-       baseline: [null, 0.0],
-       reject_by_annotation: true
-     ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           epochs = [
+             task_type: "task",
+             event_source: "event_file",
+             event_time_shift_sec: 0.0395,
+             event_file: [trial_type: [target: 1, standard: 2]],
+             epochs: [
+               event_id: [1, 2],
+               tmin: -0.2,
+               tmax: 0.8,
+               baseline: [null, 0.0],
+               reject_by_annotation: true
+             ]
+           ]
+         }
+       }
+     }
+   }
 
 .. _example-trigger-events:
 
@@ -218,18 +258,26 @@ dataset-specific and should be inspected before a full run.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.epochs = [
-     task_type: "task",
-     event_source: "find_events",
-     event_time_shift_sec: 0.04858,
-     find_events: [
-       stim_channel: "STI101",
-       shortest_event: 1,
-       min_duration: 0.0
-     ],
-     epochs: [event_id: 1, tmin: -0.1, tmax: 0.5,
-              baseline: [null, 0.0], reject_by_annotation: true]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           epochs = [
+             task_type: "task",
+             event_source: "find_events",
+             event_time_shift_sec: 0.04858,
+             find_events: [
+               stim_channel: "STI101",
+               shortest_event: 1,
+               min_duration: 0.0
+             ],
+             epochs: [event_id: 1, tmin: -0.1, tmax: 0.5,
+                      baseline: [null, 0.0], reject_by_annotation: true]
+           ]
+         }
+       }
+     }
+   }
 
 .. _example-lcmv-covariance:
 
@@ -248,20 +296,28 @@ consumes that exact dictionary instead of estimating a second default rank.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.rank_policy = "auto"
-   params.megflow.datasets.docker_input.source = [
-     type: "epochs",
-     source_methods: ["dSPM", "LCMV"],
-     data_type: "meg",
-     LCMV: [
-       data_covariance: [tmin: 0.01, tmax: 0.40, method: "auto"],
-       make_lcmv: [
-         reg: 0.05,
-         pick_ori: null,
-         weight_norm: "unit-noise-gain-invariant"
-       ]
-     ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           rank_policy = "auto"
+           source = [
+             type: "epochs",
+             source_methods: ["dSPM", "LCMV"],
+             data_type: "meg",
+             LCMV: [
+               data_covariance: [tmin: 0.01, tmax: 0.40, method: "auto"],
+               make_lcmv: [
+                 reg: 0.05,
+                 pick_ori: null,
+                 weight_norm: "unit-noise-gain-invariant"
+               ]
+             ]
+           ]
+         }
+       }
+     }
+   }
 
 For continuous beamforming, set ``source.type = "raw"``. The data covariance
 and source solver then consume the exact analysis-ready Raw associated with the
@@ -272,13 +328,21 @@ override is required. Use MNE dictionaries for direct ``rank`` fields:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.source = [
-     source_methods: ["dSPM", "LCMV"],
-     LCMV: [
-       data_covariance: [tmin: 0.01, tmax: 0.40, rank: [meg: 60]],
-       make_lcmv: [reg: 0.05, rank: [meg: 60]]
-     ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           source = [
+             source_methods: ["dSPM", "LCMV"],
+             LCMV: [
+               data_covariance: [tmin: 0.01, tmax: 0.40, rank: [meg: 60]],
+               make_lcmv: [reg: 0.05, rank: [meg: 60]]
+             ]
+           ]
+         }
+       }
+     }
+   }
 
 These explicit values override ``rank_policy`` independently. The compatibility
 field ``source.LCMV.n_rank: 60`` also remains accepted and is normalized to
@@ -301,25 +365,33 @@ configured task id to locate the paired continuous recording.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.meg_import = [
-     subject_id: "first:10",
-     session_id: null,
-     task: ["aef", "emptyroom"],
-     run_id: null,
-     raw_include_keywords: null,
-     raw_exclude_keywords: null
-   ]
-   params.megflow.datasets.docker_input.covariance = [
-     type: "raw",
-     raw_covariance_task_id: "emptyroom",
-     compute_raw_covariance: [
-       tmin: 0,
-       tmax: null,
-       method: "auto",
-       reject: [mag: 4e-12],
-       reject_by_annotation: true
-     ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           meg_import = [
+             subject_id: "first:10",
+             session_id: null,
+             task: ["aef", "emptyroom"],
+             run_id: null,
+             raw_include_keywords: null,
+             raw_exclude_keywords: null
+           ]
+           covariance = [
+             type: "raw",
+             raw_covariance_task_id: "emptyroom",
+             compute_raw_covariance: [
+               tmin: 0,
+               tmax: null,
+               method: "auto",
+               reject: [mag: 4e-12],
+               reject_by_annotation: true
+             ]
+           ]
+         }
+       }
+     }
+   }
 
 For example, ``sub-01_task-aef_run-01_meg.fif`` is paired with
 ``sub-01_task-emptyroom_run-01_meg.fif``. Other entities still need to match.
@@ -344,15 +416,33 @@ requested reference:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.recordings = [
-     experiment: [
-       match: [task: ["aef", "vef"]],
-       covariance: [type: "raw", raw_covariance_task_id: "emptyroom"]
-     ],
-     empty_room: [
-       match: [task: "emptyroom"]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         steps = "meg_all"
+       }
+       datasets {
+         docker_input {
+           recordings {
+             experiment {
+               match {
+                 task = ["aef", "vef"]
+               }
+               covariance {
+                 type = "raw"
+                 raw_covariance_task_id = "emptyroom"
+               }
+             }
+             empty_room {
+               match {
+                 task = "emptyroom"
+               }
+             }
+           }
+         }
+       }
+     }
+   }
 
 .. _example-maxwell-tsss:
 
@@ -368,23 +458,33 @@ the full list because ``preproc.steps`` lists are replaced as a whole.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.MEGIN_SITE_A = [
-     dataset_dir: "/data/site-a/bids",
-     steps: "meg_ica",
-     preproc: [steps: [
-       [maxwell_filter: [
-         calibration: "/data/site-a/calibration/sss_cal.dat",
-         cross_talk: "/data/site-a/calibration/ct_sparse.fif",
-         st_duration: 10.0,
-         st_correlation: 0.98,
-         origin: "auto",
-         coord_frame: "head"
-       ]],
-       [filter: [l_freq: 1.0, h_freq: 100.0]],
-       [notch_filter: [freqs: [50, 100]]],
-       [resample: [sfreq: 250]]
-     ]]
-   ]
+   params {
+     megflow {
+       defaults {
+         steps = "meg_ica"
+       }
+       datasets {
+         MEGIN_SITE_A {
+           dataset_dir = "/data/site-a/bids"
+           preproc {
+             steps = [
+               [maxwell_filter: [
+                 calibration: "/data/site-a/calibration/sss_cal.dat",
+                 cross_talk: "/data/site-a/calibration/ct_sparse.fif",
+                 st_duration: 10.0,
+                 st_correlation: 0.98,
+                 origin: "auto",
+                 coord_frame: "head"
+               ]],
+               [filter: [l_freq: 1.0, h_freq: 100.0]],
+               [notch_filter: [freqs: [50, 100]]],
+               [resample: [sfreq: 250]]
+             ]
+           }
+         }
+       }
+     }
+   }
 
 The input Raw must already contain reliable bad-channel markings before this
 stage. See :ref:`the full configuration contract

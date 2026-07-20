@@ -69,7 +69,10 @@ parse_shipped_configs() {
     local tracked_config
     while IFS= read -r tracked_config; do
         configs+=("${ROOT_DIR}/${tracked_config}")
-    done < <(git -C "${ROOT_DIR}" ls-files 'nextflow/*.config')
+    done < <(
+        cd "${ROOT_DIR}"
+        git ls-files 'nextflow/*.config'
+    )
 
     [[ ${#configs[@]} -gt 0 ]] || die "no tracked Nextflow configs found"
     local config
@@ -87,6 +90,7 @@ run_routing_ci() {
     printf '\n== CI static routing contracts ==\n'
     run_timed_unittest_gate "CI static routing contracts" \
         test_documentation_config_examples.DocumentationConfigExamplesTests \
+        test_documentation_config_examples.DocumentationConfigExamplesIntegrationTests.test_all_documented_groovy_blocks_parse_together \
         test_nextflow_execution_config \
         test_docker_entrypoint_options \
         test_docker_image_namespace \

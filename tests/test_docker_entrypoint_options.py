@@ -137,16 +137,18 @@ class DockerEntrypointOptionTests(unittest.TestCase):
     def test_quickstart_ships_a_safe_downloadable_project_overlay(self):
         self.assertTrue(QUICKSTART_CONFIG.is_file())
         config = QUICKSTART_CONFIG.read_text(encoding="utf-8")
-        self.assertIn(
-            'params.megflow.datasets.docker_input.steps = "meg_ica"', config
+        self.assertRegex(
+            config,
+            r"(?s)params\s*\{.*megflow\s*\{.*datasets\s*\{.*"
+            r"docker_input\s*\{.*steps\s*=\s*\"meg_ica\"",
         )
         for selector in (
-            "subject_id: null",
-            "session_id: null",
-            "task: null",
-            "run_id: null",
-            "raw_include_keywords: null",
-            "raw_exclude_keywords: null",
+            "subject_id = null",
+            "session_id = null",
+            "task = null",
+            "run_id = null",
+            "raw_include_keywords = null",
+            "raw_exclude_keywords = null",
         ):
             self.assertIn(selector, config)
         self.assertNotIn("/data/liaopan", config)
@@ -177,6 +179,16 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             "``--resume``",
         ):
             self.assertIn(option, quickstart)
+
+    def test_quickstart_writability_checks_explain_success_and_failure(self):
+        quickstart = QUICKSTART_DOC.read_text(encoding="utf-8")
+        for path in ("/path/to/output", "/path/to/smri"):
+            self.assertIn(f'echo "OK: {path} is writable"', quickstart)
+            self.assertIn(
+                f'echo "FAILED: {path} is not writable"', quickstart
+            )
+        self.assertIn("Both checks must print ``OK``", quickstart)
+        self.assertIn("If either check prints ``FAILED``", quickstart)
 
     def test_quickstart_covers_smn4lang_results_and_beginner_goals(self):
         quickstart = QUICKSTART_DOC.read_text(encoding="utf-8")

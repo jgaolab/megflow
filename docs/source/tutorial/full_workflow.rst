@@ -152,9 +152,17 @@ the mounted project config:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.anatomy = [
-     method: "pseudomri"
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           anatomy {
+             method = "pseudomri"
+           }
+         }
+       }
+     }
+   }
 
 .. code-block:: bash
 

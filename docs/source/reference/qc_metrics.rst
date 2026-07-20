@@ -364,10 +364,16 @@ results in the report. Configure them under ``report``:
 
 .. code-block:: groovy
 
-   report: [
-     alert_missing_ecg_components: false,
-     alert_missing_eog_components: false
-   ]
+   params {
+     megflow {
+       defaults {
+         report {
+           alert_missing_ecg_components = false
+           alert_missing_eog_components = false
+         }
+       }
+     }
+   }
 
 Dataset-Level Outputs
 ---------------------

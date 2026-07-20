@@ -33,8 +33,14 @@ class MegnetConfigMigrationTests(unittest.TestCase):
         for config_path in DEFAULT_CONFIGS:
             with self.subTest(config=config_path.name):
                 source = config_path.read_text(encoding="utf-8")
-                self.assertRegex(source, r"(?m)^\s*mne_icalabel:\s*true,")
-                self.assertRegex(source, r"(?m)^\s*megnet_retrained:\s*false,")
+                self.assertRegex(
+                    source,
+                    r"(?m)^\s*mne_icalabel\s*(?:=|:)\s*true,?\s*$",
+                )
+                self.assertRegex(
+                    source,
+                    r"(?m)^\s*megnet_retrained\s*(?:=|:)\s*false,?\s*$",
+                )
                 self.assertNotRegex(source, r"megnet_retrained\.enabled")
                 self.assertNotRegex(source, r"(?m)^\s*ica_label:\s*")
 
@@ -43,7 +49,10 @@ class MegnetConfigMigrationTests(unittest.TestCase):
             ROOT / "nextflow" / "nextflow_multi_dataset_demo.config"
         ).read_text(encoding="utf-8")
         for category in ("ecg", "eog", "outlier"):
-            self.assertRegex(source, rf"(?m)^\s*ic_{category}:\s*false,")
+            self.assertRegex(
+                source,
+                rf"(?m)^\s*ic_{category}\s*(?:=|:)\s*false,?\s*$",
+            )
 
 
 class IcaCategoryDocumentationContractTests(unittest.TestCase):

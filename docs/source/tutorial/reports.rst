@@ -263,7 +263,15 @@ Example:
 
 .. code-block:: groovy
 
-   params.megflow.defaults.report.static_task_log_mode = "all-command-log"
+   params {
+     megflow {
+       defaults {
+         report {
+           static_task_log_mode = "all-command-log"
+         }
+       }
+     }
+   }
 
 How to Interpret the Static Report
 ----------------------------------

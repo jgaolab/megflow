@@ -165,30 +165,70 @@ also errors.
 
 .. code-block:: groovy
 
-   recordings: [
-     auditory_run_01: [
-       match: [task: "aef", run: ["01", "1"]],
-       epochs: [
-         event_time_shift_sec: 0.04858,
-         epochs: [tmin: -0.1, tmax: 0.5]
-       ],
-       artifacts: [deepreject: [mode: "strict"]]
-     ],
-     visual: [
-       match: [task: "vef"],
-       epochs: [epochs: [tmin: -0.2, tmax: 0.6]]
-     ],
-     kit_rest_meg: [
-       // suffix is "meg"; filename_contains searches the complete basename.
-       match: [suffix: "meg", filename_contains: ["task-rest", ".con"]],
-       artifacts: [meg_vendor: "kit"]
-     ],
-     any_task_meg: [
-       // "*" means that task may be present or absent; it is not a glob.
-       match: [task: "*", filename_contains: "_meg.fif"],
-       source: [visualization: [mode: "peak"]]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         steps = "meg_all"
+       }
+       datasets {
+         ExampleStudy {
+           recordings {
+             auditory_run_01 {
+               match {
+                 task = "aef"
+                 run = ["01", "1"]
+               }
+               epochs {
+                 event_time_shift_sec = 0.04858
+                 epochs {
+                   tmin = -0.1
+                   tmax = 0.5
+                 }
+               }
+               artifacts {
+                 deepreject {
+                   mode = "strict"
+                 }
+               }
+             }
+             visual {
+               match {
+                 task = "vef"
+               }
+               epochs {
+                 epochs {
+                   tmin = -0.2
+                   tmax = 0.6
+                 }
+               }
+             }
+             kit_rest_meg {
+               // suffix is "meg"; filename_contains searches the complete basename.
+               match {
+                 suffix = "meg"
+                 filename_contains = ["task-rest", ".con"]
+               }
+               artifacts {
+                 meg_vendor = "kit"
+               }
+             }
+             any_task_meg {
+               // "*" means that task may be present or absent; it is not a glob.
+               match {
+                 task = "*"
+                 filename_contains = "_meg.fif"
+               }
+               source {
+                 visualization {
+                   mode = "peak"
+                 }
+               }
+             }
+           }
+         }
+       }
+     }
+   }
 
 ``filename_contains`` is useful when a meaningful distinction is not encoded
 as a supported BIDS entity, for example a vendor extension, acquisition token,
@@ -208,20 +248,31 @@ Explicit dataset profiles:
 
 .. code-block:: groovy
 
-   params.megflow.datasets = [
-     LanguageStudy: [
-       dataset_dir: "/data/studies/LanguageStudy",
-       fs_subjects_dir: "/data/studies/LanguageStudy/smri"
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         steps = "meg_all"
+       }
+       datasets {
+         LanguageStudy {
+           dataset_dir = "/data/studies/LanguageStudy"
+           fs_subjects_dir = "/data/studies/LanguageStudy/smri"
+         }
+       }
+     }
+   }
 
 Corpus discovery:
 
 .. code-block:: groovy
 
-   params.megflow.corpus_root = "/data/corpus"
-   params.megflow.dataset_include = ["DatasetA", "DatasetB", "DatasetC"]
-   params.megflow.dataset_exclude = []
+   params {
+     megflow {
+       corpus_root = "/data/corpus"
+       dataset_include = ["DatasetA", "DatasetB", "DatasetC"]
+       dataset_exclude = []
+     }
+   }
 
 When ``corpus_root`` is set, every immediate child directory is a candidate
 dataset. ``dataset_include`` and ``dataset_exclude`` filter candidates by

@@ -169,7 +169,8 @@ The file [`nextflow/megflow.nf`](nextflow/megflow.nf) is controlled by **`params
 **Note:** `do_fs`, `do_only_anatomy`, and top-level `params.steps` are no longer used by the Nextflow workflow. Put `steps` under `params.megflow.defaults`, a dataset profile, or a recording profile.
 
 ICA per-component explained variance is optional and disabled by default:
-set `params.megflow.defaults.ica.compute_explained_variance = true` when you want EVAR values in ICA
+set `compute_explained_variance = true` inside the nested `defaults { ica { ... } }`
+block when you want EVAR values in ICA
 figure filenames and report captions. When disabled, ICA fitting, labeling,
 interactive review, and static reports still work; EVAR-dependent rule checks
 are skipped.
@@ -195,15 +196,21 @@ after those steps.
 For corpus runs with mixed line-noise frequencies, keep the default preprocessing shared and override only the relevant dataset profile:
 
 ```groovy
-params.megflow.datasets = [
-  US_60Hz_Dataset: [
-    preproc: [steps: [
-      [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir", iir_params: [order: 5, ftype: "butter"]]],
-      [notch_filter: [freqs: "60"]],
-      [resample: [sfreq: 250]]
-    ]]
-  ]
-]
+params {
+  megflow {
+    datasets {
+      US_60Hz_Dataset {
+        preproc {
+          steps = [
+            [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir", iir_params: [order: 5, ftype: "butter"]]],
+            [notch_filter: [freqs: "60"]],
+            [resample: [sfreq: 250]]
+          ]
+        }
+      }
+    }
+  }
+}
 ```
 
 NormMEG-QC has its own lightweight preprocessing setting,
@@ -219,10 +226,22 @@ examples use lowercase for consistency. If a corpus contains datasets whose
 vendor is known and should be fixed explicitly, set it in the dataset profile:
 
 ```groovy
-params.megflow.datasets = [
-  CTF_Dataset: [megqc: [meg_vendor: "ctf"]],
-  OPM_Artifacts: [megqc: [meg_vendor: "opm"]]
-]
+params {
+  megflow {
+    datasets {
+      CTF_Dataset {
+        megqc {
+          meg_vendor = "ctf"
+        }
+      }
+      OPM_Artifacts {
+        megqc {
+          meg_vendor = "opm"
+        }
+      }
+    }
+  }
+}
 ```
 
 NormMEG-QC parallelism is controlled by Nextflow resources, not a separate
@@ -242,9 +261,17 @@ To use the NMDQ score as a quality gate, raise `megqc.min_score`. Recordings bel
 that score are kept in the report but skipped for downstream MEG processing:
 
 ```groovy
-params.megflow.defaults.megqc.enabled = true
-params.megflow.defaults.megqc.min_score = 70.0    // processing gate
-params.megflow.defaults.megqc.alarm_score = 60.0  // report warning only
+params {
+  megflow {
+    defaults {
+      megqc {
+        enabled = true
+        min_score = 70.0    // processing gate
+        alarm_score = 60.0  // report warning only
+      }
+    }
+  }
+}
 ```
 
 Artifact review plots can use `artifacts.meg_vendor: auto`; MEGFlow will
@@ -272,10 +299,17 @@ nextflow run nextflow/megflow.nf \
 # Complete WAND + SMN4Lang + MEG-MASC example with per-dataset settings
 bash run_MultiDatasets_sourcecode.sh
 
-# To change the stage, set params.megflow.defaults.steps in the config:
-#   params.megflow.defaults.steps = "all"
-#   params.megflow.defaults.steps = "anatomy"
-#   params.megflow.defaults.steps = "report"
+# To change the stage, edit the nested defaults block shown below.
+```
+
+```groovy
+params {
+  megflow {
+    defaults {
+      steps = "all"  // Or "anatomy" / "report" for those milestones.
+    }
+  }
+}
 ```
 
 Set `params.megflow.defaults.steps` in your `nextflow.config` for a project default. For Docker runs, the entrypoint's `--steps` option writes this override into the runtime config.
@@ -357,7 +391,15 @@ Set this in the active `nextflow.config` so source and Docker runs use the same
 saved configuration:
 
 ```groovy
-params.megflow.defaults.report.static_task_log_mode = "all-command-log"
+params {
+  megflow {
+    defaults {
+      report {
+        static_task_log_mode = "all-command-log"
+      }
+    }
+  }
+}
 ```
 
 Artifact Review in the static report packages one overview plot per subject by
@@ -377,29 +419,62 @@ directory as one dataset, isolates each dataset's outputs under
 that links back to each dataset report.
 
 ```groovy
-params.megflow.corpus_root = "/data/corpus"
-params.megflow.dataset_include = ["WAND_Extracted", "SMN4Lang", "MEG-MASC"]
-params.megflow.datasets = [
-  WAND_Extracted: [
-    fs_subjects_dir: "/data/corpus/WAND_Extracted/smri",
-    meg_import: [task: ["visual"], subject_id: "first:10"],
-    megqc: [meg_vendor: "ctf"],
-    epochs: [event_source: "find_events", find_events: [stim_channel: "UPPT001"]]
-  ],
-  SMN4Lang: [
-    fs_subjects_dir: "/data/corpus/SMN4Lang_smri",
-    meg_import: [task: ["RDR"], subject_id: "first:10"],
-    megqc: [meg_vendor: "elekta"],
-    epochs: [event_source: "event_file", event_time_shift_sec: -10.6105]
-  ],
-  "MEG-MASC": [
-    dataset_format: "bids",
-    file_suffix: ".con",
-    meg_import: [session_id: ["0"], task: ["0"], subject_id: "first:10"],
-    megqc: [meg_vendor: "kit"],
-    artifacts: [meg_vendor: "kit", deepreject: [mode: "lenient"]]
-  ]
-]
+params {
+  megflow {
+    corpus_root = "/data/corpus"
+    dataset_include = ["WAND_Extracted", "SMN4Lang", "MEG-MASC"]
+    datasets {
+      WAND_Extracted {
+        fs_subjects_dir = "/data/corpus/WAND_Extracted/smri"
+        meg_import {
+          task = ["visual"]
+          subject_id = "first:10"
+        }
+        megqc {
+          meg_vendor = "ctf"
+        }
+        epochs {
+          event_source = "find_events"
+          find_events {
+            stim_channel = "UPPT001"
+          }
+        }
+      }
+      SMN4Lang {
+        fs_subjects_dir = "/data/corpus/SMN4Lang_smri"
+        meg_import {
+          task = ["RDR"]
+          subject_id = "first:10"
+        }
+        megqc {
+          meg_vendor = "elekta"
+        }
+        epochs {
+          event_source = "event_file"
+          event_time_shift_sec = -10.6105
+        }
+      }
+      MEG_MASC {
+        dataset_format = "bids"
+        file_suffix = ".con"
+        meg_import {
+          session_id = ["0"]
+          task = ["0"]
+          subject_id = "first:10"
+        }
+        megqc {
+          meg_vendor = "kit"
+        }
+        artifacts {
+          meg_vendor = "kit"
+          deepreject {
+            mode = "lenient"
+          }
+        }
+      }
+    }
+  }
+}
 ```
 
 The runnable [`nextflow/nextflow_multi_dataset_demo.config`](nextflow/nextflow_multi_dataset_demo.config)
@@ -445,7 +520,7 @@ The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.s
 - Pass **`--anat-method deepprep`** after the image name to select the anatomy implementation for one run. Valid values are `freesurfer`, `deepprep`, and `pseudomri`; omitting it preserves the configured `anatomy.method`.
 - **Modifiers** that contain commas must be **quoted for the shell**, e.g. `--steps 'meg_epochs,skip_ica'`.
 - **Corpus mode** uses `--corpus`; in that mode `-i` / `--input` points to a directory whose immediate children are datasets, and `--fs_subjects_dir` is used as the base directory for per-dataset FreeSurfer outputs. Named profiles, `dataset_include`, `dataset_exclude`, and dataset-level module overrides from the mounted config are preserved.
-- You can instead set **`params.megflow.defaults.steps = '...'`** inside the Nextflow file you mount at **`/program/nextflow/nextflow.config`**; a container **`--steps`** / **`-s`** argument **overrides** that for the run.
+- You can instead set **`steps = '...'`** inside the nested **`params { megflow { defaults { ... } } }`** block in the Nextflow file mounted at **`/program/nextflow/nextflow.config`**; a container **`--steps`** / **`-s`** argument **overrides** that for the run.
 - **`-s`** here is the **MEGFlow** flag (input path is **`-i`**), not Docker’s **`-i`** (interactive). Typical pattern: `docker run ... cplmeg/megflow:<tag> -i /input -o /output ... --steps all`.
 - The Docker entrypoint copies the mounted config to
   `/program/nextflow/run_nextflow.config`, applies command-line path overrides,
@@ -549,7 +624,7 @@ docker run --rm -it \
     --resume
 ```
 
-For MEGFlow, the default **`steps`** is **`meg_all`** (MEG only, using existing `fs_subjects_dir`). To run **structural MRI + full MEG** together, use **`--steps all`** (or **`-s all`**) on the **`docker run ...`** command line, or set **`params.megflow.defaults.steps = 'all'`** in the mounted config. See [Using pipeline steps with Docker](#using-pipeline-steps-with-docker).
+For MEGFlow, the default **`steps`** is **`meg_all`** (MEG only, using existing `fs_subjects_dir`). To run **structural MRI + full MEG** together, use **`--steps all`** (or **`-s all`**) on the **`docker run ...`** command line, or set **`steps = 'all'`** in the mounted config's nested **`params { megflow { defaults { ... } } }`** block. See [Using pipeline steps with Docker](#using-pipeline-steps-with-docker).
 
 ---
 

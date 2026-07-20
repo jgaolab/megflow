@@ -74,14 +74,21 @@ anatomy directories, prepare and check them with:
 .. code-block:: bash
 
    mkdir -p /path/to/output /path/to/smri
-   test -w /path/to/output
-   test -w /path/to/smri
+   test -w /path/to/output \
+     && echo "OK: /path/to/output is writable" \
+     || echo "FAILED: /path/to/output is not writable"
+   test -w /path/to/smri \
+     && echo "OK: /path/to/smri is writable" \
+     || echo "FAILED: /path/to/smri is not writable"
+
+The ``test -w`` command is normally silent; the attached messages make its
+result visible. Both checks must print ``OK``.
+If either check prints ``FAILED``, do not start the container yet. Correct that
+directory's host ownership or permissions, then run the checks again.
 
 The first ICA command below does not mount anatomy, so only
 ``/path/to/output`` is needed. Create ``/path/to/smri`` before later adding
-``-v /path/to/smri:/smri`` for anatomy or source-level processing. If a
-directory already exists but ``test -w`` fails, correct its host ownership or
-permissions before starting the container.
+``-v /path/to/smri:/smri`` for anatomy or source-level processing.
 
 Run One Command
 ---------------
@@ -140,15 +147,23 @@ to:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.steps = "meg_ica"
-   params.megflow.datasets.docker_input.meg_import = [
-       subject_id: ["02"],
-       session_id: null,
-       task: ["RDR"],
-       run_id: ["1"],
-       raw_include_keywords: null,
-       raw_exclude_keywords: null
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           steps = "meg_ica"
+           meg_import = [
+               subject_id: ["02"],
+               session_id: null,
+               task: ["RDR"],
+               run_id: ["1"],
+               raw_include_keywords: null,
+               raw_exclude_keywords: null
+           ]
+         }
+       }
+     }
+   }
 
 BIDS entity values do not include their prefixes in the config: use ``"02"``,
 not ``"sub-02"``. Then run:
@@ -260,14 +275,22 @@ Edit ``meg_import.subject_id``, ``session_id``, ``task``, and ``run_id``.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.meg_import = [
-       subject_id: ["01", "02"],
-       session_id: ["01"],
-       task: ["rest"],
-       run_id: null,
-       raw_include_keywords: null,
-       raw_exclude_keywords: null
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           meg_import = [
+               subject_id: ["01", "02"],
+               session_id: ["01"],
+               task: ["rest"],
+               run_id: null,
+               raw_include_keywords: null,
+               raw_exclude_keywords: null
+           ]
+         }
+       }
+     }
+   }
 
 See :doc:`dataset configuration <../reference/configuration_datasets>` for
 BIDS selection and non-BIDS filename filters.
@@ -307,37 +330,53 @@ For fixed-length resting-state epochs:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.steps = "meg_epochs"
-   params.megflow.datasets.docker_input.epochs = [
-       task_type: "resting",
-       resting: [fixed_length_duration: 2.0],
-       epochs: [
-           event_id: null,
-           tmin: 0.0,
-           tmax: 2.0,
-           baseline: null,
-           reject_by_annotation: true
-       ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           steps = "meg_epochs"
+           epochs = [
+               task_type: "resting",
+               resting: [fixed_length_duration: 2.0],
+               epochs: [
+                   event_id: null,
+                   tmin: 0.0,
+                   tmax: 2.0,
+                   baseline: null,
+                   reject_by_annotation: true
+               ]
+           ]
+         }
+       }
+     }
+   }
 
 For task events stored in BIDS ``events.tsv``:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.steps = "meg_epochs"
-   params.megflow.datasets.docker_input.epochs = [
-       task_type: "task",
-       event_source: "event_file",
-       event_time_shift_sec: 0.0,
-       event_file: [trial_type: [target: 1, standard: 2]],
-       epochs: [
-           event_id: [1, 2],
-           tmin: -0.2,
-           tmax: 0.8,
-           baseline: [null, 0.0],
-           reject_by_annotation: true
-       ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           steps = "meg_epochs"
+           epochs = [
+               task_type: "task",
+               event_source: "event_file",
+               event_time_shift_sec: 0.0,
+               event_file: [trial_type: [target: 1, standard: 2]],
+               epochs: [
+                   event_id: [1, 2],
+                   tmin: -0.2,
+                   tmax: 0.8,
+                   baseline: [null, 0.0],
+                   reject_by_annotation: true
+               ]
+           ]
+         }
+       }
+     }
+   }
 
 The labels, event ids, timing shift, window, baseline, and rejection threshold
 are study-specific. For trigger-channel events, use
@@ -353,14 +392,22 @@ Replace the continuous ``preproc.steps`` list, preserving operation order:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.preproc = [
-       steps: [
-           [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
-                     iir_params: [order: 5, ftype: "butter"]]],
-           [notch_filter: [freqs: "60 120"]],
-           [resample: [sfreq: 250]]
-       ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           preproc = [
+               steps: [
+                   [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
+                             iir_params: [order: 5, ftype: "butter"]]],
+                   [notch_filter: [freqs: "60 120"]],
+                   [resample: [sfreq: 250]]
+               ]
+           ]
+         }
+       }
+     }
+   }
 
 This example changes line-noise removal to 60/120 Hz. NormMEG-QC uses its own
 ``megqc.preproc`` reference preprocessing. Keep its 1--100 Hz band-pass and
@@ -375,9 +422,17 @@ DeepReject has an explicit ``artifacts.deepreject.enabled`` switch:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.artifacts = [
-       deepreject: [enabled: false]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           artifacts = [
+               deepreject: [enabled: false]
+           ]
+         }
+       }
+     }
+   }
 
 Bad-channel and bad-segment methods are enabled by configuration maps rather
 than one shared Boolean. Override an inherited method with ``null`` to disable
@@ -386,11 +441,19 @@ bad-channel detectors:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.artifacts = [
-       find_bad_channels: [
-           mne: [find_bad_channels_lof: null]
-       ]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           artifacts = [
+               find_bad_channels: [
+                   mne: [find_bad_channels_lof: null]
+               ]
+           ]
+         }
+       }
+     }
+   }
 
 Likewise, ``pyprep: null``, ``psd: null``, or ``osl: null`` disables that
 named bad-channel method, and ``find_bad_segments: [osl: null]`` disables the
@@ -407,11 +470,19 @@ components may enter the final automatic exclusion list:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.ic_label = [
-       ic_ecg: true,
-       ic_eog: true,
-       ic_outlier: false
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           ic_label = [
+               ic_ecg: true,
+               ic_eog: true,
+               ic_outlier: false
+           ]
+         }
+       }
+     }
+   }
 
 Classifier switches such as ``mne_icalabel``, ``megnet_retrained``,
 ``mne_algorithm``, and ``rules_algorithm`` decide which methods run. A category
@@ -430,10 +501,18 @@ source settings. The source-method choice itself is configured as:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.steps = "meg_all"
-   params.megflow.datasets.docker_input.source = [
-       source_methods: ["dSPM"]
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           steps = "meg_all"
+           source = [
+               source_methods: ["dSPM"]
+           ]
+         }
+       }
+     }
+   }
 
 This snippet is not a complete source-analysis design. Follow :doc:`Full
 Workflow <../tutorial/full_workflow>`, then configure covariance, BEM,

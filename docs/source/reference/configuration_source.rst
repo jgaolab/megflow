@@ -212,56 +212,63 @@ a recording profile. Maps are recursively merged across those levels.
 
 .. code-block:: groovy
 
-   epochs: [
-     event_source: "find_events",
-     find_events: [stim_channel: "STI 014", shortest_event: 1],
-     epochs: [
-       event_id: 1, tmin: -0.2, tmax: 0.8, baseline: [null, 0.0],
-       picks: "meg", preload: true, proj: false, decim: 2,
-       reject: [mag: 4e-12], reject_tmin: -0.1, reject_tmax: 0.6,
-       reject_by_annotation: true, event_repeated: "merge"
-     ]
-   ],
+   params {
+     megflow {
+       defaults {
+         // These maps use the keyword names of the corresponding MNE APIs.
+         epochs = [
+           event_source: "find_events",
+           find_events: [stim_channel: "STI 014", shortest_event: 1],
+           epochs: [
+             event_id: 1, tmin: -0.2, tmax: 0.8, baseline: [null, 0.0],
+             picks: "meg", preload: true, proj: false, decim: 2,
+             reject: [mag: 4e-12], reject_tmin: -0.1, reject_tmax: 0.6,
+             reject_by_annotation: true, event_repeated: "merge"
+           ]
+         ]
 
-   covariance: [
-     type: "epochs",
-     epochs: [event_id: 1, tmin: -0.2, tmax: 0.0,
-              baseline: null, picks: "meg", preload: true],
-     covariance: [
-       keep_sample_mean: true, tmin: null, tmax: null,
-       method: "empirical", cv: 3, n_jobs: 1
-     ],
-     compute_raw_covariance: [
-       tmin: 0.0, tmax: null, tstep: 0.2,
-       method: "empirical", reject_by_annotation: true, n_jobs: 1
-     ]
-   ],
+         covariance = [
+           type: "epochs",
+           epochs: [event_id: 1, tmin: -0.2, tmax: 0.0,
+                    baseline: null, picks: "meg", preload: true],
+           covariance: [
+             keep_sample_mean: true, tmin: null, tmax: null,
+             method: "empirical", cv: 3, n_jobs: 1
+           ],
+           compute_raw_covariance: [
+             tmin: 0.0, tmax: null, tstep: 0.2,
+             method: "empirical", reject_by_annotation: true, n_jobs: 1
+           ]
+         ]
 
-   source: [
-     type: "epochs",
-     source_methods: ["dSPM", "LCMV"],
-     dSPM: [
-       make_inverse_operator: [
-         loose: "auto", depth: 0.8, fixed: "auto", use_cps: true
-       ],
-       apply_inverse: [
-         lambda2: 0.1111111111111111, method: "dSPM", pick_ori: "normal"
-       ],
-       apply_inverse_raw: [
-         lambda2: 0.1111111111111111, method: "dSPM",
-         start: null, stop: null, buffer_size: 1000
-       ]
-     ],
-     LCMV: [
-       data_covariance: [tmin: 0.01, tmax: 0.4, method: "empirical"],
-       make_lcmv: [
-         reg: 0.05, pick_ori: null,
-         weight_norm: "unit-noise-gain-invariant", inversion: "matrix"
-       ],
-       apply_lcmv: [verbose: "INFO"],
-       apply_lcmv_raw: [start: null, stop: null, verbose: "INFO"]
-     ]
-   ]
+         source = [
+           type: "epochs",
+           source_methods: ["dSPM", "LCMV"],
+           dSPM: [
+             make_inverse_operator: [
+               loose: "auto", depth: 0.8, fixed: "auto", use_cps: true
+             ],
+             apply_inverse: [
+               lambda2: 0.1111111111111111, method: "dSPM", pick_ori: "normal"
+             ],
+             apply_inverse_raw: [
+               lambda2: 0.1111111111111111, method: "dSPM",
+               start: null, stop: null, buffer_size: 1000
+             ]
+           ],
+           LCMV: [
+             data_covariance: [tmin: 0.01, tmax: 0.4, method: "empirical"],
+             make_lcmv: [
+               reg: 0.05, pick_ori: null,
+               weight_norm: "unit-noise-gain-invariant", inversion: "matrix"
+             ],
+             apply_lcmv: [verbose: "INFO"],
+             apply_lcmv_raw: [start: null, stop: null, verbose: "INFO"]
+           ]
+         ]
+       }
+     }
+   }
 
 These are API passthrough capabilities, not universal scientific defaults.
 Filter bands, epoch windows, rejection limits, covariance intervals, inverse
@@ -322,18 +329,24 @@ labels, and saves figures with the selection name in the filename.
 
 .. code-block:: groovy
 
-   source: [
-     visualize: true,
-     epoch_label: "char_onset",
-     source_methods: ["dSPM"],
-     visualization: [
-       name: "temporal_124ms",
-       mode: "label",
-       roi: "temporal",
-       time: 0.124,
-       hemi: "both"
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         source {
+           visualize = true
+           epoch_label = "char_onset"
+           source_methods = ["dSPM"]
+           visualization {
+             name = "temporal_124ms"
+             mode = "label"
+             roi = "temporal"
+             time = 0.124
+             hemi = "both"
+           }
+         }
+       }
+     }
+   }
 
 Common ROI aliases include ``temporal`` or ``auditory`` for temporal-lobe
 responses and ``occipital`` or ``visual`` for occipital responses. ``hemi`` can

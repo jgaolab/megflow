@@ -335,29 +335,66 @@ Use the calibrated defaults:
 
 .. code-block:: groovy
 
-   artifacts: [
-     deepreject: [enabled: true, mode: "default", device: "cpu"]
-   ]
+   params {
+     megflow {
+       defaults {
+         artifacts {
+           deepreject {
+             enabled = true
+             mode = "default"
+             device = "cpu"
+           }
+         }
+       }
+     }
+   }
 
 Use a conservative bad-segment policy for one dataset:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.MEG_MASC_word.artifacts = [
-     meg_vendor: "kit",
-     deepreject: [mode: "lenient"]
-   ]
+   params {
+     megflow {
+       datasets {
+         MEG_MASC_word {
+           artifacts {
+             meg_vendor = "kit"
+             deepreject {
+               mode = "lenient"
+             }
+           }
+         }
+       }
+     }
+   }
 
 Change only one task within a dataset:
 
 .. code-block:: groovy
 
-   recordings: [
-     movement_task: [
-       match: [task: "movement"],
-       artifacts: [deepreject: [mode: "strict"]]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         steps = "meg_artifacts"
+       }
+       datasets {
+         ExampleStudy {
+           recordings {
+             movement_task {
+               match {
+                 task = "movement"
+               }
+               artifacts {
+                 deepreject {
+                   mode = "strict"
+                 }
+               }
+             }
+           }
+         }
+       }
+     }
+   }
 
 Outputs and Interpretation
 --------------------------

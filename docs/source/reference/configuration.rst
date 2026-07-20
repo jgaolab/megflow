@@ -42,15 +42,23 @@ epochs or source reconstruction:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.docker_input.steps = "meg_ica"
-   params.megflow.datasets.docker_input.meg_import = [
-     subject_id: null,
-     session_id: null,
-     task: ["rest"],
-     run_id: null,
-     raw_include_keywords: null,
-     raw_exclude_keywords: null
-   ]
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           steps = "meg_ica"
+           meg_import = [
+             subject_id: null,
+             session_id: null,
+             task: ["rest"],
+             run_id: null,
+             raw_include_keywords: null,
+             raw_exclude_keywords: null
+           ]
+         }
+       }
+     }
+   }
 
 Mount that file at any readable container path and identify it with
 ``--config``. The paths before each colon are host paths; ``/input``,
@@ -214,36 +222,37 @@ corpus-level, and mixed-task runs:
 .. code-block:: groovy
 
    params {
-     megflow = [
-       code_dir: "/program/megflow",
-       output_dir: "/output",
-       report_scope: "dataset",
-       corpus_root: "",
-       dataset_include: [],
-       dataset_exclude: [],
+     megflow {
+       code_dir = "/program/megflow"
+       output_dir = "/output"
+       report_scope = "dataset"
+       corpus_root = ""
+       dataset_include = []
+       dataset_exclude = []
 
-       defaults: [
-         steps: "meg_all",
-         rank_policy: "auto",
-         meg_import: [:],
-         preproc: [:],
-         artifacts: [:],
-         ica: [:],
-         ic_label: [:],
-         epochs: [:],
-         covariance: [:],
-         coreg: [:],
-         forward: [:],
-         source: [:],
-         report: [:]
-       ],
+       defaults {
+         steps = "meg_all"
+         rank_policy = "auto"
+         meg_import {
+           subject_id = null
+           task = null
+         }
+         preproc {
+           steps = []
+         }
+         // artifacts, ica, ic_label, epochs, covariance, coreg,
+         // forward, source, and report use the same nested-block form.
+       }
 
-       datasets: [
-         docker_input: [
-           dataset_dir: "/input",
-           fs_subjects_dir: "/smri",
-           meg_import: [subject_id: "first:10", task: ["rest"]]
-         ]
-       ]
-     ]
+       datasets {
+         docker_input {
+           dataset_dir = "/input"
+           fs_subjects_dir = "/smri"
+           meg_import {
+             subject_id = "first:10"
+             task = ["rest"]
+           }
+         }
+       }
+     }
    }

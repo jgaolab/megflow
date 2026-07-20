@@ -200,6 +200,40 @@ def all_blocks():
     return [block for page in EXAMPLE_PAGES for block in extract_code_blocks(page)]
 
 
+def all_documented_groovy_snippets():
+    snippets = []
+    readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+    snippets.extend(
+        match.group(1).strip()
+        for match in re.finditer(r"(?ms)^```groovy\s*\n(.*?)^```\s*$", readme)
+    )
+
+    for page in sorted((REPO_ROOT / "docs" / "source").rglob("*.rst")):
+        if page.name.startswith("._"):
+            continue
+        lines = page.read_text(encoding="utf-8").splitlines()
+        index = 0
+        while index < len(lines):
+            match = re.match(r"^(\s*)\.\. code-block::\s+groovy\s*$", lines[index])
+            if not match:
+                index += 1
+                continue
+            directive_indent = len(match.group(1))
+            content = []
+            index += 1
+            while index < len(lines):
+                line = lines[index]
+                line_indent = len(line) - len(line.lstrip())
+                if line and line_indent <= directive_indent:
+                    break
+                content.append(line)
+                index += 1
+            snippet = textwrap.dedent("\n".join(content)).strip()
+            if snippet:
+                snippets.append(snippet)
+    return snippets
+
+
 def linked_config_paths():
     paths = set()
     for page in EXAMPLE_PAGES:
@@ -392,16 +426,18 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
             re.findall(r"task_type\s*(?:==|!=)\s*'([^']+)'", epochs_source)
         )
         documented_task_types = set(
-            re.findall(r"task_type\s*:\s*[\"']([^\"']+)", groovy)
+            re.findall(r"task_type\s*(?:=|:)\s*[\"']([^\"']+)", groovy)
         )
+        self.assertTrue(documented_task_types)
         self.assertEqual(documented_task_types - supported_task_types, set())
 
         supported_event_sources = set(
             re.findall(r"event_source\s*(?:==|!=)\s*'([^']+)'", epochs_source)
         )
         documented_event_sources = set(
-            re.findall(r"event_source\s*:\s*[\"']([^\"']+)", groovy)
+            re.findall(r"event_source\s*(?:=|:)\s*[\"']([^\"']+)", groovy)
         )
+        self.assertTrue(documented_event_sources)
         self.assertEqual(documented_event_sources - supported_event_sources, set())
 
         artifacts_source = (
@@ -413,9 +449,18 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
         supported_deepreject_modes = set(
             re.findall(r'^    "([^"]+)": \{', mode_section, re.MULTILINE)
         )
-        documented_deepreject_modes = set(
-            re.findall(r"deepreject\s*:\s*\[\s*mode\s*:\s*[\"']([^\"']+)", groovy)
-        )
+        documented_deepreject_modes = set()
+        for block_match in re.finditer(
+            r"(?s)\bdeepreject\s*(?:=|:)?\s*(?:\{|\[)(.*?)(?:\}|\])",
+            groovy,
+        ):
+            mode = re.search(
+                r"\bmode\s*(?:=|:)\s*[\"']([^\"']+)",
+                block_match.group(1),
+            )
+            if mode:
+                documented_deepreject_modes.add(mode.group(1))
+        self.assertTrue(documented_deepreject_modes)
         self.assertEqual(
             documented_deepreject_modes - supported_deepreject_modes, set()
         )
@@ -428,10 +473,13 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
             re.findall(r'"[^"]+": "([^"]+)"', aliases_section)
         )
         documented_source_methods = set()
-        for values in re.findall(r"source_methods\s*:\s*\[([^\]]*)\]", groovy):
+        for values in re.findall(
+            r"source_methods\s*(?:=|:)\s*\[([^\]]*)\]", groovy
+        ):
             documented_source_methods.update(
                 re.findall(r"[\"']([^\"']+)[\"']", values)
             )
+        self.assertTrue(documented_source_methods)
         self.assertEqual(documented_source_methods - supported_source_methods, set())
 
         allowed_match_line = re.search(
@@ -442,10 +490,17 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
             re.findall(r"'([^']+)'", allowed_match_line.group(1))
         )
         documented_match_fields = set()
-        for match_body in re.findall(r"match\s*:\s*\[([^\]]+)\]", groovy):
+        for match_groups in re.findall(
+            r"(?s)\bmatch\s*(?:=|:)?\s*(?:\[([^\]]+)|\{([^}]+))",
+            groovy,
+        ):
+            match_body = match_groups[0] or match_groups[1]
             documented_match_fields.update(
-                re.findall(r"(?:^|,)\s*([A-Za-z_]\w*)\s*:", match_body)
+                re.findall(
+                    r"(?:^|,|\n)\s*([A-Za-z_]\w*)\s*(?:=|:)", match_body
+                )
             )
+        self.assertTrue(documented_match_fields)
         self.assertEqual(documented_match_fields - supported_match_fields, set())
 
     def test_explicit_lcmv_rank_example_also_enables_lcmv(self):
@@ -456,7 +511,9 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
             2,
         )
         block = next(block for block in all_blocks() if block.key == lcmv_rank_key)
-        methods = re.search(r"source_methods\s*:\s*\[([^\]]+)\]", block.text)
+        methods = re.search(
+            r"source_methods\s*(?:=|:)\s*\[([^\]]+)\]", block.text
+        )
         self.assertIsNotNone(methods)
         self.assertIn('"LCMV"', methods.group(1))
 
@@ -504,6 +561,19 @@ class DocumentationConfigExamplesIntegrationTests(unittest.TestCase):
                     timeout=90,
                 )
                 self.assertEqual(result.returncode, 0, combined)
+
+    def test_all_documented_groovy_blocks_parse_together(self):
+        snippets = all_documented_groovy_snippets()
+        self.assertTrue(snippets)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            config = Path(temp_dir) / "documented-examples.config"
+            config.write_text("\n\n".join(snippets) + "\n", encoding="utf-8")
+            result, combined = self.run_nextflow(
+                ["-C", str(config), "config", str(PIPELINE), "-o", "flat"],
+                cwd=REPO_ROOT,
+                timeout=90,
+            )
+        self.assertEqual(result.returncode, 0, combined)
 
     def test_every_groovy_example_parses_and_representative_examples_preview(self):
         blocks = {block.key: block for block in all_blocks()}

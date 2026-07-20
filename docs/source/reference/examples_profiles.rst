@@ -16,14 +16,24 @@ configuration:
 
 .. code-block:: groovy
 
-   params.megflow.datasets.MEG_MASC_word = [
-     dataset_dir: "/data/study/MEG-MASC",
-     steps: "meg_ica",
-     artifacts: [
-       meg_vendor: "kit",
-       deepreject: [mode: "lenient"]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         steps = "meg_ica"
+       }
+       datasets {
+         MEG_MASC_word {
+           dataset_dir = "/data/study/MEG-MASC"
+           artifacts {
+             meg_vendor = "kit"
+             deepreject {
+               mode = "lenient"
+             }
+           }
+         }
+       }
+     }
+   }
 
 The inherited ``enabled``, device, fold, and resource values remain unchanged.
 ``lenient`` changes BadSegNet interval post-processing; it does not switch model
@@ -45,33 +55,66 @@ an error.
 
 .. code-block:: groovy
 
-   params.megflow.datasets.LanguageStudy = [
-     dataset_dir: "/data/LanguageStudy",
-     fs_subjects_dir: "/data/LanguageStudy/smri",
-     steps: "meg_all",
-     meg_import: [task: ["auditory", "visual"]],
-     recordings: [
-       auditory_task: [
-         match: [task: "auditory"],
-         epochs: [
-           event_source: "find_events",
-           event_time_shift_sec: 0.0395,
-           find_events: [stim_channel: "STI101"],
-           epochs: [event_id: 1, tmin: -0.1, tmax: 0.6]
-         ],
-         covariance: [event_time_shift_sec: 0.0395]
-       ],
-       visual_run_two: [
-         match: [task: "visual", run: "2"],
-         artifacts: [deepreject: [mode: "strict"]],
-         epochs: [
-           event_source: "event_file",
-           event_file: [trial_type: [target: 1]],
-           epochs: [event_id: 1, tmin: -0.2, tmax: 0.8]
-         ]
-       ]
-     ]
-   ]
+   params {
+     megflow {
+       defaults {
+         steps = "meg_all"
+       }
+       datasets {
+         LanguageStudy {
+           dataset_dir = "/data/LanguageStudy"
+           fs_subjects_dir = "/data/LanguageStudy/smri"
+           meg_import {
+             task = ["auditory", "visual"]
+           }
+           recordings {
+             auditory_task {
+               match {
+                 task = "auditory"
+               }
+               epochs {
+                 event_source = "find_events"
+                 event_time_shift_sec = 0.0395
+                 find_events {
+                   stim_channel = "STI101"
+                 }
+                 epochs {
+                   event_id = 1
+                   tmin = -0.1
+                   tmax = 0.6
+                 }
+               }
+               covariance {
+                 event_time_shift_sec = 0.0395
+               }
+             }
+             visual_run_two {
+               match {
+                 task = "visual"
+                 run = "2"
+               }
+               artifacts {
+                 deepreject {
+                   mode = "strict"
+                 }
+               }
+               epochs {
+                 event_source = "event_file"
+                 event_file {
+                   trial_type = [target: 1]
+                 }
+                 epochs {
+                   event_id = 1
+                   tmin = -0.2
+                   tmax = 0.8
+                 }
+               }
+             }
+           }
+         }
+       }
+     }
+   }
 
 Recording profiles are resolved only after MEG import. They can specialize
 ``rank_policy``, ``megqc``, continuous preprocessing, digitization, artifacts, ICA, epochs,
@@ -130,41 +173,82 @@ Example ``corpus.config``:
 
 .. code-block:: groovy
 
-   params.megflow.dataset_include = ["WAND_Extracted", "SMN4Lang", "MEG-MASC"]
-   params.megflow.dataset_exclude = []
-   params.megflow.defaults.steps = "meg_ica"
-   params.megflow.defaults.meg_import.subject_id = "first:10"
-
-   params.megflow.datasets = [
-     WAND_Extracted: [
-       meg_import: [session_id: ["01"], task: ["visual"]],
-       megqc: [meg_vendor: "ctf"],
-       artifacts: [meg_vendor: "ctf"],
-       epochs: [
-         event_source: "find_events",
-         find_events: [stim_channel: "UPPT001"],
-         epochs: [event_id: 1, tmin: -0.2, tmax: 1.0]
-       ]
-     ],
-     SMN4Lang: [
-       rank_policy: [meg: 50],
-       meg_import: [task: ["RDR"], run_id: ["1"]],
-       megqc: [meg_vendor: "elekta"],
-       epochs: [
-         event_source: "event_file",
-         event_time_shift_sec: -10.6105,
-         event_file: [trial_type: [char: 1]],
-         epochs: [event_id: 1, tmin: -0.2, tmax: 0.8]
-       ]
-     ],
-     "MEG-MASC": [
-       dataset_format: "bids",
-       file_suffix: ".con",
-       meg_import: [session_id: ["0"], task: ["0"]],
-       megqc: [meg_vendor: "kit"],
-       artifacts: [meg_vendor: "kit", deepreject: [mode: "lenient"]]
-     ]
-   ]
+   params {
+     megflow {
+       dataset_include = ["WAND_Extracted", "SMN4Lang", "MEG-MASC"]
+       dataset_exclude = []
+       defaults {
+         steps = "meg_ica"
+         meg_import {
+           subject_id = "first:10"
+         }
+       }
+       datasets {
+         WAND_Extracted {
+           meg_import {
+             session_id = ["01"]
+             task = ["visual"]
+           }
+           megqc {
+             meg_vendor = "ctf"
+           }
+           artifacts {
+             meg_vendor = "ctf"
+           }
+           epochs {
+             event_source = "find_events"
+             find_events {
+               stim_channel = "UPPT001"
+             }
+             epochs {
+               event_id = 1
+               tmin = -0.2
+               tmax = 1.0
+             }
+           }
+         }
+         SMN4Lang {
+           rank_policy = [meg: 50]
+           meg_import {
+             task = ["RDR"]
+             run_id = ["1"]
+           }
+           megqc {
+             meg_vendor = "elekta"
+           }
+           epochs {
+             event_source = "event_file"
+             event_time_shift_sec = -10.6105
+             event_file {
+               trial_type = ["char": 1]
+             }
+             epochs {
+               event_id = 1
+               tmin = -0.2
+               tmax = 0.8
+             }
+           }
+         }
+         MEG_MASC {
+           dataset_format = "bids"
+           file_suffix = ".con"
+           meg_import {
+             session_id = ["0"]
+             task = ["0"]
+           }
+           megqc {
+             meg_vendor = "kit"
+           }
+           artifacts {
+             meg_vendor = "kit"
+             deepreject {
+               mode = "lenient"
+             }
+           }
+         }
+       }
+     }
+   }
 
 Run it with:
 
