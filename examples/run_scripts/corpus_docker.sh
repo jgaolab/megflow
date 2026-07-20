@@ -65,7 +65,14 @@ done
 [ -n "$OUTPUT" ] || die "--output is required"
 [ -d "$INPUT" ] && [ -r "$INPUT" ] || die "input directory is not readable: $INPUT"
 [ -f "$CONFIG" ] && [ -r "$CONFIG" ] || die "config file is not readable: $CONFIG"
-if ! find "$INPUT" -mindepth 1 -maxdepth 1 -type d -print -quit | grep -q .; then
+HAS_DATASET=false
+for DATASET_DIR in "$INPUT"/* "$INPUT"/.[!.]* "$INPUT"/..?*; do
+    if [ -d "$DATASET_DIR" ]; then
+        HAS_DATASET=true
+        break
+    fi
+done
+if [ "$HAS_DATASET" != true ]; then
     die "corpus input has no immediate dataset directories: $INPUT"
 fi
 if [ -z "$SMRI" ]; then SMRI="${OUTPUT}/smri"; fi

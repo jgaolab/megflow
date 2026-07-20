@@ -171,6 +171,11 @@ class PublicShellScriptContractTests(unittest.TestCase):
             self.assertIn("--corpus", calls)
             self.assertIn("--steps\nmeg_ica", calls)
 
+    def test_corpus_discovery_avoids_gnu_only_find_depth_options(self):
+        text = RUN_SCRIPTS[1].read_text(encoding="utf-8")
+        self.assertNotIn("-mindepth", text)
+        self.assertNotIn("-maxdepth", text)
+
     def test_single_dataset_docker_assembles_entrypoint_arguments(self):
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -231,13 +236,17 @@ class PublicShellScriptContractTests(unittest.TestCase):
             env, calls_path = self._stub_environment(root, "docker")
 
             result = self._run_script(
-                RUN_SCRIPTS[3], "--output", str(output), env=env
+                RUN_SCRIPTS[3],
+                "--output", str(output),
+                "--port", "9123",
+                env=env,
             )
 
             self.assertEqual(result.returncode, 0, result.stderr)
             report_calls = calls_path.read_text(encoding="utf-8")
             self.assertIn("-r", report_calls)
-            self.assertIn("8501:8501", report_calls)
+            self.assertIn("9123:8501", report_calls)
+            self.assertIn("Viewer: http://localhost:9123", result.stdout)
 
     def test_docker_launchers_resolve_relative_host_paths_before_mounting(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

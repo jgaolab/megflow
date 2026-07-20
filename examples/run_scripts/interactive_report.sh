@@ -67,7 +67,7 @@ if [ -n "$SMRI" ]; then SMRI="$(cd "$SMRI" && pwd -P)"; fi
 if [ "$DRY_RUN" != true ]; then command -v docker >/dev/null 2>&1 || die "Docker is not available on PATH"; fi
 docker_args=(run --rm)
 if [ -t 0 ] && [ -t 1 ]; then docker_args+=(-it); else docker_args+=(-i); fi
-docker_args+=(-p "${PORT}:${PORT}" -v "${OUTPUT}:/output")
+docker_args+=(-p "${PORT}:8501" -v "${OUTPUT}:/output")
 if [ -n "$SMRI" ]; then docker_args+=(-v "${SMRI}:/smri:ro"); fi
 
 printf 'MEGFlow interactive report\nOutput: %s\nViewer: http://localhost:%s\n' "$OUTPUT" "$PORT"
