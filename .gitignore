@@ -40,8 +40,8 @@ megflow/tools/deepreject/model/__pycache__/
 docs/superpowers/
 docs/build/html/
 run_*.sh
-!run_MultiDatasets.sh
-!run_MultiDatasets_sourcecode.sh
+run_MultiDatasets.sh
+run_MultiDatasets_sourcecode.sh
 !scripts/validation/run_validation.sh
 start_vpn.sh
 license.txt
