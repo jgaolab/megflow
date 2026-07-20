@@ -18,7 +18,9 @@ CORPUS_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_corpus.config"
 OPM_COG_TASK_OVERRIDE_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_opm_cog_task_overrides_example.config"
 MAXWELL_TSSS_EXAMPLE = REPO_ROOT / "nextflow" / "nextflow_maxwell_tsss_example.config"
 PSEUDOMRI_DOCKER_OVERLAY = REPO_ROOT / "nextflow" / "nextflow_pseudomri_docker.config"
-MULTI_DATASET_SOURCE_RUNNER = REPO_ROOT / "run_MultiDatasets_sourcecode.sh"
+MULTI_DATASET_SOURCE_RUNNER = (
+    REPO_ROOT / "examples" / "run_scripts" / "corpus_source.sh"
+)
 PROFILE_INTEGRATION_TEST = REPO_ROOT / "tests" / "test_nextflow_profile_integration.py"
 VALIDATION_RUNNER = REPO_ROOT / "scripts" / "validation" / "run_validation.sh"
 VALIDATION_UNITTEST_GATE = REPO_ROOT / "scripts" / "validation" / "run_unittest_gate.py"
@@ -627,14 +629,14 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
         self.assertEqual(offenders, [])
 
-    def test_multi_dataset_source_runner_uses_demo_config_without_docker(self):
+    def test_multi_dataset_source_runner_requires_an_explicit_config_without_docker(self):
         self.assertTrue(MULTI_DATASET_SOURCE_RUNNER.is_file())
         text = MULTI_DATASET_SOURCE_RUNNER.read_text(encoding="utf-8")
-        self.assertIn("nextflow/nextflow_multi_dataset_demo.config", text)
+        self.assertIn('die "--config is required"', text)
         self.assertIn('-C "$CONFIG"', text)
         self.assertIn('-profile "$PROFILE"', text)
         self.assertIn('-log "$LOG_FILE"', text)
-        self.assertIn("Do not pass --steps to source Nextflow runs.", text)
+        self.assertNotIn("nextflow_multi_dataset_demo.config", text)
         self.assertNotIn("docker run", text)
         self.assertNotIn("--cohort", text)
 

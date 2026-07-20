@@ -3,6 +3,7 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+DOCKER_BUILD_HELPER = REPO_ROOT / "scripts" / "development" / "build_megflow.sh"
 
 
 def repository_owned_text_files():
@@ -36,8 +37,9 @@ class DockerImageNamespaceTests(unittest.TestCase):
         self.assertEqual(matches, [])
 
     def test_build_script_targets_published_image_namespace(self):
-        script = (REPO_ROOT / "build_megflow.sh").read_text(encoding="utf-8")
-        self.assertIn("IMAGE_NAME=cplmeg/megflow", script)
+        self.assertTrue(DOCKER_BUILD_HELPER.is_file())
+        script = DOCKER_BUILD_HELPER.read_text(encoding="utf-8")
+        self.assertIn('IMAGE="cplmeg/megflow"', script)
 
 
 if __name__ == "__main__":

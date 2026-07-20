@@ -32,9 +32,10 @@ The repository also provides
 `nextflow_multi_dataset_demo.config
 <https://github.com/jgaolab/megflow/blob/main/nextflow/nextflow_multi_dataset_demo.config>`__
 for a WAND, SMN4Lang, and MEG-MASC source-mode run. It contains site-specific
-host paths and process resources and is launched by
-``run_MultiDatasets_sourcecode.sh`` after those paths are checked. See
-:doc:`examples` for both workflows and for recording-level task overrides.
+host paths and process resources. After checking those paths, launch it with
+``examples/run_scripts/corpus_source.sh --config
+nextflow/nextflow_multi_dataset_demo.config``. See :doc:`examples` for both
+workflows and for recording-level task overrides.
 
 **Worked examples:** :ref:`example-docker-corpus` and
 :ref:`example-source-multi-dataset`.
@@ -181,10 +182,10 @@ cluster names:
    * - ``MEGFLOW_SINGULARITY_RUN_OPTIONS``
      - Site-specific bind and runtime options, such as ``-B /data:/data``.
 
-These variables apply to direct Nextflow launches. The repository helper
-``run_MultiDatasets_sourcecode.sh`` passes its own ``-w`` and ``-log`` values,
-derived from the configured output root; override those with the helper's
-``WORK_DIR`` and ``LOG_FILE`` environment variables.
+These variables apply to direct Nextflow launches. The public
+``examples/run_scripts/corpus_source.sh`` helper derives its ``-w`` and ``-log``
+values from the configured output root; override them with its ``--work-dir``
+and ``--log-file`` options.
 
 For Slurm with Singularity:
 

@@ -347,17 +347,42 @@ def write_runtime_config(path, block, profiles, root):
 class DocumentationConfigExamplesTests(unittest.TestCase):
     maxDiff = None
 
-    def test_readme_places_validation_in_development(self):
+    def test_readme_links_canonical_public_scripts_without_cleanup_helper(self):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
-        development = readme.index("## 🛠️ Development")
-        environment_setup = readme.index("2. **Environment Setup:", development)
-        validation = readme.index("### Validation")
-        docker_build = readme.index(
-            "3.  **Build Docker Image Locally (Optional):", development
+        run_scripts = (
+            "examples/run_scripts/single_dataset_docker.sh",
+            "examples/run_scripts/corpus_docker.sh",
+            "examples/run_scripts/corpus_source.sh",
+            "examples/run_scripts/interactive_report.sh",
+        )
+        development_scripts = (
+            "scripts/development/build_megflow.sh",
+            "scripts/development/build_docs.sh",
+            "scripts/development/docker2sif.sh",
+            "scripts/development/rm_none_docker.sh",
         )
 
-        self.assertLess(environment_setup, validation)
-        self.assertLess(validation, docker_build)
+        for script in run_scripts + development_scripts:
+            with self.subTest(script=script):
+                self.assertIn(f"]({script})", readme)
+        self.assertNotIn("clean_docker.sh", readme)
+
+    def test_readme_development_uses_the_public_helper_workflow_order(self):
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        development = readme.index("## 🛠️ Development")
+        subsections = (
+            "### Prerequisites",
+            "### Local Development Setup",
+            "### Public Developer-Script Reference",
+            "### Building the Docker Image",
+            "### Building and Strictly Validating Documentation",
+            "### Validation and Regression-Test Modes",
+            "### Advanced Local Docker-to-SIF Conversion",
+            "### Dangling-Image Cleanup Safety",
+            "### Pull-Request Workflow",
+        )
+        positions = [readme.index(subsection, development) for subsection in subsections]
+        self.assertEqual(positions, sorted(positions))
 
     def test_user_facing_wand_examples_use_clean_display_name(self):
         doc_paths = [REPO_ROOT / "README.md"]

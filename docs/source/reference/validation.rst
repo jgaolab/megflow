@@ -70,15 +70,15 @@ existing MEGFlow environment:
      bash scripts/validation/run_validation.sh scientific
 
 The repository CI performs ``routing-ci`` and ``scientific`` with Nextflow
-24.10.3 on every push and pull request. The exhaustive ``routing`` gate remains
-local rather than extending routine CI with every resume and output-deletion
-matrix. A separate ``windows-latest`` job parses the Windows installer with the
-native PowerShell AST parser and fails if that parser is unavailable;
-non-Windows runs do not report this platform-specific check as passed or
-skipped. The strict documentation build is a fourth job. Keep Nextflow pinned
-to the production runtime and evaluate an upgrade in a separate change. The
-production Docker image is reserved for less frequent runtime canaries because
-its approximately 32.8 GB size is not suitable for every GitHub job.
+24.10.3 on every push and pull request. Native Linux and macOS installer jobs
+validate their installers; the Windows runner performs Windows installer
+parser/contracts checks with the native PowerShell AST parser and fails if that
+parser is unavailable. The exhaustive ``routing`` gate remains local rather
+than extending routine CI with every resume and output-deletion matrix. The
+strict documentation build is an additional job. Keep Nextflow pinned to the
+production runtime and evaluate an upgrade in a separate change. The production
+Docker image is reserved for less frequent runtime canaries because its
+approximately 32.8 GB size is not suitable for every GitHub job.
 
 P0 Release Contract
 -------------------

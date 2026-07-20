@@ -145,6 +145,30 @@ docker pull cplmeg/megflow:<version>
 docker run --rm -it cplmeg/megflow:<version> [nextflow_options]
 ```
 
+### Runnable Examples
+
+Choose a public script by goal; each works from any current directory and
+offers `--help` plus `--dry-run` where it launches an external runtime.
+
+| Goal | Public script |
+| :--- | :--- |
+| Process one dataset with the official Docker entrypoint | [single-dataset Docker run](examples/run_scripts/single_dataset_docker.sh) |
+| Process every immediate dataset directory with Docker corpus mode | [Docker corpus run](examples/run_scripts/corpus_docker.sh) |
+| Run a configured corpus with host Nextflow | [source corpus run](examples/run_scripts/corpus_source.sh) |
+| Open the Streamlit viewer for existing output | [interactive report viewer](examples/run_scripts/interactive_report.sh) |
+
+For a first single-dataset run, provide host paths for the input and output:
+
+```bash
+bash examples/run_scripts/single_dataset_docker.sh \
+  --input /data/meg_dataset \
+  --output /data/megflow_output \
+  --resume
+```
+
+The [complete run-script guide](examples/run_scripts/README.md) covers every
+option, expected output, and troubleshooting guidance.
+
 ### Pipeline steps
 
 The file [`nextflow/megflow.nf`](nextflow/megflow.nf) is controlled by **`params.megflow.defaults.steps`** plus optional dataset- or recording-level `steps` overrides in [`nextflow.config`](nextflow/nextflow.config). The default is **`meg_all`**. The Docker entrypoint also accepts `--steps` and writes the corresponding `params.megflow` runtime override.
@@ -299,7 +323,8 @@ nextflow run nextflow/megflow.nf \
   -resume
 
 # Complete WAND + SMN4Lang + MEG-MASC example with per-dataset settings
-bash run_MultiDatasets_sourcecode.sh
+bash examples/run_scripts/corpus_source.sh \
+  --config nextflow/nextflow_multi_dataset_demo.config
 
 # To change the stage, edit the nested defaults block shown below.
 ```
@@ -637,91 +662,121 @@ When reporting a bug, please include:
 
 ## 🛠️ Development
 
-Contributions to MEGFlow are welcome. To contribute code or documentation:
+Contributions to MEGFlow are welcome. The public helpers below resolve the
+repository root themselves, so their commands can be run from any directory.
 
-1.  **Clone the repository:**
-    ```bash
-    git clone git@github.com:jgaolab/megflow.git
-    cd megflow
-    ```
+### Prerequisites
 
-2. **Environment Setup:**
-    If you plan to develop or run the pipeline locally (outside Docker), you must install Nextflow.
+Use a POSIX shell with Bash 3.2+ and Java 17 (up to 23). Source-mode workflow
+development additionally needs Nextflow 24.10 or newer; Docker image work
+needs a running Docker daemon; and documentation work needs the pinned packages
+in `requirements_doc.txt`. Windows contributors can use WSL for Bash helpers,
+while the native installer is validated separately in CI.
 
-    **Prerequisites:**
-    *   **System**: Any POSIX-compatible system (Linux, macOS, etc.), or Windows through WSL.
-    *   **Dependencies**: Bash 3.2+ and **Java 17** (up to 23).
+### Local Development Setup
 
-    **Installation:**
-    Please refer to the [Nextflow Official Documentation](https://www.nextflow.io/docs/latest/install.html).
+```bash
+git clone git@github.com:jgaolab/megflow.git
+cd megflow
+nextflow info
+```
 
-    If you use SDKMAN (recommended), initialize it:
-    ```bash
-    source "$HOME/.sdkman/bin/sdkman-init.sh"
-    ```
+Install Nextflow using the [official instructions](https://www.nextflow.io/docs/latest/install.html),
+then ensure it is on `PATH`. Use the source installation instructions in
+[`scripts/install-dev/README.md`](scripts/install-dev/README.md) when a local
+MEGFlow environment is needed instead of the distributed image.
 
-    **Configuration:**
-    Ensure the Nextflow binary is in your PATH.
-    *   Common location: `$HOME/.local/bin/nextflow`
+### Public Developer-Script Reference
 
-    **Useful Nextflow Developer Commands:**
+| Helper | Purpose and command | Prerequisites, output, and safety |
+| :--- | :--- | :--- |
+| [build_megflow.sh](scripts/development/build_megflow.sh) | Build the local `cplmeg/megflow:local` image: `bash scripts/development/build_megflow.sh --dry-run` | Docker is required outside dry-run; builds from `megflow.Dockerfile` and does not overwrite a release tag by default. |
+| [build_docs.sh](scripts/development/build_docs.sh) | Build documentation: `bash scripts/development/build_docs.sh --strict` | Python/Sphinx dependencies are required; writes HTML under `docs/build/html` by default. |
+| [docker2sif.sh](scripts/development/docker2sif.sh) | Convert an existing local image: `bash scripts/development/docker2sif.sh --dry-run` | Apptainer or Singularity is required outside dry-run; it neither pulls nor builds an image and refuses an existing output unless `--force` is explicit. |
+| [rm_none_docker.sh](scripts/development/rm_none_docker.sh) | Preview dangling image IDs: `bash scripts/development/rm_none_docker.sh` | Docker is required; default execution is preview-only and prints an opt-in command. |
 
-    *   **Check Installation**:
-    ```bash
-    nextflow info
-    ```
+All four helpers provide `--help`. Read their option descriptions before using
+them on a shared workstation or cluster.
 
-    *   **Run with Trace** (creates an execution trace file):
-    ```bash
-    nextflow run <script.nf> -with-trace
-    ```
+### Building the Docker Image
 
-### Validation
+After changing the Dockerfile or packaged dependencies, inspect the assembled
+build command first and then run it when the local Docker daemon is available:
 
-Run the fast routing gate used by GitHub Actions from an activated MEGFlow
-environment:
+```bash
+bash scripts/development/build_megflow.sh --dry-run
+bash scripts/development/build_megflow.sh --tag local
+```
+
+The default output is the local development image `cplmeg/megflow:local`. Use
+`--image`, `--tag`, `--dockerfile`, `--platform`, or `--no-cache` only when the
+change requires them.
+
+### Building and Strictly Validating Documentation
+
+Build the HTML documentation with CI-equivalent warning handling:
+
+```bash
+bash scripts/development/build_docs.sh --strict
+```
+
+The default output is `docs/build/html`. `--clean` removes only the selected
+documentation output directory before rebuilding; choose a custom `--output`
+when retaining a separate preview is useful.
+
+### Validation and Regression-Test Modes
+
+Run the fast routing gate used for push and pull-request checks from an
+activated MEGFlow environment:
 
 ```bash
 export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
 bash scripts/validation/run_validation.sh routing-ci
 ```
 
-`routing-ci` runs all static routing contracts, parses every tracked Nextflow
-config, and executes a representative Nextflow 24.10.3 smoke matrix covering
-step selection, anatomy-only and simultaneous anatomy/MEG routing, nested
-dataset/recording overrides, MNE/OSL parameter passthrough, raw-noise and LCMV
-covariance pairing, resume invalidation, strict failure, and report rebuilding.
+`routing-ci` runs static routing contracts, parses tracked Nextflow configs,
+and executes a representative Nextflow 24.10.3 smoke matrix. `routing` adds
+the exhaustive local routing, resume-deletion, failure, report, and
+documentation-example matrices. `scientific` runs synthetic MNE/OSL filtering,
+epochs, covariance, source-call, MEGQC, DeepReject-input, MEGNet/ICA-label,
+and report tests. `all` runs the complete local gates and builds documentation
+when its dependencies are installed. Requested gates fail if dependencies are
+missing, no tests are discovered, or any test is skipped.
 
-Use `routing` for the exhaustive local routing, resume-deletion, failure, report,
-and documentation-example matrices. Use `scientific` for real synthetic MNE/OSL
-filtering, epochs, covariance, source-call, MEGQC, DeepReject-input,
-MEGNet/ICA-label, and report tests. `all` runs both complete local gates and
-builds the documentation when its dependencies are installed. Requested gates
-fail when dependencies are missing, no tests are discovered, or any test is
-skipped. A coverage contract also fails when a new tracked `tests/test_*.py`
-module is not assigned to a complete local gate.
+GitHub Actions runs `routing-ci`, `scientific`, native Linux installer and
+native macOS installer jobs, Windows parser/contracts on the Windows runner,
+and the strict documentation build for every push and pull request. The
+exhaustive `routing` matrix remains a local pre-release gate. Pinned lightweight
+scientific dependencies are in `requirements_validation.txt`.
 
-GitHub runs `routing-ci`, `scientific`, a native PowerShell parser check for the
-Windows installer, and the strict documentation build for every push and pull
-request. The exhaustive `routing` matrix remains a local pre-release test so
-routine CI stays focused and timely. Pinned lightweight scientific dependencies
-are in `requirements_validation.txt`.
+### Advanced Local Docker-to-SIF Conversion
 
-3.  **Build Docker Image Locally (Optional):**
-    If you modified the Dockerfile or dependencies, you can build the image manually using Docker or the provided helper script.
+Convert a development image that already exists on the local Docker daemon:
 
-    **Using the build script:**
-    ```bash
-    bash build_megflow.sh
-    ```
+```bash
+bash scripts/development/docker2sif.sh --image cplmeg/megflow:local --dry-run
+bash scripts/development/docker2sif.sh --image cplmeg/megflow:local
+```
 
-    **Using Docker directly:**
-    ```bash
-    docker build -t megflow:local -f megflow.Dockerfile .
-    ```
+The helper prefers Apptainer, falls back to Singularity, and writes a sanitized
+`.sif` filename unless `--output` is specified. It does not build or pull an
+image automatically.
 
-4.  **Submit a Pull Request:**
-    *   Fork the repository.
-    *   Create a new branch for your feature or fix.
-    *   Commit your changes and push to your fork.
-    *   Submit a Pull Request to the `main` branch.
+### Dangling-Image Cleanup Safety
+
+Preview dangling Docker image IDs without changing Docker state:
+
+```bash
+bash scripts/development/rm_none_docker.sh
+```
+
+Default execution is preview-only. Deletion requires the explicit `--yes`
+confirmation after reviewing the listed IDs; do not use it casually on shared
+or production Docker hosts.
+
+### Pull-Request Workflow
+
+Create a focused branch, run the relevant validation mode and strict
+documentation build, then commit and open a pull request. Include the command
+and output needed to reproduce any user-visible pipeline or documentation
+change. Keep unrelated local or site-specific launchers out of the change.

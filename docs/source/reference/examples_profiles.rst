@@ -295,7 +295,8 @@ then run:
 
 .. code-block:: bash
 
-   bash run_MultiDatasets_sourcecode.sh
+   bash examples/run_scripts/corpus_source.sh \
+     --config nextflow/nextflow_multi_dataset_demo.config
 
 The source runner uses host Nextflow, derives the log and work paths from the
 configured ``params.megflow.output_dir``, and defaults to
@@ -303,9 +304,15 @@ configured ``params.megflow.output_dir``, and defaults to
 
 .. code-block:: bash
 
-   CONDA_ENV=megflow bash run_MultiDatasets_sourcecode.sh
-   PROFILE=slurm,strict bash run_MultiDatasets_sourcecode.sh
-   RESUME=false DRY_RUN=true bash run_MultiDatasets_sourcecode.sh
+   bash examples/run_scripts/corpus_source.sh \
+     --config nextflow/nextflow_multi_dataset_demo.config \
+     --conda-env megflow
+   bash examples/run_scripts/corpus_source.sh \
+     --config nextflow/nextflow_multi_dataset_demo.config \
+     --profile slurm,strict
+   bash examples/run_scripts/corpus_source.sh \
+     --config nextflow/nextflow_multi_dataset_demo.config \
+     --no-resume --dry-run
 
 Do not pass ``--steps`` to this source-mode command. Change
 ``params.megflow.defaults.steps`` or a named dataset profile's ``steps`` in the
