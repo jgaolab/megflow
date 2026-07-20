@@ -7,7 +7,7 @@
 
 **MEGFlow** is a preprocessing pipeline for MEG (Magnetoencephalography) data, built on **MNE-Python** and **Nextflow**.
 
-It supports containerized execution, staged workflows, quality-control reports, and corpus-scale processing for research environments where reproducibility and scalable execution are required.
+It supports containerized execution, staged workflows, quality-control reports, and corpus-scale processing for research environments where reproducibility and scalable execution are required!
 
 ---
 
