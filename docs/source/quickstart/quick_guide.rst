@@ -269,9 +269,26 @@ Select Subjects, Sessions, Tasks, or Runs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 Edit ``meg_import.subject_id``, ``session_id``, ``task``, and ``run_id``.
-``null`` means no filter. Use BIDS values without ``sub-``, ``ses-``,
-``task-``, or ``run-`` prefixes. A list selects explicit values and
-``"first:10"`` selects the first ten discovered subjects:
+Use BIDS values without ``sub-``, ``ses-``, ``task-``, or ``run-`` prefixes.
+``subject_id`` accepts these forms:
+
+.. list-table:: ``subject_id`` forms
+   :header-rows: 1
+   :widths: 28 72
+
+   * - Value
+     - Meaning
+   * - ``null``
+     - Process every discovered subject that matches the other filters.
+   * - ``"01"``
+     - Process one subject.
+   * - ``["01", "02"]``
+     - Process exactly the listed subjects.
+   * - ``"first:10"``
+     - Process up to the first ten subjects returned by BIDS discovery.
+
+Use an explicit list when exact subject membership matters. See the
+:ref:`complete subject selection rules <bids-subject-selection>`:
 
 .. code-block:: groovy
 

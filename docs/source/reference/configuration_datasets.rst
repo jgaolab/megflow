@@ -450,13 +450,45 @@ Input and Output Fields
      - ``2025`` / ``2025``
      - Reproducibility seeds for continuous preprocessing and ICA.
 
+.. _bids-subject-selection:
+
+BIDS Subject Selection
+----------------------
+
+``meg_import.subject_id`` and ``mri_import.subject_id`` accept these forms:
+
+.. list-table:: ``subject_id`` forms
+   :header-rows: 1
+   :widths: 28 72
+
+   * - Value
+     - Meaning
+   * - ``null``
+     - Process every discovered subject that matches the other filters.
+   * - ``"01"``
+     - Process one subject.
+   * - ``["01", "02"]``
+     - Process exactly the listed subjects.
+   * - ``"first:N"``
+     - Process up to the first ``N`` subjects returned by BIDS discovery.
+
+Use labels without the ``sub-`` prefix. In ``"first:N"``, ``N`` must be a
+positive integer. If fewer than ``N`` subjects are available, all discovered
+subjects are selected. Discovery order determines which subjects are first;
+use an explicit list when exact membership must be reproducible.
+
+``last:N``, numeric ranges, slice syntax, and wildcards are not supported.
+These entity filters apply to BIDS input. For non-BIDS input, use
+``raw_include_keywords`` and ``raw_exclude_keywords`` instead.
+
 MRI Import
 ----------
 
 ``mri_import`` filters structural BIDS files before FreeSurfer or DeepPrep.
-``subject_id``, ``session_id``, ``task``, and ``run_id`` accept null, a string,
-or a list, using entity values without BIDS prefixes. All default to null. The
-special ``"first:N"`` subject selector is supported. Optional
+``mri_import.subject_id`` follows the
+:ref:`BIDS subject selection rules <bids-subject-selection>`. ``session_id``,
+``task``, and ``run_id`` accept null, a string, or a list, using entity values
+without BIDS prefixes. All default to null. Optional
 ``t1_patterns`` and ``t1_exclude_keywords`` narrow T1 selection when a dataset
 contains multiple structural derivatives. MRI import is used only for
 anatomy-enabled datasets whose configured method requires a real T1 image.
@@ -488,8 +520,9 @@ entities; raw datasets are discovered by suffix and optional filename keywords.
    * - ``meg_import.subject_id``
      - null, string, list
      - null
-     - BIDS subjects without ``sub-``. ``"first:10"`` selects the first ten
-       discovered subjects.
+     - BIDS subject selector: null, one label, an explicit list, or
+       ``"first:N"``. See :ref:`BIDS subject selection rules
+       <bids-subject-selection>`.
    * - ``meg_import.session_id``
      - null, string, list
      - null
