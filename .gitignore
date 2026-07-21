@@ -39,6 +39,7 @@ megflow/tools/deepreject/__pycache__/
 megflow/tools/deepreject/model/__pycache__/
 docs/superpowers/
 docs/build/html/
+.superpowers/
 run_*.sh
 run_MultiDatasets.sh
 run_MultiDatasets_sourcecode.sh

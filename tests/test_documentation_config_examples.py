@@ -412,6 +412,7 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         run_scripts = (
             "examples/run_scripts/single_dataset_docker.sh",
+            "examples/run_scripts/single_dataset_sif.sh",
             "examples/run_scripts/corpus_docker.sh",
             "examples/run_scripts/corpus_source.sh",
             "examples/run_scripts/interactive_report.sh",

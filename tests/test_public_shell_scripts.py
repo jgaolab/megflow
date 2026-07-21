@@ -13,6 +13,7 @@ RUN_SCRIPTS = (
     REPO_ROOT / "examples/run_scripts/corpus_docker.sh",
     REPO_ROOT / "examples/run_scripts/corpus_source.sh",
     REPO_ROOT / "examples/run_scripts/interactive_report.sh",
+    REPO_ROOT / "examples/run_scripts/single_dataset_sif.sh",
 )
 DEVELOPMENT_SCRIPTS = (
     REPO_ROOT / "scripts/development/build_megflow.sh",
@@ -254,6 +255,54 @@ class PublicShellScriptContractTests(unittest.TestCase):
             self.assertIn("--anat-method\ndeepprep", calls)
             self.assertIn("--steps\nmeg_ica", calls)
             self.assertIn("--resume", calls)
+
+    def test_single_dataset_sif_assembles_runtime_and_entrypoint_arguments(self):
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            input_directory = root / "input"
+            input_directory.mkdir()
+            output = root / "output"
+            smri = root / "smri"
+            license_file = root / "license.txt"
+            license_file.write_text("test-license\n", encoding="utf-8")
+            config = root / "quickstart.config"
+            config.write_text("params { }\n", encoding="utf-8")
+            sif = root / "megflow.sif"
+            sif.write_text("test-sif\n", encoding="utf-8")
+            env, calls_path = self._stub_environment(root, "apptainer")
+
+            result = self._run_script(
+                RUN_SCRIPTS[4],
+                "--input", str(input_directory),
+                "--output", str(output),
+                "--sif", str(sif),
+                "--config", str(config),
+                "--smri", str(smri),
+                "--license", str(license_file),
+                "--steps", "meg_ica",
+                "--anat-method", "deepprep",
+                "--runtime", "apptainer",
+                "--resume",
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stderr)
+            calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn("run\n--cleanenv", calls)
+            self.assertIn(f"{input_directory}:/input:ro", calls)
+            self.assertIn(f"{output}:/output", calls)
+            self.assertIn(f"{config}:/config/nextflow.config:ro", calls)
+            self.assertIn(f"{smri}:/smri", calls)
+            self.assertIn(f"{license_file}:/fs_license.txt:ro", calls)
+            self.assertIn(str(sif), calls)
+            self.assertIn("--config\n/config/nextflow.config", calls)
+            self.assertIn("--fs_subjects_dir\n/smri", calls)
+            self.assertIn("--fs_license_file\n/fs_license.txt", calls)
+            self.assertIn("--anat-method\ndeepprep", calls)
+            self.assertIn("--steps\nmeg_ica", calls)
+            self.assertIn("--resume", calls)
+            source = RUN_SCRIPTS[4].read_text(encoding="utf-8")
+            self.assertNotIn("--writable-tmpfs", source)
 
     def test_corpus_source_assembles_local_strict_nextflow_profile(self):
         with tempfile.TemporaryDirectory() as temporary_directory:

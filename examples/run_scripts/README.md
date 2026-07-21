@@ -9,24 +9,27 @@ see every option before replacing the placeholder paths below.
 | Goal | Script | First command |
 | --- | --- | --- |
 | First Docker run for one dataset | `single_dataset_docker.sh` | `bash examples/run_scripts/single_dataset_docker.sh --input /data/bids --output /data/megflow-output --smri /data/smri --license /data/license.txt --steps meg_ica` |
+| Run one dataset from a SIF with Apptainer or SingularityCE | `single_dataset_sif.sh` | `bash examples/run_scripts/single_dataset_sif.sh --input /data/bids --output /data/megflow-output --sif /data/megflow_1.0.0.sif --steps meg_ica --resume` |
 | Process immediate children of a corpus root in Docker | `corpus_docker.sh` | `bash examples/run_scripts/corpus_docker.sh --input /data/corpus --output /data/corpus-output --smri /data/corpus-smri --config /data/corpus.config --steps meg_ica --resume` |
 | Run a corpus configuration with host Nextflow | `corpus_source.sh` | `bash examples/run_scripts/corpus_source.sh --config /data/corpus.config --profile local,strict --resume` |
 | Open a completed report in Streamlit | `interactive_report.sh` | `bash examples/run_scripts/interactive_report.sh --output /data/megflow-output --port 8501` |
 
 ## Common safety behavior
 
-All four scripts use strict Bash mode, quote supplied paths, reject unknown or
+All five scripts use strict Bash mode, quote supplied paths, reject unknown or
 incomplete options, and print the final command. `--help` works without Docker
 or Nextflow. Use `--dry-run` to inspect a launch command without starting an
-external runtime. The Docker processing launchers create only the output and
-anatomy directories selected for that invocation; the source launcher may also
-create its selected work and log directories. None changes ownership or
+external runtime. The container processing launchers create only the output
+and anatomy directories selected for that invocation; the source launcher may
+also create its selected work and log directories. None changes ownership or
 permissions recursively. Configuration and license mounts are read-only.
 
 The Docker launchers use `-it` when attached to a terminal and fall back to
 `-i` for non-interactive environments. The report launcher does not run
 Nextflow: it mounts an existing output directory and exposes the viewer at
-`http://localhost:<port>`.
+`http://localhost:<port>`. The SIF launcher uses `run --cleanenv` and keeps the
+container root filesystem read-only; generated runtime configuration and
+Nextflow state are written beneath the bound output directory.
 
 ## Script notes
 
@@ -114,6 +117,36 @@ host port is mapped to the viewer's fixed container port `8501`.
 | `--dry-run` | Off | Print the Docker command without launching it. |
 | `--help` | — | Print CLI help and exit. |
 
+### `single_dataset_sif.sh`
+
+`--input`, `--output`, and `--sif` are required. The same SIF works with both
+Apptainer and SingularityCE. Runtime discovery defaults to `auto`, preferring
+`apptainer` and then `singularity` on `PATH`; use `--runtime` to select one by
+name or `--runtime-bin` for an installation at a custom path. The default
+configuration, stage, optional anatomy directory, license, and anatomy-method
+arguments match `single_dataset_docker.sh`.
+
+The launcher binds input, configuration, and license paths read-only. Output
+and optional SMRI paths remain writable and retain the submitting user's
+ownership. It does not request a writable SIF root filesystem. A successful
+run reports `<output>/static_html_report/index.html`.
+
+| Option | Requirement/default | Purpose |
+| --- | --- | --- |
+| `--input DIR` | Required | Read-only host dataset mounted at `/input`. |
+| `--output DIR` | Required | Writable host result directory mounted at `/output`. |
+| `--sif FILE` | Required | Readable MEGFlow SIF image. |
+| `--config FILE` | `nextflow/quickstart.config` | Nextflow configuration mounted read-only. |
+| `--smri DIR` | None | Writable anatomy/FreeSurfer subjects directory. |
+| `--license FILE` | None | FreeSurfer license mounted read-only. |
+| `--runtime VALUE` | `auto` | Select `auto`, `apptainer`, or `singularity`. |
+| `--runtime-bin PATH_OR_COMMAND` | None | Explicit executable; overrides `--runtime`. |
+| `--steps VALUE` | `meg_ica` | Requested MEGFlow stage. |
+| `--anat-method METHOD` | Config default | Override with `freesurfer`, `deepprep`, or `pseudomri`. |
+| `--resume` | Off | Resume a previous Nextflow run. |
+| `--dry-run` | Off | Print the SIF command without launching it. |
+| `--help` | — | Print CLI help and exit. |
+
 ## Troubleshooting
 
 - Run with `--dry-run` first and verify every host path and mounted container
@@ -124,6 +157,13 @@ host port is mapped to the viewer's fixed container port `8501`.
 - If Docker is unavailable, confirm both the client and daemon are running and
   that your account can access the daemon. A FreeSurfer stage also needs a
   readable license and writable `--smri` directory.
+- For a SIF run, confirm either `apptainer` or `singularity` is on `PATH`, or
+  pass its executable with `--runtime-bin`. On systems with disabled
+  unprivileged user namespaces, an administrator may need to install the
+  matching Apptainer SUID package.
+- Keep the SIF itself read-only and make the bound `--output` directory
+  writable by the submitting user. The launcher does not need a writable
+  temporary overlay for the current MEGFlow image.
 - For source mode, confirm Nextflow is on `PATH` (or set `--nextflow`), the
   selected Conda environment exists, and the configured output/work/log parents
   are writable and traversable.

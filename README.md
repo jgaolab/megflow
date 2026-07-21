@@ -166,6 +166,7 @@ runtime.
 | Goal | Public script |
 | :--- | :--- |
 | Process one dataset with the official Docker entrypoint | [single-dataset Docker run](examples/run_scripts/single_dataset_docker.sh) |
+| Process one dataset from a SIF with Apptainer or SingularityCE | [single-dataset SIF run](examples/run_scripts/single_dataset_sif.sh) |
 | Process every immediate dataset directory with Docker corpus mode | [Docker corpus run](examples/run_scripts/corpus_docker.sh) |
 | Run a configured corpus with host Nextflow | [source corpus run](examples/run_scripts/corpus_source.sh) |
 | Open the Streamlit viewer for existing output | [interactive report viewer](examples/run_scripts/interactive_report.sh) |
@@ -176,6 +177,17 @@ For a first single-dataset run, provide host paths for the input and output:
 bash examples/run_scripts/single_dataset_docker.sh \
   --input /data/meg_dataset \
   --output /data/megflow_output \
+  --resume
+```
+
+For an installed Apptainer or SingularityCE runtime, use the same input and
+output paths with a local SIF:
+
+```bash
+bash examples/run_scripts/single_dataset_sif.sh \
+  --input /data/meg_dataset \
+  --output /data/megflow_output \
+  --sif /data/megflow_1.0.0.sif \
   --resume
 ```
 
