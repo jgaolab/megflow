@@ -87,7 +87,15 @@ corpus runs use ``corpus_static_html_report/nextflow/``:
 
 Nextflow initializes its launcher log before it loads pipeline configuration.
 A custom source launcher should therefore pass the configured log path through
-the top-level ``-log`` option:
+the top-level ``-log`` option.
+
+The commands below use ``-C``, so ``my_project.config`` must be a complete
+configuration or include the repository base with
+``includeConfig "nextflow.config"``. Use ``-c`` instead for a small additive
+overlay. See :ref:`configuration-cli-flags` for the exact soft- and
+hard-override behavior.
+
+For example:
 
 .. code-block:: bash
 

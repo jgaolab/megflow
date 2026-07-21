@@ -38,6 +38,82 @@ def _make_raw(sfreq=1000.0, duration=4.0, first_samp=0):
 
 
 class ContinuousEpochPreprocTests(unittest.TestCase):
+    def test_epoch_artifact_sidecars_require_a_complete_pair(self):
+        with self.assertRaisesRegex(
+            ValueError,
+            "Both bad-channel and bad-segment sidecars are required",
+        ):
+            epochs_module.load_epoch_artifact_sidecars(
+                _make_raw(),
+                fname_bad_channels="bad_channels.txt",
+            )
+
+    def test_epoch_artifact_sidecars_restore_bad_channels_and_segments(self):
+        raw = _make_raw()
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            bad_channels_file = tmpdir / "bad_channels.txt"
+            bad_segments_file = tmpdir / "bad_segments.txt"
+            bad_channels_file.write_text("MEG 001\n", encoding="utf-8")
+            mne.Annotations(
+                onset=[0.95],
+                duration=[0.2],
+                description=["BAD_artifact"],
+            ).save(bad_segments_file, overwrite=True)
+
+            loaded = epochs_module.load_epoch_artifact_sidecars(
+                raw,
+                bad_channels_file,
+                bad_segments_file,
+            )
+
+        self.assertEqual(loaded.info["bads"], ["MEG 001"])
+        self.assertEqual(list(loaded.annotations.description), ["BAD_artifact"])
+        np.testing.assert_allclose(loaded.annotations.onset, [0.95])
+
+    def test_epoch_process_rejects_segments_loaded_from_artifact_sidecar(self):
+        config = {
+            "preproc": [],
+            "task_type": "task",
+            "event_source": "find_events",
+            "find_events": {"stim_channel": "STI 014", "shortest_event": 1},
+            "epochs": {
+                "event_id": None,
+                "tmin": -0.1,
+                "tmax": 0.2,
+                "baseline": None,
+                "preload": True,
+                "picks": "meg",
+                "reject_by_annotation": True,
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            input_file = tmpdir / "input_raw.fif"
+            bad_channels_file = tmpdir / "bad_channels.txt"
+            bad_segments_file = tmpdir / "bad_segments.txt"
+            _make_raw().save(input_file, overwrite=True, verbose=False)
+            bad_channels_file.write_text("", encoding="utf-8")
+            mne.Annotations(
+                onset=[0.95],
+                duration=[0.2],
+                description=["BAD_artifact"],
+            ).save(bad_segments_file, overwrite=True)
+
+            with mock.patch.object(epochs_module, "plot_epochs"):
+                result = epochs_module.epochs(
+                    input_file,
+                    "output-epo.fif",
+                    tmpdir,
+                    "",
+                    config,
+                    fname_bad_channels=bad_channels_file,
+                    fname_bad_segments=bad_segments_file,
+                )
+
+        self.assertEqual(len(result), 1)
+        np.testing.assert_array_equal(result.events[:, 2], [2])
+
     def test_empty_preproc_is_true_noop(self):
         for value in (None, [], {}, {"steps": []}):
             with self.subTest(value=value):

@@ -36,7 +36,8 @@ The converter combines the following standardized inputs:
   direction, position unit, and good/bad status.
 * An event table or sparse trigger-change table. The converter creates a
   standard ``STI101`` stimulus channel so that events can be recovered with
-  :func:`mne.find_events`.
+  `MNE-Python's mne.find_events
+  <https://mne.tools/stable/generated/mne.find_events.html>`_.
 * Optionally, an optical-scan ``.ply`` file and fiducial table for preserving
   digitization and headshape information.
 
@@ -101,4 +102,3 @@ by the study and configure MEGFlow input discovery for that layout. Conversion
 only creates and validates the FIF input; it does not choose preprocessing,
 epoch, covariance, or source-reconstruction parameters. See
 :doc:`configuration` for those settings.
-

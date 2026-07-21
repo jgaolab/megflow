@@ -14,25 +14,29 @@ coregistration, source reconstruction, and static quality-control reports.
    :class-container: megflow-home-links
 
    .. grid-item-card:: :material-regular:`rocket_launch;1.4em` Install
-      :link: quickstart/installation.html
+      :link: quickstart/installation
+      :link-type: doc
       :class-card: megflow-nav-card
 
       Container, Apptainer/Singularity, and local source installation paths.
 
    .. grid-item-card:: :material-regular:`bolt;1.4em` Quickstart
-      :link: quickstart/quick_guide.html
+      :link: quickstart/quick_guide
+      :link-type: doc
       :class-card: megflow-nav-card
 
       Run your first dataset with default settings and inspect the report.
 
    .. grid-item-card:: :material-regular:`account_tree;1.4em` Workflow
-      :link: details/pipeline_details.html
+      :link: details/pipeline_details
+      :link-type: doc
       :class-card: megflow-nav-card
 
       Step-by-step execution order, branch conditions, inputs, and outputs.
 
    .. grid-item-card:: :material-regular:`settings;1.4em` Config
-      :link: reference/configuration.html
+      :link: reference/configuration
+      :link-type: doc
       :class-card: megflow-nav-card
 
       Formal ``nextflow.config`` reference with parameter meanings and defaults.
@@ -94,7 +98,8 @@ subject-level review and interactive edits when needed. See
    :class-container: megflow-screenshot-grid
 
    .. grid-item-card:: Dataset dashboard
-      :link: tutorial/reports.html
+      :link: tutorial/reports
+      :link-type: doc
       :class-card: megflow-screenshot-card
 
       .. image:: _static/static_reports/megflow_dataset_overview.png
@@ -105,7 +110,8 @@ subject-level review and interactive edits when needed. See
       coregistration metrics, epoch rejection, and alarm totals.
 
    .. grid-item-card:: Workflow provenance
-      :link: tutorial/reports.html
+      :link: tutorial/reports
+      :link-type: doc
       :class-card: megflow-screenshot-card
 
       .. image:: _static/static_reports/megflow_workflow.png
@@ -123,25 +129,29 @@ Where to Go Next
    :class-container: megflow-next-grid
 
    .. grid-item-card:: Run Locally
-      :link: tutorial/tutorial_local.html
+      :link: tutorial/tutorial_local
+      :link-type: doc
       :class-card: megflow-next-card
 
       Docker command structure, mounts, and common runtime options.
 
    .. grid-item-card:: Run on a Cluster
-      :link: tutorial/tutorial_cluster.html
+      :link: tutorial/tutorial_cluster
+      :link-type: doc
       :class-card: megflow-next-card
 
       SLURM and Singularity/Apptainer execution notes.
 
    .. grid-item-card:: Full Workflow
-      :link: tutorial/full_workflow.html
+      :link: tutorial/full_workflow
+      :link-type: doc
       :class-card: megflow-next-card
 
       Anatomy, epochs, covariance, coregistration, and source-level runs.
 
    .. grid-item-card:: Read QC Metrics
-      :link: reference/qc_metrics.html
+      :link: reference/qc_metrics
+      :link-type: doc
       :class-card: megflow-next-card
 
       How report metrics are computed and how to interpret alarms.
@@ -183,4 +193,10 @@ Where to Go Next
    reference/qc_metrics.rst
    reference/examples.rst
    reference/opm_conversion.rst
+
+.. toctree::
+   :hidden:
+   :maxdepth: 2
+   :caption: Development
+
    reference/validation.rst

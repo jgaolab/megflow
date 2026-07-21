@@ -33,7 +33,9 @@ dataset- or recording-level ``steps`` overrides:
        application.
    * - ``meg_epochs``
      - ``meg_ica`` plus epoch generation. With ``skip_ica``, epochs are created
-       from the OSL preprocessed raw files instead of ICA-clean raw files.
+       from the OSL preprocessed raw files instead of ICA-clean raw files. The
+       detected bad-channel and bad-segment sidecars are loaded before epochs
+       are constructed.
    * - ``meg_all``
      - Full MEG workflow using an existing ``fs_subjects_dir``.
    * - ``all``
@@ -226,6 +228,8 @@ annotations should exclude data:
 
 * ICA fitting ignores annotated spans when estimating ICA components.
 * ICA application writes a cleaned raw file with annotations attached.
+* With ``skip_ica``, epoching loads the detected bad-channel and bad-segment
+  sidecars directly into the preprocessed raw before constructing epochs.
 * Epoching drops epochs overlapping annotations only when
   ``epochs.epochs.reject_by_annotation`` is true.
 * Additional epoch rejection can come from ``epochs.epochs.reject`` or

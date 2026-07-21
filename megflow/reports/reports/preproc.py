@@ -566,7 +566,6 @@ else:
                 with st.expander("📄 Saved Files Details", expanded=False):
                     st.markdown(f"- **Bad channels:** `{bad_channels_file.name}` ({len(bad_ch_df)} channels)")
                     st.markdown(f"- **Bad segments:** `{bad_segments_file.name}` ({len(bad_seg_anat)} segments)")
-                    st.markdown(f"- **Raw data:** `{Path(file_path).name}`")
                     st.divider()
                     st.markdown("**Time Conversion:**")
                     st.markdown(f"- Display time (relative): 0-based")

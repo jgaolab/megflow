@@ -207,7 +207,9 @@ cost of all detailed figures. ``artifact_image_n_jobs`` controls parallel image
 generation only and does not change artifact decisions.
 
 Bad-segment sidecars contain annotations, not shortened data. Samples remain in
-the continuous FIF. ICA fitting and epoch construction exclude annotated spans
-according to their own ``reject_by_annotation`` behavior. See
-:ref:`bad-segment-marking` for the exact distinction between marking and later
-exclusion.
+the continuous FIF. The normal ICA path carries them into the cleaned raw; the
+``meg_epochs,skip_ica`` path loads the bad-channel and bad-segment sidecars into
+the preprocessed raw immediately before epoching. ICA fitting and epoch
+construction exclude annotated spans according to their own
+``reject_by_annotation`` behavior. See :ref:`bad-segment-marking` for the exact
+distinction between marking and later exclusion.

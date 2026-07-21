@@ -334,6 +334,11 @@ Dataset profiles are independent of the executor. Keep the same
 ``params.megflow`` content and launch with the composable Slurm and Singularity
 profiles:
 
+This example uses Nextflow ``-C`` and therefore expects ``my_project.config``
+to be complete or to include ``nextflow.config`` explicitly. Use ``-c`` for a
+small additive overlay. See :ref:`configuration-cli-flags` for the complete
+resolution rules.
+
 .. code-block:: bash
 
    nextflow -log "$MEGFLOW_DRIVER_LOG" \

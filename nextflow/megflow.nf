@@ -1669,7 +1669,7 @@ process epochs {
     tag "${subject_key[0]}:${subject_key[1]}"
 
     input:
-    tuple val(subject_key), val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val(analysis_raw_path), val(target_mri_subject_id), val(clean_hash), val(events_file), val(events_hash)
+    tuple val(subject_key), val(dataset_name), val(dataset_dir), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(t1_dir), val(effective_config), val(orig_raw_path), val(analysis_raw_path), val(target_mri_subject_id), val(clean_hash), val(bad_channels), val(bad_segments), val(events_file), val(events_hash)
 
     output:
     tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val("${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}-epo.fif"), val(epoch_analysis_raw_path), val(clean_hash), val(events_hash), emit: epoch_subjects
@@ -1693,6 +1693,8 @@ process epochs {
     mkdir -p "${preproc_dir}/${epoch_output_dir}/${raw_subject_dir_basename}"
     python ${script_name} \\
         --preproc_raw_file "${analysis_raw_path}" \\
+        --fname_bad_channels "${bad_channels}" \\
+        --fname_bad_segments "${bad_segments}" \\
         --events_file "${events_file}" \\
         --output_epoch_file "${raw_subject_basename}-epo.fif" \\
         --output_analysis_raw_file "${epoch_analysis_raw_path}" \\
@@ -2739,13 +2741,13 @@ workflow {
     native_non_reference_clean_subject_ch = Channel.empty()
     native_epoch_with_hash_ch = Channel.empty()
     if (megPlan.runEpochs) {
-        native_non_reference_preproc_with_hash_ch = native_preproc_with_hash_ch
+        native_non_reference_artifacts_with_hash_ch = native_artifacts_with_hash
             .combine(native_raw_cov_reference_keys_v)
-            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash, reference_keys ->
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, reference_keys ->
                 !isRawCovarianceReferenceKey(reference_keys, dataset_name, orig_raw_path)
             }
-            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash, reference_keys ->
-                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash)
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, reference_keys ->
+                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash)
             }
         native_non_reference_clean_subject_ch = native_clean_subject_ch
             .combine(native_raw_cov_reference_keys_v)
@@ -2756,13 +2758,13 @@ workflow {
                 tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
             }
 
-        native_epoch_from_preproc_ch = native_non_reference_preproc_with_hash_ch
-            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash ->
+        native_epoch_from_preproc_ch = native_non_reference_artifacts_with_hash_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash ->
                 asMap(effective_config._steps).megStage >= 2 && asMap(effective_config._steps).skipIca
             }
-            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, preproc_hash ->
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash ->
                 def subjectKey = recordingKey(dataset_name, orig_raw_path)
-                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, '', preproc_hash)
+                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, '', artifact_hash, bad_channels, bad_segments)
             }
         native_epoch_from_clean_ch = native_non_reference_clean_subject_ch
             .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
@@ -2770,14 +2772,14 @@ workflow {
             }
             .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                 def subjectKey = recordingKey(dataset_name, orig_raw_path)
-                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
+                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, '', '')
             }
         native_epoch_input_ch = native_epoch_from_preproc_ch
             .mix(native_epoch_from_clean_ch)
-            .map { subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, analysis_raw_path, target_mri_subject_id, clean_hash ->
+            .map { subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, analysis_raw_path, target_mri_subject_id, clean_hash, bad_channels, bad_segments ->
                 def eventsFile = orig_raw_path.toString().replaceAll(/_meg\..*/, '_events.tsv')
                 def eventsHash = fileSha256(eventsFile)
-                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, analysis_raw_path, target_mri_subject_id, clean_hash, eventsFile, eventsHash)
+                tuple(subjectKey, dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, analysis_raw_path, target_mri_subject_id, clean_hash, bad_channels, bad_segments, eventsFile, eventsHash)
             }
         native_epochs = epochs(native_epoch_input_ch)
         native_epoch_subject_ch = native_epochs.epoch_subjects

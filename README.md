@@ -23,11 +23,11 @@ MEGFlow uses **Nextflow** to schedule independent tasks concurrently and manage 
 ### 🔗 Modular Workflow
 The workflow is organized into configurable stages so users can run the full pipeline or stop at selected milestones.
 
-### 🔎 Automated Detection Steps
+### 🔎 Automated Processing and Review
 MEGFlow includes automated steps that reduce repeated manual work:
-*   Artifact rejection
-*   ICA (Independent Component Analysis) component detection
-*   Coregistration
+*   Bad-channel and bad-segment detection
+*   ICA (Independent Component Analysis) component detection and labeling
+*   MEG-MRI coregistration
 
 ### 📐 Quality Control Reports
 The reporting tools summarize quality-control metrics for each processing stage and flag potential anomalies.
@@ -74,6 +74,10 @@ resources, and configured parallelism.
 
 ### Recommended: Containerized Install
 
+The relative `scripts/install/...` and `scripts/install-dev/...` commands below
+must be run from the MEGFlow repository root after cloning or downloading the
+repository.
+
 The scripts under `scripts/install/` install or reuse a container runtime, pull
 `cplmeg/megflow:<version>`, and verify the image by running the MEGFlow help
 command.
@@ -97,7 +101,12 @@ On Linux, the installer can use Docker or Apptainer/Singularity:
 ```bash
 bash scripts/install/install_megflow_linux.sh 1.0.0 docker
 bash scripts/install/install_megflow_linux.sh 1.0.0 apptainer
+bash scripts/install/install_megflow_linux.sh 1.0.0 singularity
 ```
+
+The Apptainer/Singularity path does not use a Docker daemon. It downloads the
+published OCI layers from Docker Hub and converts them into
+`./megflow_<version>.sif` (or `MEGFLOW_SIF_PATH`).
 
 For more details, see `scripts/install/README.md`.
 
@@ -142,7 +151,7 @@ docker pull cplmeg/megflow:<version>
 
 ### Basic Command Structure
 ```bash
-docker run --rm -it cplmeg/megflow:<version> [nextflow_options]
+docker run --rm -it cplmeg/megflow:<version> [megflow_options]
 ```
 
 ### Runnable Examples
@@ -193,8 +202,8 @@ The file [`nextflow/megflow.nf`](nextflow/megflow.nf) is controlled by **`params
 
 | Modifier | When it is valid | Effect |
 | :--- | :--- | :--- |
-| `skip_ica` | Only with **`meg_epochs`** | Skips ICA; builds epochs from `*_preproc-raw` files produced by basic preprocessing. Not available for `all` / `meg_all` (downstream forward/source expect ICA-clean raw). |
-| `with_anatomy` | `meg_artifacts`, `meg_ica`, or `meg_epochs` (not `meg_all`) | Runs the structural pipeline **before** the selected MEG milestone in the same run. |
+| `skip_ica` | Only with **`meg_epochs`** | Skips ICA; loads the detected bad-channel and bad-segment sidecars into `*_preproc-raw` before building epochs. Not available for `all` / `meg_all` (downstream forward/source expect ICA-clean raw). |
+| `with_anatomy` | `meg_artifacts`, `meg_ica`, or `meg_epochs` (not `meg_all`) | Runs the structural and selected MEG branches in the same workflow. They may execute concurrently; downstream steps wait for anatomy only when required. |
 
 **Note:** `do_fs`, `do_only_anatomy`, and top-level `params.steps` are no longer used by the Nextflow workflow. Put `steps` under `params.megflow.defaults`, a dataset profile, or a recording profile.
 
@@ -522,10 +531,10 @@ The image entrypoint is [`nextflow/run_for_docker.sh`](nextflow/run_for_docker.s
 - **Corpus mode** uses `--corpus`; in that mode `-i` / `--input` points to a directory whose immediate children are datasets, and `--fs_subjects_dir` is used as the base directory for per-dataset FreeSurfer outputs. Named profiles, `dataset_include`, `dataset_exclude`, and dataset-level module overrides from the mounted config are preserved.
 - You can instead set **`steps = '...'`** inside the nested **`params { megflow { defaults { ... } } }`** block in the Nextflow file mounted at **`/program/nextflow/nextflow.config`**; a container **`--steps`** / **`-s`** argument **overrides** that for the run.
 - **`-s`** here is the **MEGFlow** flag (input path is **`-i`**), not Docker’s **`-i`** (interactive). Typical pattern: `docker run ... cplmeg/megflow:<tag> -i /input -o /output ... --steps all`.
-- The Docker entrypoint copies the mounted config to
-  `/program/nextflow/run_nextflow.config`, applies command-line path overrides,
-  runs Nextflow with that file, and copies it to `<output>/nextflow.config` for
-  provenance and static-report packaging.
+- The container entrypoint copies the mounted config to
+  `<output>/.nextflow-launch/run_nextflow.config`, applies command-line path
+  overrides, runs Nextflow with that writable file, and copies it to
+  `<output>/nextflow.config` for provenance and static-report packaging.
 - The Docker entrypoint starts as root only long enough to prepare mounted output permissions, then drops to the host UID/GID inferred from `/input`; report-only runs that only mount `/output` infer ownership from `/output`.
 
 **Docker output ownership**
@@ -582,6 +591,43 @@ docker run --rm -it \
   --steps report
 ```
 
+### Using MEGFlow with Apptainer or Singularity
+
+The Linux installer creates a local SIF that can run the same MEGFlow
+entrypoint. Bind host directories to the container paths used in the command:
+
+```bash
+mkdir -p /data/out
+
+apptainer run --cleanenv \
+  --bind /data/bids:/input \
+  --bind /data/out:/output \
+  ./megflow_1.0.0.sif \
+  -i /input -o /output \
+  --steps meg_ica --resume
+```
+
+Use `singularity run` in place of `apptainer run` on SingularityCE systems.
+Add structural MRI, FreeSurfer license, and custom-config binds when those paths
+are needed, for example:
+
+```bash
+apptainer run --cleanenv \
+  --bind /data/bids:/input \
+  --bind /data/out:/output \
+  --bind /data/smri:/smri \
+  --bind /data/license.txt:/fs_license.txt:ro \
+  --bind /data/megflow/nextflow.config:/program/nextflow/nextflow.config:ro \
+  ./megflow_1.0.0.sif \
+  -i /input -o /output \
+  --fs_license_file /fs_license.txt \
+  --fs_subjects_dir /smri \
+  --steps all --resume
+```
+
+SIF root filesystems remain read-only. MEGFlow writes its generated runtime
+configuration and Nextflow state beneath the bound `/output` directory.
+
 ### Main Options
 
 | Option | Description |
@@ -630,7 +676,14 @@ For MEGFlow, the default **`steps`** is **`meg_all`** (MEG only, using existing 
 
 ## 📐 Quality Control Reports
 
-MEGFlow generates interactive quality control reports via Streamlit.
+MEGFlow generates a portable static HTML quality-control report for each
+processed dataset and a cross-dataset dashboard for corpus runs. The static
+report is the primary review output and can be opened directly from
+`static_html_report/index.html` or `corpus_static_html_report/index.html`.
+
+An optional interactive Streamlit viewer supports closer inspection and manual
+editing of selected bad-channel, bad-segment, ICA, coregistration, and source
+review outputs.
 
 For corpus-mode outputs, pass the output root with `-o`. The Streamlit viewer
 detects `datasets/<dataset_name>/` and adds a dataset selector in the sidebar;
@@ -692,6 +745,31 @@ then ensure it is on `PATH`. Use the source installation instructions in
 [`scripts/install-dev/README.md`](scripts/install-dev/README.md) when a local
 MEGFlow environment is needed instead of the distributed image.
 
+### Validation and Regression-Test Modes
+
+Run the fast routing gate used for push and pull-request checks from an
+activated MEGFlow environment:
+
+```bash
+export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
+bash scripts/validation/run_validation.sh routing-ci
+```
+
+`routing-ci` runs static routing contracts, parses tracked Nextflow configs,
+and executes a representative Nextflow 24.10.3 smoke matrix. `routing` adds
+the exhaustive local routing, resume-deletion, failure, report, and
+documentation-example matrices. `scientific` runs synthetic MNE/OSL filtering,
+epochs, covariance, source-call, NormMEG-QC, DeepReject-input, MEGNet/ICA-label,
+and report tests. `all` runs the complete local gates and builds documentation
+when its dependencies are installed. Requested gates fail if dependencies are
+missing, no tests are discovered, or any test is skipped.
+
+GitHub Actions runs `routing-ci`, `scientific`, native Linux installer and
+native macOS installer jobs, Windows parser/contracts on the Windows runner,
+and the strict documentation build for every push and pull request. The
+exhaustive `routing` matrix remains a local pre-release gate. Pinned lightweight
+scientific dependencies are in `requirements_validation.txt`.
+
 ### Public Developer-Script Reference
 
 | Helper | Purpose and command | Prerequisites, output, and safety |
@@ -728,31 +806,6 @@ bash scripts/development/build_docs.sh --strict
 The default output is `docs/build/html`. `--clean` removes only the selected
 documentation output directory before rebuilding; choose a custom `--output`
 when retaining a separate preview is useful.
-
-### Validation and Regression-Test Modes
-
-Run the fast routing gate used for push and pull-request checks from an
-activated MEGFlow environment:
-
-```bash
-export MEGFLOW_NEXTFLOW="$(command -v nextflow)"
-bash scripts/validation/run_validation.sh routing-ci
-```
-
-`routing-ci` runs static routing contracts, parses tracked Nextflow configs,
-and executes a representative Nextflow 24.10.3 smoke matrix. `routing` adds
-the exhaustive local routing, resume-deletion, failure, report, and
-documentation-example matrices. `scientific` runs synthetic MNE/OSL filtering,
-epochs, covariance, source-call, MEGQC, DeepReject-input, MEGNet/ICA-label,
-and report tests. `all` runs the complete local gates and builds documentation
-when its dependencies are installed. Requested gates fail if dependencies are
-missing, no tests are discovered, or any test is skipped.
-
-GitHub Actions runs `routing-ci`, `scientific`, native Linux installer and
-native macOS installer jobs, Windows parser/contracts on the Windows runner,
-and the strict documentation build for every push and pull request. The
-exhaustive `routing` matrix remains a local pre-release gate. Pinned lightweight
-scientific dependencies are in `requirements_validation.txt`.
 
 ### Advanced Local Docker-to-SIF Conversion
 

@@ -14,6 +14,12 @@ affect reproducibility.
 Recommended: Containerized One-Click Install
 --------------------------------------------
 
+.. important::
+
+   The relative ``scripts/install/...`` and ``scripts/install-dev/...``
+   commands on this page must be run from the MEGFlow repository root after
+   cloning or downloading the repository.
+
 The scripts under ``scripts/install/`` install or reuse a container runtime,
 pull ``cplmeg/megflow:<version>``, and verify the installation by running the
 MEGFlow help command.
@@ -45,19 +51,46 @@ On Linux, the installer can use Docker or Apptainer/Singularity:
 
    bash scripts/install/install_megflow_linux.sh 1.0.0 docker
    bash scripts/install/install_megflow_linux.sh 1.0.0 apptainer
+   bash scripts/install/install_megflow_linux.sh 1.0.0 singularity
 
 The first Linux argument is the image tag and the optional second argument is
-``auto``, ``docker``, or ``apptainer``. With no arguments, the installer uses
-``latest`` and ``auto``; with only ``1.0.0``, runtime selection remains
-automatic. In ``auto`` mode, a usable Docker daemon is preferred and the
-installer otherwise selects Apptainer/Singularity.
+``auto``, ``docker``, ``apptainer``, or ``singularity``. The last two names
+select the same SIF workflow. With no arguments, the installer uses ``latest``
+and ``auto``; with only ``1.0.0``, runtime selection remains automatic. In
+``auto`` mode, a usable Docker daemon is preferred and the installer otherwise
+selects Apptainer/Singularity.
 
-When Apptainer or Singularity is already available, the installer pulls a SIF
-from ``docker://cplmeg/megflow:<version>`` and runs the image entrypoint with
-``-h``. If neither runtime is installed, package-manager installation is
-best-effort because package availability differs among Linux distributions and
-HPC sites. Install the runtime through the site's supported repository first
-when the automatic attempt is unavailable.
+When Apptainer or Singularity is available, it downloads the OCI layers from
+``docker://cplmeg/megflow:<version>``, translates them into a local SIF, and
+runs the image entrypoint with ``-h``. It does not use a Docker daemon or create
+a local Docker image. If neither runtime is installed, package-manager
+installation is best-effort because package availability differs among Linux
+distributions and HPC sites. Install the runtime through the site's supported
+repository first when the automatic attempt is unavailable. See the
+`Apptainer Docker/OCI guide
+<https://apptainer.org/docs/user/latest/docker_and_oci.html>`_ for details of
+the OCI-to-SIF translation.
+
+Run the generated SIF with writable host directories bound to the paths used by
+the MEGFlow entrypoint. This example processes MEG through ICA:
+
+.. code-block:: bash
+
+   mkdir -p /data/out
+
+   apptainer run --cleanenv \
+     --bind /data/bids:/input \
+     --bind /data/out:/output \
+     ./megflow_1.0.0.sif \
+     -i /input -o /output \
+     --steps meg_ica --resume
+
+Use ``singularity run`` instead on a SingularityCE system. A custom MEGFlow
+configuration can be added with
+``--bind /data/megflow/nextflow.config:/program/nextflow/nextflow.config:ro``.
+Bind structural MRI and FreeSurfer license paths in the same way when anatomy or
+source processing needs them. The SIF root remains read-only; generated runtime
+configuration and Nextflow state are written below the bound ``/output`` path.
 
 See ``scripts/install/README.md`` for installer options and troubleshooting.
 

@@ -41,7 +41,7 @@ sys.path.insert(0,os.path.abspath(os.path.join("..", "..")))
 # -- Project information -----------------------------------------------------
 
 project = 'MEGFlow'
-copyright = '2025, LiaoPan'
+copyright = '2026, LiaoPan'
 author = 'LiaoPan'
 
 # The full version, including alpha/beta/rc tags
@@ -89,7 +89,7 @@ nitpick_ignore = [
     ("py:class", "docutils.parsers.rst.directives.body.Sidebar"),
 ]
 
-suppress_warnings = ["myst.domains", "ref.ref"]
+suppress_warnings = ["myst.domains"]
 
 numfig = True
 

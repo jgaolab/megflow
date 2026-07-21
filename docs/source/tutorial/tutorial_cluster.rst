@@ -28,6 +28,12 @@ Keep scientific settings in a user-owned config such as
 ``nextflow/my_project.config``. Supply scheduler and filesystem details with
 environment variables:
 
+The launch command below uses Nextflow ``-C``. The project config must therefore
+be complete or include the repository base with
+``includeConfig "nextflow.config"``. For a small additive project overlay, use
+``-c`` instead. See :ref:`configuration-cli-flags` for the distinction between
+Nextflow's ``-c`` and ``-C`` and the Docker entrypoint's ``--config``.
+
 .. code-block:: bash
 
    export MEGFLOW_SLURM_PARTITION=cpu

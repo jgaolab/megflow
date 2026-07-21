@@ -3,7 +3,7 @@
 set -euo pipefail
 
 IMAGE_TAG="${1:-latest}"
-RUNTIME_MODE="${2:-auto}" # auto | docker | apptainer
+RUNTIME_MODE="${2:-auto}" # auto | docker | apptainer | singularity
 IMAGE="cplmeg/megflow:${IMAGE_TAG}"
 SIF_PATH="${MEGFLOW_SIF_PATH:-./megflow_${IMAGE_TAG}.sif}"
 RUNTIME=""
@@ -130,8 +130,8 @@ select_runtime() {
     docker)
       RUNTIME="docker"
       ;;
-    apptainer)
-      RUNTIME="apptainer"
+    apptainer|singularity)
+      RUNTIME="${RUNTIME_MODE}"
       ;;
     auto)
       if docker_usable; then
@@ -141,7 +141,7 @@ select_runtime() {
       fi
       ;;
     *)
-      log "Invalid runtime mode: ${RUNTIME_MODE}. Use: auto | docker | apptainer"
+      log "Invalid runtime mode: ${RUNTIME_MODE}. Use: auto | docker | apptainer | singularity"
       exit 1
       ;;
   esac

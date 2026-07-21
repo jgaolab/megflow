@@ -10,6 +10,11 @@ README = REPO_ROOT / "README.md"
 DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
 INSTALLATION_DOC = REPO_ROOT / "docs" / "source" / "quickstart" / "installation.rst"
 QUICKSTART_DOC = REPO_ROOT / "docs" / "source" / "quickstart" / "quick_guide.rst"
+CONFIGURATION_DOC = REPO_ROOT / "docs" / "source" / "reference" / "configuration.rst"
+INDEX_DOC = REPO_ROOT / "docs" / "source" / "index.rst"
+SPHINX_CONFIG = REPO_ROOT / "docs" / "source" / "conf.py"
+OPM_CONVERSION_DOC = REPO_ROOT / "docs" / "source" / "reference" / "opm_conversion.rst"
+INTERACTIVE_PREPROC = REPO_ROOT / "megflow" / "reports" / "reports" / "preproc.py"
 QUICKSTART_CONFIG = REPO_ROOT / "nextflow" / "quickstart.config"
 EXAMPLES_DOC = REPO_ROOT / "docs" / "source" / "reference" / "examples.rst"
 
@@ -58,9 +63,6 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.runner = self.root / "run.sh"
         runner_text = DOCKER_RUNNER.read_text(encoding="utf-8")
         runner_text = runner_text.replace(
-            'RUN_CONFIG_FILE="/program/nextflow/run_nextflow.config"',
-            f'RUN_CONFIG_FILE="{self.run_config}"',
-        ).replace(
             'NEXTFLOW_FILE="/program/nextflow/megflow.nf"',
             f'NEXTFLOW_FILE="{self.pipeline}"',
         )
@@ -75,6 +77,7 @@ class DockerEntrypointOptionTests(unittest.TestCase):
                 "MEGFLOW_TEST_NEXTFLOW_PWD": str(self.nextflow_pwd),
                 "MEGFLOW_TEST_STREAMLIT_ARGS": str(self.streamlit_args),
                 "MEGFLOW_TEST_STREAMLIT_ENV": str(self.streamlit_env),
+                "MEGFLOW_RUN_CONFIG_FILE": str(self.run_config),
             }
         )
 
@@ -93,6 +96,44 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             text=True,
             capture_output=True,
         )
+
+    def test_runtime_config_is_written_below_the_writable_output_root(self):
+        runner = self.root / "read-only-compatible-run.sh"
+        runner_text = DOCKER_RUNNER.read_text(encoding="utf-8").replace(
+            'NEXTFLOW_FILE="/program/nextflow/megflow.nf"',
+            f'NEXTFLOW_FILE="{self.pipeline}"',
+        )
+        self._write_executable(runner, runner_text)
+        input_dir = self.root / "input"
+        output_dir = self.root / "output"
+        input_dir.mkdir()
+        output_dir.mkdir()
+        env = self.env.copy()
+        env.pop("MEGFLOW_RUN_CONFIG_FILE", None)
+
+        result = subprocess.run(
+            [
+                "bash",
+                str(runner),
+                "-c",
+                str(self.base_config),
+                "-i",
+                str(input_dir),
+                "-o",
+                str(output_dir),
+                "--steps",
+                "report",
+            ],
+            env=env,
+            text=True,
+            capture_output=True,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(
+            (output_dir / ".nextflow-launch" / "run_nextflow.config").is_file()
+        )
+        self.assertNotIn("/program/nextflow/run_nextflow.config", runner_text)
 
     def test_help_and_installation_list_the_same_entrypoint_options(self):
         result = self._run("--help")
@@ -143,6 +184,88 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.assertIn("NMDQ score", meg_all_row)
         self.assertIn("`megqc.enabled`", meg_all_row)
         self.assertIn("default", meg_all_row.lower())
+
+    def test_readme_names_options_after_the_image_as_megflow_options(self):
+        readme = README.read_text(encoding="utf-8")
+        self.assertIn("[megflow_options]", readme)
+        self.assertNotIn("[nextflow_options]", readme)
+
+    def test_install_commands_state_the_repository_root_requirement(self):
+        for document in (README, INSTALLATION_DOC):
+            with self.subTest(document=document.name):
+                text = document.read_text(encoding="utf-8").lower()
+                self.assertIn("repository root", text)
+                self.assertIn("scripts/install/", text)
+                self.assertIn("scripts/install-dev/", text)
+
+    def test_readme_uses_current_workflow_and_report_terms(self):
+        readme = README.read_text(encoding="utf-8")
+        normalized_readme = readme.lower()
+        with_anatomy_row = next(
+            line for line in readme.splitlines() if line.startswith("| `with_anatomy` |")
+        )
+        self.assertIn("concurrently", with_anatomy_row)
+        self.assertNotIn("Artifact rejection", readme)
+        self.assertIn("bad-channel and bad-segment detection", normalized_readme)
+        self.assertIn("static HTML", readme)
+        self.assertIn("interactive", readme)
+        self.assertNotIn("MEGQC", readme)
+        self.assertIn("NormMEG-QC", readme)
+
+    def test_readme_keeps_validation_with_developer_setup(self):
+        readme = README.read_text(encoding="utf-8")
+        development = readme.split("## 🛠️ Development", 1)[1]
+        self.assertLess(
+            development.index("### Local Development Setup"),
+            development.index("### Validation and Regression-Test Modes"),
+        )
+        self.assertLess(
+            development.index("### Validation and Regression-Test Modes"),
+            development.index("### Building the Docker Image"),
+        )
+
+    def test_configuration_docs_distinguish_all_config_cli_layers(self):
+        text = CONFIGURATION_DOC.read_text(encoding="utf-8")
+        normalized_text = " ".join(text.split())
+        for expected in (
+            "Docker entrypoint",
+            "``-c`` / ``--config``",
+            "soft override",
+            "hard override",
+            "``nextflow -c``",
+            "``nextflow -C``",
+            "ignore all other configuration files",
+        ):
+            self.assertIn(expected, normalized_text)
+
+    def test_validation_navigation_is_separate_from_reference(self):
+        index = INDEX_DOC.read_text(encoding="utf-8")
+        reference = index.split(":caption: Reference", 1)[1].split(
+            ".. toctree::", 1
+        )[0]
+        development = index.split(":caption: Development", 1)[1]
+        self.assertNotIn("reference/validation", reference)
+        self.assertIn("reference/validation", development)
+
+    def test_sphinx_refs_and_internal_card_links_are_strict(self):
+        config = SPHINX_CONFIG.read_text(encoding="utf-8")
+        index = INDEX_DOC.read_text(encoding="utf-8")
+        opm = OPM_CONVERSION_DOC.read_text(encoding="utf-8")
+        self.assertNotIn('"ref.ref"', config)
+        self.assertNotRegex(index, r":link:\s+\S+\.html")
+        self.assertGreaterEqual(index.count(":link-type: doc"), 10)
+        self.assertNotIn(":func:`mne.find_events`", opm)
+        self.assertIn("https://mne.tools/stable/generated/mne.find_events.html", opm)
+        self.assertIn("copyright = '2026,", config)
+
+    def test_interactive_saved_files_only_lists_persisted_sidecars(self):
+        source = INTERACTIVE_PREPROC.read_text(encoding="utf-8")
+        saved_details = source.split(
+            'with st.expander("📄 Saved Files Details"', 1
+        )[1].split("# Reset navigation", 1)[0]
+        self.assertIn("**Bad channels:**", saved_details)
+        self.assertIn("**Bad segments:**", saved_details)
+        self.assertNotIn("**Raw data:**", saved_details)
 
     def test_quickstart_ships_a_safe_downloadable_project_overlay(self):
         self.assertTrue(QUICKSTART_CONFIG.is_file())

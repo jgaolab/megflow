@@ -19,7 +19,7 @@ from pathlib import Path
 from autoreject import AutoReject
 from autoreject import get_rejection_threshold
 from epochs_preproc import get_analysis_preproc_steps, prepare_analysis_raw
-from utils import set_random_seed
+from utils import load_bad_chn_seg, set_random_seed
 import matplotlib.pyplot as plt
 mne.viz.set_browser_backend('matplotlib')
 set_random_seed(2025)
@@ -83,6 +83,24 @@ def _get_exclude_event_id(config):
     if exclude_event_id is None:
         exclude_event_id = (config.get('epochs') or {}).get('exclude_event_id', None)
     return exclude_event_id
+
+
+def load_epoch_artifact_sidecars(
+    raw,
+    fname_bad_channels=None,
+    fname_bad_segments=None,
+):
+    """Apply artifact sidecars to Raw before epoch construction when provided."""
+    has_bad_channels = bool(fname_bad_channels)
+    has_bad_segments = bool(fname_bad_segments)
+    if has_bad_channels != has_bad_segments:
+        raise ValueError(
+            "Both bad-channel and bad-segment sidecars are required when "
+            "loading artifact results for epoching."
+        )
+    if not has_bad_channels:
+        return raw
+    return load_bad_chn_seg(raw, fname_bad_channels, fname_bad_segments)
 
 
 def analysis_preproc_has_operation(config, operation, *, config_name="epochs.preproc"):
@@ -539,6 +557,8 @@ def epochs(
     events_file,
     config,
     output_analysis_raw_file=None,
+    fname_bad_channels=None,
+    fname_bad_segments=None,
 ):
     """
     Process each subject and session to generate epochs and handle rejection logs.
@@ -546,6 +566,11 @@ def epochs(
 
     # Load raw data
     raw = mne.io.read_raw_fif(subj_data_file)
+    raw = load_epoch_artifact_sidecars(
+        raw,
+        fname_bad_channels=fname_bad_channels,
+        fname_bad_segments=fname_bad_segments,
+    )
 
     # Extract parameters from config
     subj_tag = os.path.basename(subj_data_file)
@@ -629,6 +654,18 @@ def parse_arguments():
         help="Optional output path for continuous Raw after epochs.preproc.",
     )
     parser.add_argument('--output_dir', type=str, default=".", help="")
+    parser.add_argument(
+        '--fname_bad_channels',
+        type=str,
+        default="",
+        help="Optional bad-channel sidecar applied before epoching.",
+    )
+    parser.add_argument(
+        '--fname_bad_segments',
+        type=str,
+        default="",
+        help="Optional bad-segment annotation sidecar applied before epoching.",
+    )
     parser.add_argument('--config', type=str,  default="{}", help="YAML configuration string for epochs")
 
     return parser.parse_args()
@@ -704,6 +741,8 @@ def main():
         args.events_file,
         config,
         output_analysis_raw_file=args.output_analysis_raw_file or None,
+        fname_bad_channels=args.fname_bad_channels or None,
+        fname_bad_segments=args.fname_bad_segments or None,
     )
 
 

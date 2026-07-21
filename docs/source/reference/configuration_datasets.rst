@@ -329,11 +329,12 @@ Aliases are accepted: ``meg`` maps to ``meg_all``, ``artifacts`` maps to
 ``meg_epochs``.
 
 Optional modifiers are comma-separated. ``meg_epochs,skip_ica`` creates epochs
-from OSL-preprocessed raw files instead of ICA-clean raw files. ``with_anatomy``
-can be used with ``meg_artifacts``, ``meg_ica``, or ``meg_epochs`` when anatomy
-should run in the same workflow. The structural and MEG branches may execute
-concurrently; anatomy becomes a MEG dependency only when downstream
-coregistration and source modeling require it.
+from OSL-preprocessed raw files instead of ICA-clean raw files and loads the
+detected bad-channel and bad-segment sidecars before epoch construction.
+``with_anatomy`` can be used with ``meg_artifacts``, ``meg_ica``, or
+``meg_epochs`` when anatomy should run in the same workflow. The structural and
+MEG branches may execute concurrently; anatomy becomes a MEG dependency only
+when downstream coregistration and source modeling require it.
 
 **Worked examples:** :ref:`example-first-meg-pass`,
 :ref:`example-anatomy-only`, and :ref:`example-full-meg`.

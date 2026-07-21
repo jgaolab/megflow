@@ -24,6 +24,13 @@ EXAMPLE_PAGES = (
     REPO_ROOT / "docs" / "source" / "reference" / "examples_single_dataset.rst",
     REPO_ROOT / "docs" / "source" / "reference" / "examples_profiles.rst",
 )
+PUBLIC_DOCUMENTS = (REPO_ROOT / "README.md",) + tuple(
+    sorted(
+        page
+        for page in (REPO_ROOT / "docs" / "source").rglob("*.rst")
+        if not page.name.startswith("._")
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -198,6 +205,60 @@ def extract_code_blocks(page):
 
 def all_blocks():
     return [block for page in EXAMPLE_PAGES for block in extract_code_blocks(page)]
+
+
+def all_public_bash_blocks():
+    blocks = []
+    for page in PUBLIC_DOCUMENTS:
+        content = page.read_text(encoding="utf-8")
+        if page.suffix == ".md":
+            for match in re.finditer(r"(?ms)^```bash\s*\n(.*?)^```\s*$", content):
+                blocks.append((page, content.count("\n", 0, match.start()) + 1, match.group(1).strip()))
+            continue
+
+        lines = content.splitlines()
+        index = 0
+        while index < len(lines):
+            match = re.match(r"^(\s*)\.\. code-block::\s+bash\s*$", lines[index])
+            if not match:
+                index += 1
+                continue
+            directive_line = index + 1
+            directive_indent = len(match.group(1))
+            block_lines = []
+            index += 1
+            while index < len(lines):
+                line = lines[index]
+                line_indent = len(line) - len(line.lstrip())
+                if line and line_indent <= directive_indent:
+                    break
+                block_lines.append(line)
+                index += 1
+            blocks.append(
+                (page, directive_line, textwrap.dedent("\n".join(block_lines)).strip())
+            )
+    return [block for block in blocks if block[2]]
+
+
+def docker_commands(block_text):
+    lines = block_text.splitlines()
+    commands = []
+    index = 0
+    while index < len(lines):
+        if not lines[index].strip().startswith("docker run"):
+            index += 1
+            continue
+        command_lines = [lines[index].strip()]
+        while command_lines[-1].endswith("\\") and index + 1 < len(lines):
+            index += 1
+            command_lines.append(lines[index].strip())
+        commands.append("\n".join(command_lines))
+        index += 1
+    return commands
+
+
+def normalize_shell_placeholders(command):
+    return re.sub(r"<[^>\n]+>", "PLACEHOLDER", command)
 
 
 def all_documented_groovy_snippets():
@@ -383,10 +444,10 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
         subsections = (
             "### Prerequisites",
             "### Local Development Setup",
+            "### Validation and Regression-Test Modes",
             "### Public Developer-Script Reference",
             "### Building the Docker Image",
             "### Building and Strictly Validating Documentation",
-            "### Validation and Regression-Test Modes",
             "### Advanced Local Docker-to-SIF Conversion",
             "### Pull-Request Workflow",
         )
@@ -456,6 +517,42 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
                     check=False,
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_all_public_bash_blocks_are_valid_shell_syntax(self):
+        blocks = all_public_bash_blocks()
+        self.assertGreaterEqual(len(blocks), 40)
+        for page, line, block in blocks:
+            with self.subTest(document=page.relative_to(REPO_ROOT), line=line):
+                result = subprocess.run(
+                    ["bash", "-n"],
+                    input=normalize_shell_placeholders(block) + "\n",
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_all_public_docker_commands_use_current_entrypoint_options(self):
+        supported = docker_entrypoint_options()
+        commands = [
+            (page, line, command)
+            for page, line, block in all_public_bash_blocks()
+            for command in docker_commands(block)
+            if "cplmeg/megflow:" in command
+        ]
+        self.assertGreaterEqual(len(commands), 15)
+        for page, line, command in commands:
+            with self.subTest(document=page.relative_to(REPO_ROOT), line=line):
+                block = DocumentationCodeBlock(
+                    page=page,
+                    anchor="public-doc",
+                    language="bash",
+                    index=1,
+                    line=line,
+                    text=normalize_shell_placeholders(command),
+                )
+                unknown = documented_docker_options(block) - supported
+                self.assertEqual(unknown, set())
 
     def test_documented_docker_flags_match_the_current_entrypoint(self):
         supported = docker_entrypoint_options()

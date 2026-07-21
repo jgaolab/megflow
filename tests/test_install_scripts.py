@@ -62,6 +62,8 @@ class InstallerMetadataContractTests(unittest.TestCase):
         self.assertIn("install_megflow_linux.sh 1.0.0 apptainer", readme)
         self.assertIn("install_megflow_macos.sh 1.0.0", readme)
         self.assertIn("-ImageTag 1.0.0", readme)
+        self.assertIn("apptainer run --cleanenv", readme)
+        self.assertIn("--bind /data/bids:/input", readme)
 
 
 class WindowsInstallerContractTests(unittest.TestCase):
@@ -90,6 +92,25 @@ class LinuxInstallerContractTests(_InstallerContractTestCase):
             "apptainer",
             platform="Linux",
             runtime="apptainer",
+            runtime_body='printf "%s\\n" "$*" >> "$MEGFLOW_INSTALL_CALLS"\n',
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            calls,
+            [
+                "pull --force ./megflow_1.0.0.sif docker://cplmeg/megflow:1.0.0",
+                "run ./megflow_1.0.0.sif -h",
+            ],
+        )
+
+    def test_linux_singularity_alias_uses_the_sif_flow(self):
+        result, calls = self._run_with_stubs(
+            LINUX_INSTALLER,
+            "1.0.0",
+            "singularity",
+            platform="Linux",
+            runtime="singularity",
             runtime_body='printf "%s\\n" "$*" >> "$MEGFLOW_INSTALL_CALLS"\n',
         )
 

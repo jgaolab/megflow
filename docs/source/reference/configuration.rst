@@ -30,6 +30,31 @@ preprocessing, source analysis, reporting, and execution resources.
    configuration_source
    configuration_execution
 
+.. _configuration-cli-flags:
+
+Configuration File Options: Docker, ``-c``, and ``-C``
+------------------------------------------------------
+
+Three similarly named options operate at two different command-line layers:
+
+* After the Docker image name, the MEGFlow Docker entrypoint accepts
+  ``-c`` / ``--config``. This selects the mounted project config that the
+  wrapper supplies to Nextflow after the image's base config.
+* In a direct source launch, ``nextflow -c`` followed by a project config is a
+  **soft override**. Nextflow loads its normal configuration files and then
+  merges the specified file on top. Use this form for a small project overlay.
+* In a direct source launch, ``nextflow -C`` followed by a project config is a
+  **hard override**. Nextflow uses the specified fixed config set and will
+  ignore all other configuration files it would normally discover. Use this
+  form only when the supplied config is complete or explicitly contains, for
+  example, ``includeConfig "nextflow.config"``.
+
+The capital letter therefore changes Nextflow's configuration resolution; it
+is not an alternative Docker entrypoint spelling. See the `Nextflow
+configuration documentation
+<https://www.nextflow.io/docs/latest/config.html#configuration-files>`_ for the
+full precedence order.
+
 Using a Config with Docker
 --------------------------
 

@@ -13,7 +13,7 @@ export MEGFLOW_DOCKER_BASE_CONFIG="${MEGFLOW_DOCKER_BASE_CONFIG:-/program/nextfl
 
 # Default configuration file and parameters
 CONFIG_FILE="/program/nextflow/nextflow.config"
-RUN_CONFIG_FILE="/program/nextflow/run_nextflow.config"
+RUN_CONFIG_FILE="${MEGFLOW_RUN_CONFIG_FILE:-}"
 INPUT_DIR=""
 OUTPUT_DIR=""
 STEPS=""
@@ -153,7 +153,7 @@ while [[ "$#" -gt 0 ]]; do
         # corpus mode
         --corpus) CORPUS_MODE=true ;;
 
-        # nextflow options
+        # Validated MEGFlow option translated to Nextflow.
         --resume) nextflow_args+=("-resume") ;;
 
         -h|--help)
@@ -229,6 +229,12 @@ if ! mkdir -p "$OUTPUT_DIR" 2>/dev/null || ! touch "$OUTPUT_DIR/.megflow_write_t
     exit 1
 fi
 rm -f "$OUTPUT_DIR/.megflow_write_test"
+
+if [ -z "$RUN_CONFIG_FILE" ]; then
+    output_root="$(cd "$OUTPUT_DIR" && pwd -P)"
+    RUN_CONFIG_FILE="${output_root}/.nextflow-launch/run_nextflow.config"
+fi
+mkdir -p "$(dirname "$RUN_CONFIG_FILE")"
 
 # Check if the config file exists
 if [ ! -f "$CONFIG_FILE" ]; then
@@ -411,13 +417,6 @@ run_nextflow_pipeline() {
 
     cp "$run_config_file" "${run_output_dir}/nextflow.config"
 }
-
-# activate Anaconda virtualenv and virtual display
-#/usr/bin/supervisord  -c /etc/supervisor/conf.d/supervisord.conf
-#Xvfb :99 -screen 0 1920x1080x24 &
-#export DISPLAY=:99
-#xhost +
-#export QT_QPA_PLATFORM=xcb #offscreen
 
 mkdir -p "$OUTPUT_DIR"
 

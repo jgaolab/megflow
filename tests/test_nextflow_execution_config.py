@@ -697,6 +697,28 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         )
         self.assertIn("Source routing clean lineage mismatch", text)
 
+    def test_skip_ica_routes_artifact_sidecars_and_hash_into_epochs(self):
+        text = PIPELINE.read_text(encoding="utf-8")
+        epochs_process = text.split("process epochs {", 1)[1].split(
+            "\nprocess ", 1
+        )[0]
+        routing = text.split("native_non_reference_clean_subject_ch", 1)[1]
+
+        self.assertIn("native_non_reference_artifacts_with_hash_ch", routing)
+        self.assertIn(
+            "native_epoch_from_preproc_ch = "
+            "native_non_reference_artifacts_with_hash_ch",
+            routing,
+        )
+        self.assertIn('val(bad_channels)', epochs_process)
+        self.assertIn('val(bad_segments)', epochs_process)
+        self.assertIn('--fname_bad_channels "${bad_channels}"', epochs_process)
+        self.assertIn('--fname_bad_segments "${bad_segments}"', epochs_process)
+        self.assertIn(
+            "'', artifact_hash, bad_channels, bad_segments)",
+            routing,
+        )
+
     def test_reports_use_a_value_barrier_and_never_resume_from_cache(self):
         text = PIPELINE.read_text(encoding="utf-8")
         self.assertGreaterEqual(text.count("cache false"), 2)
