@@ -190,13 +190,16 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.assertIn("[megflow_options]", readme)
         self.assertNotIn("[nextflow_options]", readme)
 
-    def test_install_commands_state_the_repository_root_requirement(self):
+    def test_container_install_commands_do_not_require_a_repository_checkout(self):
         for document in (README, INSTALLATION_DOC):
             with self.subTest(document=document.name):
                 text = document.read_text(encoding="utf-8").lower()
-                self.assertIn("repository root", text)
-                self.assertIn("scripts/install/", text)
-                self.assertIn("scripts/install-dev/", text)
+                container_section = text.split(
+                    "recommended: containerized", 1
+                )[1].split("alternative:", 1)[0]
+                self.assertNotIn("repository root", container_section)
+                self.assertIn("raw.githubusercontent.com", container_section)
+                self.assertIn("megflow_version=1.0.0", container_section)
 
     def test_readme_uses_current_workflow_and_report_terms(self):
         readme = README.read_text(encoding="utf-8")

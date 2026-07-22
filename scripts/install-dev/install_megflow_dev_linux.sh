@@ -7,7 +7,7 @@ INSTALL_FREESURFER=1
 SKIP_REQUIREMENTS=0
 CONDA_ENV_PREFIX=""
 MINICONDA_ROOT=""
-REPO_URL="git@github.com:jgaolab/megflow.git"
+REPO_URL="https://github.com/jgaolab/megflow.git"
 REPO_DIR=""
 PY_ENV_NAME="megflow"
 PY_ENV_PREFIX=""
@@ -22,7 +22,7 @@ log() {
 usage() {
   cat <<'EOF'
 Usage:
-  bash scripts/install-dev/install_megflow_dev_linux.sh [options]
+  bash install_megflow_dev_linux.sh [options]
 
 Options:
   --install-dir <dir>      Installation root directory (default: ~/.megflow-dev)
@@ -32,15 +32,15 @@ Options:
   --conda-prefix <dir>     Conda env prefix for FreeSurfer
                            (default: <install-dir>/freesurfer/conda-env)
   --repo-dir <dir>         Local source directory (default: <install-dir>/src/megflow)
-  --repo-url <url>         Source git URL (default: git@github.com:jgaolab/megflow.git)
+  --repo-url <url>         Source git URL (default: https://github.com/jgaolab/megflow.git)
   --miniconda-root <dir>   Miniconda install path when conda is absent
                            (default: <install-dir>/miniconda3)
   -h, --help               Show this help message
 
 Examples:
-  bash scripts/install-dev/install_megflow_dev_linux.sh
-  bash scripts/install-dev/install_megflow_dev_linux.sh --install-dir /data/megflow-dev
-  bash scripts/install-dev/install_megflow_dev_linux.sh --no-freesurfer
+  bash install_megflow_dev_linux.sh
+  bash install_megflow_dev_linux.sh --install-dir /data/megflow-dev
+  bash install_megflow_dev_linux.sh --no-freesurfer
 EOF
 }
 

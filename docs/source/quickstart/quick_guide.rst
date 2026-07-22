@@ -7,7 +7,12 @@ recommended first run stops after ICA cleaning:
 
 .. code-block:: text
 
-   MEG data -> preprocessing -> artifact detection -> ICA cleaning -> QC report
+   MEG data -> NMDQ quality scoring -> preprocessing -> artifact detection -> ICA cleaning -> QC report
+
+NormMEG-QC scoring is enabled by default and runs before the main preprocessing
+chain. Its NMDQ score is included in the QC report; ``megqc.min_score`` can be
+raised when recordings below a selected score should stop before downstream MEG
+processing.
 
 Epochs, covariance, coregistration, and source reconstruction depend on the
 study's events, anatomy, and analysis choices. Configure those only after the

@@ -720,7 +720,8 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
         for relative_document in documentation:
             document = REPO_ROOT / relative_document
             text = document.read_text(encoding="utf-8", errors="replace")
-            for reference in reference_pattern.findall(text):
+            local_references = re.sub(r"https?://\S+", "", text)
+            for reference in reference_pattern.findall(local_references):
                 candidates = []
                 for base in (REPO_ROOT, document.parent):
                     resolved = (base / reference).resolve()

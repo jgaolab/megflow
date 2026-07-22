@@ -9,9 +9,9 @@ Docker to be installed.
 
 ## Script List
 
-- Linux: `install_megflow_linux.sh`
-- macOS: `install_megflow_macos.sh`
-- Windows (PowerShell): `install_megflow_windows.ps1`
+- [Linux installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_linux.sh)
+- [macOS installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_macos.sh)
+- [Windows installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_windows.ps1)
 
 ## What These Scripts Do
 
@@ -19,20 +19,22 @@ Each script automatically performs the following steps:
 
 1. Check and, when supported by the host package manager, install a container
    runtime (Docker on Windows/macOS; Docker or Apptainer/Singularity on Linux).
-2. Pull `cplmeg/megflow:<tag>` (default `latest`).
+2. Pull the selected `cplmeg/megflow:<tag>`.
 3. Run `-h` inside the container image to print help text and verify installation.
 4. Validate basic inputs (for example, image tag cannot be empty).
 
 ## Usage
 
+These installers are standalone files. You do not need a MEGFlow repository
+checkout, and you can run each command from any writable directory. The
+`MEGFLOW_VERSION` value selects both the Git release containing the installer
+and the container image tag, so changing one value keeps them aligned. Use the
+release number without a leading `v`, for example `1.0.0`.
+
 ### Linux
 
 ```bash
-bash scripts/install/install_megflow_linux.sh
-bash scripts/install/install_megflow_linux.sh 1.0.0
-bash scripts/install/install_megflow_linux.sh 1.0.0 apptainer
-bash scripts/install/install_megflow_linux.sh 1.0.0 singularity
-bash scripts/install/install_megflow_linux.sh 1.0.0 docker
+MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
 ```
 
 Linux runtime mode argument (2nd arg):
@@ -40,6 +42,12 @@ Linux runtime mode argument (2nd arg):
 - `docker`: force Docker flow
 - `apptainer` or `singularity`: force the SIF flow; the script uses an installed
   `apptainer` command when available and otherwise uses `singularity`
+
+For example, force the Apptainer workflow with one command:
+
+```bash
+MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}" apptainer
+```
 
 Optional environment variable:
 - `MEGFLOW_SIF_PATH`: output path for pulled SIF image (default `./megflow_<tag>.sif`)
@@ -79,8 +87,7 @@ read-only.
 ### macOS
 
 ```bash
-bash scripts/install/install_megflow_macos.sh
-bash scripts/install/install_megflow_macos.sh 1.0.0
+MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_macos.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_macos.sh" && bash install_megflow_macos.sh "${MEGFLOW_VERSION}"
 ```
 
 Notes:
@@ -89,8 +96,7 @@ Notes:
 ### Windows PowerShell
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1
-powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1 -ImageTag 1.0.0
+$MEGFLOW_VERSION = "1.0.0"; $ErrorActionPreference = "Stop"; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_windows.ps1" -OutFile "install_megflow_windows.ps1"; powershell -ExecutionPolicy Bypass -File .\install_megflow_windows.ps1 -ImageTag $MEGFLOW_VERSION
 ```
 
 ## Troubleshooting
@@ -100,7 +106,7 @@ powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windo
   - Confirm current user has permission to run Docker commands.
 - Linux server/HPC without Docker daemon:
   - Use Apptainer mode directly:
-    - `bash scripts/install/install_megflow_linux.sh <tag> apptainer`
+    - `bash install_megflow_linux.sh 1.0.0 apptainer`
 - Package installation fails:
   - Re-run with proper privileges (`root` or `sudo`) and check network/package mirror access.
 - Image tag issues:

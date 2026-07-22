@@ -12,6 +12,9 @@ MACOS_INSTALLER = REPO_ROOT / "scripts/install/install_megflow_macos.sh"
 DEV_INSTALLER = REPO_ROOT / "scripts/install-dev/install_megflow_dev_linux.sh"
 WINDOWS_INSTALLER = REPO_ROOT / "scripts/install/install_megflow_windows.ps1"
 INSTALL_README = REPO_ROOT / "scripts/install/README.md"
+DEV_INSTALL_README = REPO_ROOT / "scripts/install-dev/README.md"
+PROJECT_README = REPO_ROOT / "README.md"
+INSTALLATION_DOC = REPO_ROOT / "docs/source/quickstart/installation.rst"
 
 
 class _InstallerContractTestCase(unittest.TestCase):
@@ -56,14 +59,55 @@ class _InstallerContractTestCase(unittest.TestCase):
 
 
 class InstallerMetadataContractTests(unittest.TestCase):
-    def test_installer_documentation_uses_current_release_examples(self):
-        readme = INSTALL_README.read_text(encoding="utf-8")
-        self.assertNotIn("0.0.3", readme)
-        self.assertIn("install_megflow_linux.sh 1.0.0 apptainer", readme)
-        self.assertIn("install_megflow_macos.sh 1.0.0", readme)
-        self.assertIn("-ImageTag 1.0.0", readme)
-        self.assertIn("apptainer run --cleanenv", readme)
-        self.assertIn("--bind /data/bids:/input", readme)
+    def test_container_install_docs_use_version_pinned_standalone_downloads(self):
+        documents = (PROJECT_README, INSTALLATION_DOC, INSTALL_README)
+        raw_base = (
+            "https://raw.githubusercontent.com/jgaolab/megflow/"
+            "v${MEGFLOW_VERSION}/scripts/install"
+        )
+
+        for document in documents:
+            with self.subTest(document=document.name):
+                text = document.read_text(encoding="utf-8")
+                self.assertIn("MEGFLOW_VERSION=1.0.0", text)
+                self.assertIn(f"{raw_base}/install_megflow_linux.sh", text)
+                self.assertIn(f"{raw_base}/install_megflow_macos.sh", text)
+                self.assertIn(
+                    f"{raw_base}/install_megflow_windows.ps1",
+                    text,
+                )
+                self.assertNotIn("wget ", text)
+
+        install_readme = INSTALL_README.read_text(encoding="utf-8")
+        self.assertIn("apptainer run --cleanenv", install_readme)
+        self.assertIn("--bind /data/bids:/input", install_readme)
+
+    def test_source_install_docs_download_the_installer_without_a_checkout(self):
+        installer_url = (
+            "https://raw.githubusercontent.com/jgaolab/megflow/main/"
+            "scripts/install-dev/install_megflow_dev_linux.sh"
+        )
+
+        for document in (PROJECT_README, INSTALLATION_DOC, DEV_INSTALL_README):
+            with self.subTest(document=document.name):
+                text = document.read_text(encoding="utf-8")
+                normalized = text.lower()
+                self.assertIn(installer_url, text)
+                self.assertIn("do not need to clone", normalized)
+                self.assertIn("any writable directory", normalized)
+                self.assertIn("~/.megflow-dev/src/megflow", text)
+
+    def test_source_installer_defaults_to_public_https_repository(self):
+        script = DEV_INSTALLER.read_text(encoding="utf-8")
+        self.assertIn(
+            'REPO_URL="https://github.com/jgaolab/megflow.git"',
+            script,
+        )
+        self.assertNotIn("git@github.com:jgaolab/megflow.git", script)
+        self.assertIn(
+            "bash install_megflow_dev_linux.sh [options]",
+            script,
+        )
 
 
 class WindowsInstallerContractTests(unittest.TestCase):

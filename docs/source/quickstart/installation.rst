@@ -14,51 +14,47 @@ affect reproducibility.
 Recommended: Containerized One-Click Install
 --------------------------------------------
 
-.. important::
+The container installers are standalone files. You do not need to clone the
+MEGFlow repository: run the matching command from any writable directory. Set
+``MEGFLOW_VERSION`` once to download the installer from the same Git release
+and pull the matching ``cplmeg/megflow`` image tag. Use the release number
+without a leading ``v``, for example ``1.0.0``.
 
-   The relative ``scripts/install/...`` and ``scripts/install-dev/...``
-   commands on this page must be run from the MEGFlow repository root after
-   cloning or downloading the repository.
-
-The scripts under ``scripts/install/`` install or reuse a container runtime,
-pull ``cplmeg/megflow:<version>``, and verify the installation by running the
-MEGFlow help command.
+Direct downloads: `Linux installer
+<https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_linux.sh>`_,
+`macOS installer
+<https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_macos.sh>`_,
+and `Windows installer
+<https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_windows.ps1>`_.
 
 Linux:
 
 .. code-block:: bash
 
-   bash scripts/install/install_megflow_linux.sh
-   bash scripts/install/install_megflow_linux.sh 1.0.0
+   MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
 
 macOS:
 
 .. code-block:: bash
 
-   bash scripts/install/install_megflow_macos.sh
-   bash scripts/install/install_megflow_macos.sh 1.0.0
+   MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_macos.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_macos.sh" && bash install_megflow_macos.sh "${MEGFLOW_VERSION}"
 
 Windows PowerShell:
 
 .. code-block:: powershell
 
-   powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1
-   powershell -ExecutionPolicy Bypass -File .\scripts\install\install_megflow_windows.ps1 -ImageTag 1.0.0
+   $MEGFLOW_VERSION = "1.0.0"; $ErrorActionPreference = "Stop"; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_windows.ps1" -OutFile "install_megflow_windows.ps1"; powershell -ExecutionPolicy Bypass -File .\install_megflow_windows.ps1 -ImageTag $MEGFLOW_VERSION
 
-On Linux, the installer can use Docker or Apptainer/Singularity:
+On Linux, the optional second argument selects ``auto`` (default), ``docker``,
+``apptainer``, or ``singularity``. For example, force Apptainer with:
 
 .. code-block:: bash
 
-   bash scripts/install/install_megflow_linux.sh 1.0.0 docker
-   bash scripts/install/install_megflow_linux.sh 1.0.0 apptainer
-   bash scripts/install/install_megflow_linux.sh 1.0.0 singularity
+   MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}" apptainer
 
-The first Linux argument is the image tag and the optional second argument is
-``auto``, ``docker``, ``apptainer``, or ``singularity``. The last two names
-select the same SIF workflow. With no arguments, the installer uses ``latest``
-and ``auto``; with only ``1.0.0``, runtime selection remains automatic. In
-``auto`` mode, a usable Docker daemon is preferred and the installer otherwise
-selects Apptainer/Singularity.
+The first Linux argument is the image tag. The last two runtime names select
+the same SIF workflow. In ``auto`` mode, a usable Docker daemon is preferred
+and the installer otherwise selects Apptainer/Singularity.
 
 When Apptainer or Singularity is available, it downloads the OCI layers from
 ``docker://cplmeg/megflow:<version>``, translates them into a local SIF, and
@@ -110,24 +106,28 @@ Pull the MEGFlow image:
 
 .. code-block:: bash
 
-   docker pull cplmeg/megflow:<version>
-
-Replace ``<version>`` with a release tag such as ``1.0.0`` or ``latest``.
+   MEGFLOW_VERSION=1.0.0 && docker pull "cplmeg/megflow:${MEGFLOW_VERSION}"
 
 Alternative: Local Installation Without Docker
 ----------------------------------------------
 
-The scripts under ``scripts/install-dev/`` provide a source-based local
-installation path for Linux environments where container installation is not
-available or image pulling is blocked. This workflow installs or reuses Conda,
-Nextflow, FreeSurfer, and MEGFlow source dependencies in a local installation
-directory.
+.. important::
+
+   This is a source installation. The installer automatically clones or
+   updates the GitHub source under ``~/.megflow-dev/src/megflow`` by default.
+   You do not need to clone the repository first or run from its root; download
+   and execute the installer from any writable directory. Git and access to
+   GitHub are required.
+
+This workflow installs or reuses Conda, Nextflow, FreeSurfer, and MEGFlow source
+dependencies in a local installation directory.
 
 .. code-block:: bash
 
-   bash scripts/install-dev/install_megflow_dev_linux.sh
-   bash scripts/install-dev/install_megflow_dev_linux.sh --install-dir /data/megflow-dev
-   bash scripts/install-dev/install_megflow_dev_linux.sh --no-freesurfer
+   curl -fL -o install_megflow_dev_linux.sh https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install-dev/install_megflow_dev_linux.sh && bash install_megflow_dev_linux.sh
+
+After downloading it, rerun ``bash install_megflow_dev_linux.sh`` with options
+such as ``--install-dir /data/megflow-dev`` or ``--no-freesurfer`` when needed.
 
 After installation, load the generated environment:
 

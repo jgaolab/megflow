@@ -1,6 +1,13 @@
 # MEGFlow Local Development Install (Linux)
 
-This directory contains local development install scripts that do **not** depend on Docker image pulling.
+This directory contains local development install scripts that do **not** depend
+on Docker image pulling.
+
+> **Important:** This is a source installation. The installer automatically
+> clones or updates the GitHub source under `~/.megflow-dev/src/megflow` by
+> default. You do not need to clone the repository first or run from its root;
+> download and execute the installer from any writable directory. Git and
+> access to GitHub are required.
 
 ## Script List
 
@@ -10,7 +17,7 @@ This directory contains local development install scripts that do **not** depend
 
 The script installs toolchains directly into a target directory:
 
-1. Pull or update source code from `git@github.com:jgaolab/megflow.git`
+1. Pull or update source code from `https://github.com/jgaolab/megflow.git`
 2. Check Conda availability; auto-install **Miniconda** if Conda is missing
 3. Reuse an existing named Conda environment `megflow` when found; otherwise create one under `<install-dir>/conda-envs/megflow`
 4. Install dependencies from source `requirements.txt` unless `--skip-requirements` is used
@@ -22,9 +29,15 @@ The script installs toolchains directly into a target directory:
 ## Usage
 
 ```bash
-bash scripts/install-dev/install_megflow_dev_linux.sh
-bash scripts/install-dev/install_megflow_dev_linux.sh --install-dir /data/megflow-dev
-bash scripts/install-dev/install_megflow_dev_linux.sh --no-freesurfer
+curl -fL -o install_megflow_dev_linux.sh https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install-dev/install_megflow_dev_linux.sh && bash install_megflow_dev_linux.sh
+```
+
+The downloaded installer remains in the current directory. Reuse it with
+options when a non-default installation is needed:
+
+```bash
+bash install_megflow_dev_linux.sh --install-dir /data/megflow-dev
+bash install_megflow_dev_linux.sh --no-freesurfer
 ```
 
 Options:
