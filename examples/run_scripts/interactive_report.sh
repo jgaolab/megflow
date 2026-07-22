@@ -25,7 +25,7 @@ Open MEGFlow's Streamlit report viewer for existing output.
 
 Options:
   --smri DIR                    Optional anatomy directory to mount read-only
-  --image IMAGE                 Docker image (default: cplmeg/megflow:latest)
+  --image IMAGE                 Docker image (default: cplmeg/megflow:1.0.0)
   --port PORT                   Viewer port (default: 8501)
   --dry-run                     Print the Docker command without running it
   --help                        Show this help
@@ -34,7 +34,7 @@ EOF
 
 OUTPUT=""
 SMRI=""
-IMAGE="cplmeg/megflow:latest"
+IMAGE="cplmeg/megflow:1.0.0"
 PORT="8501"
 DRY_RUN=false
 

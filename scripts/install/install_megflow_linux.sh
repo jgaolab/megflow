@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-IMAGE_TAG="${1:-latest}"
+IMAGE_TAG="${1:-1.0.0}"
 RUNTIME_MODE="${2:-auto}" # auto | docker | apptainer | singularity
 IMAGE="cplmeg/megflow:${IMAGE_TAG}"
 SIF_PATH="${MEGFLOW_SIF_PATH:-./megflow_${IMAGE_TAG}.sif}"

@@ -27,7 +27,7 @@ Options:
   --config FILE                 Config file (default: nextflow/nextflow_for_docker.config)
   --smri DIR                    Writable subjects directory (default: OUTPUT/smri)
   --license FILE                FreeSurfer license file
-  --image IMAGE                 Docker image (default: cplmeg/megflow:latest)
+  --image IMAGE                 Docker image (default: cplmeg/megflow:1.0.0)
   --steps VALUE                 Pipeline stage (default: meg_ica)
   --resume                      Resume a previous run
   --dry-run                     Print the Docker command without running it
@@ -41,7 +41,7 @@ OUTPUT=""
 CONFIG="${REPO_ROOT}/nextflow/nextflow_for_docker.config"
 SMRI=""
 LICENSE_FILE=""
-IMAGE="cplmeg/megflow:latest"
+IMAGE="cplmeg/megflow:1.0.0"
 STEPS="meg_ica"
 RESUME=false
 DRY_RUN=false

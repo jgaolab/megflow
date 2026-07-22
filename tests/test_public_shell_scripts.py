@@ -83,6 +83,30 @@ class PublicShellScriptContractTests(unittest.TestCase):
                 with self.subTest(script=script.name, option=option):
                     self.assertIn(f"`{option}", section)
 
+    def test_docker_run_scripts_default_to_published_release_image(self):
+        docker_scripts = (RUN_SCRIPTS[0], RUN_SCRIPTS[1], RUN_SCRIPTS[3])
+        expected_image = "cplmeg/megflow:1.0.0"
+
+        for script in docker_scripts:
+            with self.subTest(script=script.name):
+                source = script.read_text(encoding="utf-8")
+                help_result = self._run_script(script, "--help")
+                self.assertEqual(help_result.returncode, 0, help_result.stderr)
+                self.assertIn(f'IMAGE="{expected_image}"', source)
+                self.assertIn(f"default: {expected_image}", help_result.stdout)
+
+        guide = (REPO_ROOT / "examples/run_scripts/README.md").read_text(
+            encoding="utf-8"
+        )
+        self.assertNotIn("cplmeg/megflow:latest", guide)
+        self.assertGreaterEqual(guide.count(expected_image), len(docker_scripts))
+
+        project_readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        self.assertIn(
+            "Docker-backed launchers default to `cplmeg/megflow:1.0.0`",
+            project_readme,
+        )
+
     def test_cleanup_helper_is_preview_first_and_clean_docker_is_out_of_scope(self):
         text = DEVELOPMENT_SCRIPTS[-1].read_text(encoding="utf-8")
         self.assertIn('APPLY=false', text)
@@ -209,6 +233,7 @@ class PublicShellScriptContractTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn("cplmeg/megflow:1.0.0", calls)
             self.assertIn("--corpus", calls)
             self.assertIn("--steps\nmeg_ica", calls)
 
@@ -245,6 +270,7 @@ class PublicShellScriptContractTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn("cplmeg/megflow:1.0.0", calls)
             self.assertIn(f"{input_directory}:/input:ro", calls)
             self.assertIn(f"{output}:/output", calls)
             self.assertIn(f"{config}:/config/nextflow.config:ro", calls)
@@ -353,6 +379,7 @@ class PublicShellScriptContractTests(unittest.TestCase):
 
             self.assertEqual(result.returncode, 0, result.stderr)
             report_calls = calls_path.read_text(encoding="utf-8")
+            self.assertIn("cplmeg/megflow:1.0.0", report_calls)
             self.assertIn("-r", report_calls)
             self.assertIn("9123:8501", report_calls)
             self.assertIn("Viewer: http://localhost:9123", result.stdout)

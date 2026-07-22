@@ -27,7 +27,7 @@ Options:
   --config FILE                 Config file (default: nextflow/quickstart.config)
   --smri DIR                    Writable FreeSurfer subjects directory
   --license FILE                FreeSurfer license file
-  --image IMAGE                 Docker image (default: cplmeg/megflow:latest)
+  --image IMAGE                 Docker image (default: cplmeg/megflow:1.0.0)
   --steps VALUE                 Pipeline stage (default: meg_ica)
   --anat-method METHOD          freesurfer, deepprep, or pseudomri
   --resume                      Resume a previous run
@@ -42,7 +42,7 @@ OUTPUT=""
 CONFIG="${REPO_ROOT}/nextflow/quickstart.config"
 SMRI=""
 LICENSE_FILE=""
-IMAGE="cplmeg/megflow:latest"
+IMAGE="cplmeg/megflow:1.0.0"
 STEPS="meg_ica"
 ANAT_METHOD=""
 RESUME=false

@@ -49,7 +49,7 @@ chosen stage needs FreeSurfer outputs or a license. `--anat-method` accepts
 | `--config FILE` | `nextflow/quickstart.config` | Nextflow configuration mounted read-only. |
 | `--smri DIR` | None | Writable anatomy/FreeSurfer subjects directory. |
 | `--license FILE` | None | FreeSurfer license mounted read-only. |
-| `--image IMAGE` | `cplmeg/megflow:latest` | Docker image to run. |
+| `--image IMAGE` | `cplmeg/megflow:1.0.0` | Docker image to run. |
 | `--steps VALUE` | `meg_ica` | Requested MEGFlow stage. |
 | `--anat-method METHOD` | Config default | Override with `freesurfer`, `deepprep`, or `pseudomri`. |
 | `--resume` | Off | Resume a previous Nextflow run. |
@@ -72,7 +72,7 @@ passes `--corpus` to the image entrypoint and writes the corpus report to
 | `--config FILE` | `nextflow/nextflow_for_docker.config` | Corpus configuration mounted read-only. |
 | `--smri DIR` | `<output>/smri` | Writable shared anatomy directory. |
 | `--license FILE` | None | FreeSurfer license mounted read-only. |
-| `--image IMAGE` | `cplmeg/megflow:latest` | Docker image to run. |
+| `--image IMAGE` | `cplmeg/megflow:1.0.0` | Docker image to run. |
 | `--steps VALUE` | `meg_ica` | Requested MEGFlow stage for the corpus. |
 | `--resume` | Off | Resume previous corpus work. |
 | `--dry-run` | Off | Print the Docker command without launching it. |
@@ -112,7 +112,7 @@ host port is mapped to the viewer's fixed container port `8501`.
 | --- | --- | --- |
 | `--output DIR` | Required | Existing writable result directory mounted at `/output`. |
 | `--smri DIR` | None | Optional anatomy directory mounted read-only. |
-| `--image IMAGE` | `cplmeg/megflow:latest` | Docker image containing the viewer. |
+| `--image IMAGE` | `cplmeg/megflow:1.0.0` | Docker image containing the viewer. |
 | `--port PORT` | `8501` | Host port for `http://localhost:<port>`. |
 | `--dry-run` | Off | Print the Docker command without launching it. |
 | `--help` | — | Print CLI help and exit. |

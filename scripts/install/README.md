@@ -23,6 +23,10 @@ Each script automatically performs the following steps:
 3. Run `-h` inside the container image to print help text and verify installation.
 4. Validate basic inputs (for example, image tag cannot be empty).
 
+The default image tag is `1.0.0` when no version argument is supplied. The
+commands below still pass the version explicitly so the downloaded installer
+and container image remain visibly aligned.
+
 ## Usage
 
 These installers are standalone files. You do not need a MEGFlow repository

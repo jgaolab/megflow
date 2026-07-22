@@ -190,6 +190,18 @@ class DockerEntrypointOptionTests(unittest.TestCase):
         self.assertIn("[megflow_options]", readme)
         self.assertNotIn("[nextflow_options]", readme)
 
+    def test_readme_keeps_tested_runtime_outside_installation(self):
+        lines = README.read_text(encoding="utf-8").splitlines()
+        runtime_heading = "## Tested Versions and Runtime"
+        installation_heading = "## `❯_` Installation"
+
+        self.assertIn(runtime_heading, lines)
+        self.assertNotIn("### Tested Versions and Runtime", lines)
+        self.assertLess(
+            lines.index(runtime_heading),
+            lines.index(installation_heading),
+        )
+
     def test_container_install_commands_do_not_require_a_repository_checkout(self):
         for document in (README, INSTALLATION_DOC):
             with self.subTest(document=document.name):

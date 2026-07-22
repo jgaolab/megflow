@@ -79,6 +79,7 @@ class InstallerMetadataContractTests(unittest.TestCase):
                 self.assertNotIn("wget ", text)
 
         install_readme = INSTALL_README.read_text(encoding="utf-8")
+        self.assertIn("default image tag is `1.0.0`", install_readme)
         self.assertIn("apptainer run --cleanenv", install_readme)
         self.assertIn("--bind /data/bids:/input", install_readme)
 
@@ -113,6 +114,7 @@ class InstallerMetadataContractTests(unittest.TestCase):
 class WindowsInstallerContractTests(unittest.TestCase):
     def test_windows_installer_checks_native_docker_exit_codes(self):
         script = WINDOWS_INSTALLER.read_text(encoding="utf-8")
+        self.assertIn('[string]$ImageTag = "1.0.0"', script)
         self.assertIn("$LASTEXITCODE", script)
         self.assertIn("function Test-DockerDaemon", script)
         self.assertIn('Invoke-Docker -Arguments @("pull", $Image)', script)
@@ -167,7 +169,7 @@ class LinuxInstallerContractTests(_InstallerContractTestCase):
             ],
         )
 
-    def test_linux_default_arguments_use_latest_and_auto_select_docker(self):
+    def test_linux_default_arguments_use_release_and_auto_select_docker(self):
         result, calls = self._run_with_stubs(
             LINUX_INSTALLER,
             platform="Linux",
@@ -181,8 +183,8 @@ class LinuxInstallerContractTests(_InstallerContractTestCase):
             [
                 "info",
                 "info",
-                "pull cplmeg/megflow:latest",
-                "run --rm cplmeg/megflow:latest -h",
+                "pull cplmeg/megflow:1.0.0",
+                "run --rm cplmeg/megflow:1.0.0 -h",
             ],
         )
 
@@ -286,7 +288,7 @@ class MacOSInstallerContractTests(_InstallerContractTestCase):
             ],
         )
 
-    def test_macos_default_argument_uses_latest(self):
+    def test_macos_default_argument_uses_release(self):
         result, calls = self._run_with_stubs(
             MACOS_INSTALLER,
             platform="Darwin",
@@ -296,8 +298,8 @@ class MacOSInstallerContractTests(_InstallerContractTestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertEqual(calls[-2:], [
-            "pull cplmeg/megflow:latest",
-            "run --rm cplmeg/megflow:latest -h",
+            "pull cplmeg/megflow:1.0.0",
+            "run --rm cplmeg/megflow:1.0.0 -h",
         ])
 
 

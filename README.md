@@ -37,20 +37,7 @@ Configuration files expose dataset paths, preprocessing settings, workflow steps
 
 ---
 
-## `❯_` Installation
-
-MEGFlow is officially distributed as a Docker container. We recommend using the
-containerized installation workflow whenever possible, because it provides the
-most reproducible environment and avoids most local dependency conflicts.
-
-If Docker cannot be installed, the Docker daemon is unavailable, or the container
-image cannot be pulled in your network environment, you can try the local
-development installation workflow instead. The local workflow installs MEGFlow
-from source without relying on a container image. Use this option cautiously,
-because differences in system libraries, package versions, and local software
-environments may lead to behavior that differs from the containerized workflow.
-
-### Tested Versions and Runtime
+## Tested Versions and Runtime
 
 MEGFlow `1.0.0` has been tested with Nextflow `24.10.3`, MNE-Python `1.8.0`,
 Python `3.10/3.11`, and Java `17`.
@@ -71,6 +58,21 @@ The first Docker installation usually takes **20–90 minutes**, mainly dependin
 on the Docker image download speed. Demo processing may take **tens of minutes
 to several hours**, depending on the data size, selected steps, hardware
 resources, and configured parallelism.
+
+---
+
+## `❯_` Installation
+
+MEGFlow is officially distributed as a Docker container. We recommend using the
+containerized installation workflow whenever possible, because it provides the
+most reproducible environment and avoids most local dependency conflicts.
+
+If Docker cannot be installed, the Docker daemon is unavailable, or the container
+image cannot be pulled in your network environment, you can try the local
+development installation workflow instead. The local workflow installs MEGFlow
+from source without relying on a container image. Use this option cautiously,
+because differences in system libraries, package versions, and local software
+environments may lead to behavior that differs from the containerized workflow.
 
 ### Recommended: Containerized One-Click Install
 
@@ -172,6 +174,9 @@ runtime.
 | Process every immediate dataset directory with Docker corpus mode | [Docker corpus run](examples/run_scripts/corpus_docker.sh) |
 | Run a configured corpus with host Nextflow | [source corpus run](examples/run_scripts/corpus_source.sh) |
 | Open the Streamlit viewer for existing output | [interactive report viewer](examples/run_scripts/interactive_report.sh) |
+
+Docker-backed launchers default to `cplmeg/megflow:1.0.0`. Use their
+`--image` option only when deliberately selecting another published tag.
 
 For a first single-dataset run, provide host paths for the input and output:
 

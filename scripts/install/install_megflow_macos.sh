@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-IMAGE_TAG="${1:-latest}"
+IMAGE_TAG="${1:-1.0.0}"
 IMAGE="cplmeg/megflow:${IMAGE_TAG}"
 
 log() {

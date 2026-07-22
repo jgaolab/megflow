@@ -1,5 +1,5 @@
 param(
-    [string]$ImageTag = "latest"
+    [string]$ImageTag = "1.0.0"
 )
 
 $ErrorActionPreference = "Stop"
