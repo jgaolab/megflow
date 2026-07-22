@@ -247,27 +247,6 @@ The stub suite verifies the following workflow contracts:
        corpus report. A strict-mode control must terminate before report
        submission.
 
-MEGNet Model Agreement
-----------------------
-
-The retrained-model comparison command is intentionally separate from
-``run_ic_label``:
-
-.. code-block:: bash
-
-   python megflow/tools/megnet_retrained/compare_with_mne_megnet.py \
-     --raw-file /path/to/preprocessed_raw.fif \
-     --ica-file /path/to/ica.fif \
-     --ica-sources-file /path/to/ica_sources.fif \
-     --output-dir /path/to/model_agreement
-
-``component_comparison.csv`` records both canonical labels, both four-class
-probability vectors, and a disagreement flag for every component.
-``comparison.json`` records the same predictions, model metadata,
-disagreement indices, four-class component agreement, and non-brain artifact
-set Jaccard. If both artifact sets are empty, Jaccard is defined as ``1.0``.
-These values describe agreement between two models; they are not accuracy
-estimates without independently reviewed component labels.
 
 What Stub Tests Do Not Prove
 ----------------------------
