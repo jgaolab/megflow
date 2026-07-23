@@ -6,7 +6,7 @@
 
 **Architecture:** Replace only the existing “Recommended: Containerized One-Click Install” block in `README.md`. Use three platform-specific subsections, keep Linux-only runtime guidance beside the Linux command, and move raw installer links into a clearly optional manual-download subsection after the automatic commands.
 
-**Tech Stack:** GitHub-flavored Markdown, Bash command examples, Windows PowerShell command example, Python `unittest` documentation contracts.
+**Tech Stack:** GitHub-flavored Markdown, Bash command examples, Windows PowerShell command example, Python 3 `unittest` documentation contracts.
 
 ## Global Constraints
 
@@ -127,7 +127,7 @@ manual-download order; automatic behavior and Windows shell guidance are found;
 Run:
 
 ```bash
-python -m unittest tests.test_install_scripts.InstallerMetadataContractTests.test_container_install_docs_use_version_pinned_standalone_downloads
+python3 -m unittest tests.test_install_scripts.InstallerMetadataContractTests.test_container_install_docs_use_version_pinned_standalone_downloads
 ```
 
 Expected: one test passes with output ending in `OK`.
@@ -138,10 +138,14 @@ Run:
 
 ```bash
 git diff -- README.md
-git add README.md
+git add -p README.md
+git diff --cached -- README.md
 git commit -m "docs: clarify one-click installation"
 ```
 
-Expected: the implementation commit contains only `README.md`; the design and
+At the `git add -p` prompt, accept only the hunk containing
+`### Recommended: Containerized One-Click Install` and reject every unrelated
+hunk, including the pre-existing `alarm_score` edit. Expected: the cached diff
+and implementation commit contain only the approved installation-section change
+in `README.md`; the unrelated README edit remains unstaged, and the design and
 implementation plan remain in their earlier dedicated commits.
-
