@@ -708,31 +708,21 @@ For corpus-mode outputs, pass the output root with `-o`. The Streamlit viewer
 detects `datasets/<dataset_name>/` and adds a dataset selector in the sidebar;
 each page then reads the selected dataset's `preprocessed/` tree.
 
-### How to View Reports
-Use the `-r` flag and map port `8501`:
+### How to View the Interactive Report
+
+The command below starts the Streamlit interactive report viewer for existing
+MEGFlow output. The `-r` option does not run Nextflow preprocessing and is
+separate from opening the portable static HTML report. Map port `8501` to make
+the interactive viewer available in a browser:
 
 ```bash
 docker run --rm -it -p 8501:8501 \
   -v /data/studies/LanguageStudy/megflow:/output \
-  cplmeg/megflow:<version> -r
+  cplmeg/megflow:1.0.0 -r
 ```
 
 **Access via browser:**
 `http://<server_ip>:8501` (or `http://localhost:8501` if running locally)
-
----
-
-## 🐞 Bug Reports and Feedback
-
-Please report bugs, unexpected behavior, or improvement suggestions through the **GitHub Issues** page.
-
-When reporting a bug, please include:
-1.  **System Information**: OS version, Docker version.
-2.  **Command Used**: The exact command line you executed.
-3.  **Logs**: The relevant part of the error log or traceback (please use code blocks).
-4.  **Description**: A clear description of what you expected to happen versus what actually happened.
-
-[Report an Issue](https://github.com/jgaolab/megflow/issues)
 
 ---
 
@@ -848,3 +838,17 @@ Create a focused branch, run the relevant validation mode and strict
 documentation build, then commit and open a pull request. Include the command
 and output needed to reproduce any user-visible pipeline or documentation
 change. Keep unrelated local or site-specific launchers out of the change.
+
+---
+
+## 🐞 Bug Reports and Feedback
+
+Please report bugs, unexpected behavior, or improvement suggestions through the **GitHub Issues** page.
+
+When reporting a bug, please include:
+1.  **System Information**: OS version, Docker version.
+2.  **Command Used**: The exact command line you executed.
+3.  **Logs**: The relevant part of the error log or traceback (please use code blocks).
+4.  **Description**: A clear description of what you expected to happen versus what actually happened.
+
+[Report an Issue](https://github.com/jgaolab/megflow/issues)

@@ -11,9 +11,13 @@ when needed, then add dataset-specific epoch, covariance, and source settings.
 Single Dataset: First MEG Pass
 ------------------------------
 
-This Docker overlay selects one BIDS task and stops after continuous
-preprocessing, artifact detection, and ICA cleaning. It avoids event,
-covariance, and source-model assumptions during the first quality check.
+This Docker overlay selects one BIDS task and stops after ICA cleaning. The
+inherited defaults first run NormMEG-QC scoring, then continue through
+continuous preprocessing, artifact detection, and ICA cleaning. With the
+default ``megqc.min_score = 0.0``, NMDQ scores are reported without excluding
+recordings; raise the threshold only when low-scoring recordings should stop
+before downstream MEG processing. This first quality check avoids event,
+covariance, and source-model assumptions.
 
 **Configuration reference:** :doc:`configuration_datasets` for MEG import and
 :doc:`configuration_preprocessing` for NormMEG-QC, artifacts, and ICA.

@@ -136,9 +136,12 @@ What each part means:
    * - ``-o``, ``--output``
      - Pass the mounted output alias, here ``/output``, to MEGFlow.
    * - ``--steps meg_ica``
-     - Import data, preprocess continuously, detect artifacts, fit and label
-       ICA, apply ICA, and build the report. It does not run epochs or source
-       analysis.
+     - Import data, run NormMEG-QC scoring when enabled, and apply the
+       ``megqc.min_score`` processing gate before continuous preprocessing.
+       Recordings that pass continue through artifact detection, ICA fitting,
+       labeling, application, and report generation. Scored recordings stopped
+       by the gate remain visible in the report. This mode does not run epochs
+       or source analysis.
    * - ``--resume``
      - Reuse valid Nextflow work from an earlier run instead of recomputing it.
 
@@ -201,8 +204,10 @@ When the run finishes, open:
 
    /path/to/output/static_html_report/index.html
 
-Start with the dataset dashboard. Sort by alarms, bad channels, bad segments,
-ICA components, or missing steps, then open a recording's detail page.
+Start with the dataset dashboard. Sort or filter by NMDQ score, and compare each
+score with the Processing Minimum and Warning Threshold. Then review alarms,
+bad channels, bad segments, ICA components, and missing steps before opening a
+recording's detail page.
 
 .. list-table::
    :header-rows: 1
@@ -212,6 +217,9 @@ ICA components, or missing steps, then open a recording's detail page.
      - What to look for
    * - ``<output>/static_html_report/index.html``
      - Main MEGFlow quality-control dashboard.
+   * - ``<output>/preprocessed/quality_control/<recording>/``
+     - NormMEG-QC summary JSON, component-score CSV, and NMDQ score figure when
+       ``megqc.enabled`` is true.
    * - ``<output>/preprocessed/``
      - Continuous preprocessed data, artifact sidecars, ICA models and cleaned
        files, plus later-stage derivatives when those stages run.

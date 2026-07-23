@@ -202,6 +202,17 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             lines.index(installation_heading),
         )
 
+    def test_readme_identifies_the_streamlit_command_as_interactive_report(self):
+        readme = README.read_text(encoding="utf-8")
+        heading = "### How to View the Interactive Report"
+
+        self.assertIn(heading, readme)
+        self.assertNotIn("### How to View Reports", readme)
+        section = readme.split(heading, 1)[1].split("---", 1)[0]
+        self.assertIn("Streamlit interactive report viewer", section)
+        self.assertIn("does not run Nextflow preprocessing", section)
+        self.assertIn("cplmeg/megflow:1.0.0", section)
+
     def test_container_install_commands_do_not_require_a_repository_checkout(self):
         for document in (README, INSTALLATION_DOC):
             with self.subTest(document=document.name):
