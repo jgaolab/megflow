@@ -322,8 +322,12 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             quickstart,
         )
         self.assertIn(
-            ":download:`authoritative Docker defaults "
-            "<../../../nextflow/nextflow_for_docker.config>`",
+            ":download:`complete user overlay "
+            "<../../../nextflow/full_workflow.config>`",
+            quickstart,
+        )
+        self.assertNotIn(
+            "<../../../nextflow/nextflow_for_docker.config>",
             quickstart,
         )
         self.assertIn("HOST_PATH:CONTAINER_PATH", quickstart)

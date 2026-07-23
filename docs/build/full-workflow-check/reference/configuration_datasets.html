@@ -1,0 +1,1108 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Dataset and Stage Configuration &#8212; MEGFlow Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=911fa163" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=f9c1cefe"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/configuration_datasets';</script>
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Preprocessing Configuration" href="configuration_preprocessing.html" />
+    <link rel="prev" title="Configuration Reference" href="configuration.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.png" class="logo__image only-light" alt="MEGFlow Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="MEGFlow Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Quickstart</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/quick_guide.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/full_workflow.html">Full Workflow</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_local.html">Local Docker Run</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_cluster.html">Cluster Execution</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/reports.html">Reports</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/outputs.html">Outputs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Pipeline Details</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../details/pipeline_details.html">Pipeline Details</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="configuration.html">Configuration Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Dataset and Stage Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_preprocessing.html">Preprocessing Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_source.html">Source and Report Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_execution.html">Execution and Resource Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="rank_covariance.html">Rank, Covariance, and Source Imaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deepreject.html">DeepReject Artifact Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qc_metrics.html">Quality Control Metrics</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="examples.html">Configuration Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples_single_dataset.html">Single-Dataset Configuration Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples_profiles.html">Multi-Dataset and Override Examples</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="opm_conversion.html">OPM Data Conversion</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="validation.html">Validation and Regression Testing</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/reference/configuration_datasets.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Dataset and Stage Configuration</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#profile-resolution">Profile Resolution</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-directory-contract">Output Directory Contract</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-matching">Recording Matching</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-discovery">Dataset Discovery</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-selection">Stage Selection</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-and-output-fields">Input and Output Fields</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bids-subject-selection">BIDS Subject Selection</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mri-import">MRI Import</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#meg-import">MEG Import</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="dataset-and-stage-configuration">
+<span id="configuration-datasets"></span><h1>Dataset and Stage Configuration<a class="headerlink" href="#dataset-and-stage-configuration" title="Link to this heading">#</a></h1>
+<p>This page defines how MEGFlow resolves profiles, discovers datasets and recordings, selects processing stages, and imports MRI and MEG inputs. Read it before changing scientific processing parameters.</p>
+<section id="profile-resolution">
+<span id="configuration-profile-resolution"></span><h2>Profile Resolution<a class="headerlink" href="#profile-resolution" title="Link to this heading">#</a></h2>
+<p>Configuration is resolved in three levels:</p>
+<ol class="arabic simple">
+<li><p><code class="docutils literal notranslate"><span class="pre">params.megflow.defaults</span></code> defines the shared processing policy.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">params.megflow.datasets.&lt;dataset_name&gt;</span></code> overrides the defaults for one
+dataset.</p></li>
+<li><p><code class="docutils literal notranslate"><span class="pre">recordings</span></code> entries inside a dataset override the effective dataset
+config for recordings whose BIDS entities match the <code class="docutils literal notranslate"><span class="pre">match</span></code> block.</p></li>
+</ol>
+<p>MEGFlow applies a deep merge at each level. Nested maps merge recursively;
+scalars and lists replace the inherited value; an explicit <code class="docutils literal notranslate"><span class="pre">null</span></code> replaces
+the inherited value with null rather than deleting the key. For example, a
+dataset can replace only <code class="docutils literal notranslate"><span class="pre">preproc.steps</span></code> while inheriting <code class="docutils literal notranslate"><span class="pre">megqc</span></code>, <code class="docutils literal notranslate"><span class="pre">ica</span></code>,
+and all later modules.</p>
+<p>Not every field is meaningful at every scope:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 28.0%" />
+<col style="width: 48.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Scope</p></th>
+<th class="head"><p>Typical fields</p></th>
+<th class="head"><p>Important limits</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Global <code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">code_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">output_dir</span></code>, <code class="docutils literal notranslate"><span class="pre">corpus_root</span></code>, dataset filters,
+<code class="docutils literal notranslate"><span class="pre">fs_subjects_root</span></code>, <code class="docutils literal notranslate"><span class="pre">error_mode</span></code></p></td>
+<td><p>Controls discovery and roots for the complete run.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">defaults</span></code></p></td>
+<td><p>Shared <code class="docutils literal notranslate"><span class="pre">steps</span></code>, <code class="docutils literal notranslate"><span class="pre">rank_policy</span></code>, and all processing module blocks</p></td>
+<td><p>Applied before each dataset profile.</p></td>
+</tr>
+<tr class="row-even"><td><p>Dataset profile</p></td>
+<td><p>Paths, import filters, anatomy, <code class="docutils literal notranslate"><span class="pre">steps</span></code>, and any processing module</p></td>
+<td><p>This is the correct scope for discovery, MRI processing, report
+thresholds, and the broadest stage that the dataset should run.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Recording profile</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">rank_policy</span></code>, <code class="docutils literal notranslate"><span class="pre">megqc</span></code>, <code class="docutils literal notranslate"><span class="pre">preproc</span></code>, <code class="docutils literal notranslate"><span class="pre">digitization</span></code>, <code class="docutils literal notranslate"><span class="pre">artifacts</span></code>, <code class="docutils literal notranslate"><span class="pre">ica</span></code>,
+<code class="docutils literal notranslate"><span class="pre">ic_label</span></code>, <code class="docutils literal notranslate"><span class="pre">epochs</span></code>, <code class="docutils literal notranslate"><span class="pre">covariance</span></code>, <code class="docutils literal notranslate"><span class="pre">coreg</span></code>, <code class="docutils literal notranslate"><span class="pre">forward</span></code>,
+<code class="docutils literal notranslate"><span class="pre">source</span></code>, and MEG-stage reduction</p></td>
+<td><p>Applied only after MEG import. It cannot change which files were
+discovered, create a missing anatomy plan, or change dataset-level report
+thresholds or BEM construction.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="output-directory-contract">
+<h2>Output Directory Contract<a class="headerlink" href="#output-directory-contract" title="Link to this heading">#</a></h2>
+<p>Only the run and dataset roots are public output settings. Change
+<code class="docutils literal notranslate"><span class="pre">params.megflow.output_dir</span></code> to relocate the complete run, or set the
+top-level <code class="docutils literal notranslate"><span class="pre">output_dir</span></code> inside one dataset profile to relocate that dataset.
+Dataset output roots must be unique and non-overlapping. Changing a root starts
+a new output/work tree by default, so an earlier run’s <code class="docutils literal notranslate"><span class="pre">-resume</span></code> cache is not
+expected to follow it automatically.</p>
+<p>Process subdirectories are part of MEGFlow’s internal output contract and are
+not user parameters:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 32.0%" />
+<col style="width: 28.0%" />
+<col style="width: 40.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Module</p></th>
+<th class="head"><p>Fixed directory</p></th>
+<th class="head"><p>Reason</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>ICA</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">ica_report</span></code></p></td>
+<td><p>Shared by ICA fitting, labeling, application, and reports.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Epochs</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">epochs</span></code></p></td>
+<td><p>Routed to covariance, forward/source processing, and reports.</p></td>
+</tr>
+<tr class="row-even"><td><p>Coregistration</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">trans</span></code></p></td>
+<td><p>Holds transforms and report figures.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Covariance</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">covariance</span></code></p></td>
+<td><p>Holds covariance, rank, and diagnostic artifacts.</p></td>
+</tr>
+<tr class="row-even"><td><p>Forward solution</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">forward_solution</span></code></p></td>
+<td><p>Routed directly to source reconstruction and reports.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Source reconstruction</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">source_recon</span></code></p></td>
+<td><p>Holds source estimates, routing metadata, and figures.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Do not add <code class="docutils literal notranslate"><span class="pre">output_dir</span></code> inside <code class="docutils literal notranslate"><span class="pre">ica</span></code>, <code class="docutils literal notranslate"><span class="pre">epochs</span></code>, <code class="docutils literal notranslate"><span class="pre">coreg</span></code>,
+<code class="docutils literal notranslate"><span class="pre">covariance</span></code>, <code class="docutils literal notranslate"><span class="pre">forward</span></code>, or <code class="docutils literal notranslate"><span class="pre">source</span></code>. Existing configurations that repeat
+the corresponding fixed value remain accepted, but any different value fails
+before processing with an explanation to change the run- or dataset-level
+<code class="docutils literal notranslate"><span class="pre">output_dir</span></code> instead.</p>
+<p>Keep <code class="docutils literal notranslate"><span class="pre">meg_import</span></code>, <code class="docutils literal notranslate"><span class="pre">mri_import</span></code>, <code class="docutils literal notranslate"><span class="pre">anatomy</span></code>, <code class="docutils literal notranslate"><span class="pre">bem</span></code>, dataset paths, and
+the primary dataset stage in the dataset profile. MEGFlow rejects these fields
+inside a recording profile because they are resolved before recordings are
+matched. A recording-level <code class="docutils literal notranslate"><span class="pre">steps</span></code> override can reduce or specialize an
+already enabled MEG path, but it cannot exceed the dataset MEG stage or turn an
+anatomy-only or report-only dataset into a full MEG run.</p>
+</section>
+<section id="recording-matching">
+<h2>Recording Matching<a class="headerlink" href="#recording-matching" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">recordings</span></code> is a named map inside a dataset profile. MEGFlow extracts BIDS
+entities from each imported path and applies the one profile whose <code class="docutils literal notranslate"><span class="pre">match</span></code>
+block succeeds.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 29.0%" />
+<col style="width: 22.0%" />
+<col style="width: 49.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Match field</p></th>
+<th class="head"><p>Accepted value</p></th>
+<th class="head"><p>Behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">subject</span></code></p></td>
+<td><p>string, list, <code class="docutils literal notranslate"><span class="pre">null</span></code>/<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code></p></td>
+<td><p>Case-insensitive exact match for the value after <code class="docutils literal notranslate"><span class="pre">sub-</span></code>. The complete
+value <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code> removes this field’s constraint, including when the entity
+is absent.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">session</span></code></p></td>
+<td><p>string, list, <code class="docutils literal notranslate"><span class="pre">null</span></code>/<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code></p></td>
+<td><p>Case-insensitive exact match for the value after <code class="docutils literal notranslate"><span class="pre">ses-</span></code>. <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code>
+removes this field’s constraint.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">task</span></code></p></td>
+<td><p>string, list, <code class="docutils literal notranslate"><span class="pre">null</span></code>/<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code></p></td>
+<td><p>Case-insensitive exact match for the basename <code class="docutils literal notranslate"><span class="pre">task-</span></code> entity.
+<code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code> removes this field’s constraint.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">run</span></code></p></td>
+<td><p>string, list, <code class="docutils literal notranslate"><span class="pre">null</span></code>/<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code></p></td>
+<td><p>Case-insensitive exact match for the basename <code class="docutils literal notranslate"><span class="pre">run-</span></code> entity.
+<code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code> removes this field’s constraint.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">suffix</span></code></p></td>
+<td><p>string, list, <code class="docutils literal notranslate"><span class="pre">null</span></code>/<code class="docutils literal notranslate"><span class="pre">[]</span></code>, <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code></p></td>
+<td><p>Matches the final BIDS-like token, such as <code class="docutils literal notranslate"><span class="pre">meg</span></code> in <code class="docutils literal notranslate"><span class="pre">*_meg.fif</span></code> or
+<code class="docutils literal notranslate"><span class="pre">*_meg.ds</span></code>. This is not the file extension. <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code> removes this
+field’s constraint.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">filename_contains</span></code></p></td>
+<td><p>string or list</p></td>
+<td><p>Case-insensitive substring search against the basename, including its
+extension. A list uses OR. Here <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code> is a literal asterisk, not a
+wildcard.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Multiple values within one field use OR logic, while different fields use AND
+logic. An omitted, <code class="docutils literal notranslate"><span class="pre">null</span></code>, or empty entity field is not a constraint. Only
+the complete entity value <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code> has wildcard behavior; values such as
+<code class="docutils literal notranslate"><span class="pre">&quot;aud*&quot;</span></code> are compared literally and do not perform glob matching.</p>
+<p>Entity labels in filenames must use lowercase <code class="docutils literal notranslate"><span class="pre">sub-</span></code>, <code class="docutils literal notranslate"><span class="pre">ses-</span></code>, <code class="docutils literal notranslate"><span class="pre">task-</span></code>,
+and <code class="docutils literal notranslate"><span class="pre">run-</span></code>. Extracted values are then compared case-insensitively. Subject
+and session may also be inferred from parent directories; task and run are
+read from the basename.</p>
+<p>A recording profile must contain at least one nonblank selector. A missing,
+empty, or wholly blank <code class="docutils literal notranslate"><span class="pre">match</span></code> block is a configuration error. Zero matching
+profiles is valid and leaves the dataset-level configuration unchanged;
+exactly one match is recursively merged. If two profiles match the same file,
+MEGFlow stops instead of applying an ambiguous merge. Unknown match keys are
+also errors.</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="w"> </span><span class="o">{</span>
+<span class="w">  </span><span class="n">megflow</span><span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="n">defaults</span><span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="n">steps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;meg_all&quot;</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="w">    </span><span class="n">datasets</span><span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="n">ExampleStudy</span><span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="n">recordings</span><span class="w"> </span><span class="o">{</span>
+<span class="w">          </span><span class="n">auditory_run_01</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="n">match</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;aef&quot;</span>
+<span class="w">              </span><span class="n">run</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;01&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;1&quot;</span><span class="o">]</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">            </span><span class="n">epochs</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">event_time_shift_sec</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.04858</span>
+<span class="w">              </span><span class="n">epochs</span><span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="n">tmin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mf">0.1</span>
+<span class="w">                </span><span class="n">tmax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.5</span>
+<span class="w">              </span><span class="o">}</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">            </span><span class="n">artifacts</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">deepreject</span><span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="n">mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;strict&quot;</span>
+<span class="w">              </span><span class="o">}</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">          </span><span class="o">}</span>
+<span class="w">          </span><span class="n">visual</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="n">match</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;vef&quot;</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">            </span><span class="n">epochs</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">epochs</span><span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="n">tmin</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">-</span><span class="mf">0.2</span>
+<span class="w">                </span><span class="n">tmax</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="mf">0.6</span>
+<span class="w">              </span><span class="o">}</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">          </span><span class="o">}</span>
+<span class="w">          </span><span class="n">kit_rest_meg</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="c1">// suffix is &quot;meg&quot;; filename_contains searches the complete basename.</span>
+<span class="w">            </span><span class="n">match</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">suffix</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;meg&quot;</span>
+<span class="w">              </span><span class="n">filename_contains</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;task-rest&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;.con&quot;</span><span class="o">]</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">            </span><span class="n">artifacts</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">meg_vendor</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;kit&quot;</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">          </span><span class="o">}</span>
+<span class="w">          </span><span class="n">any_task_meg</span><span class="w"> </span><span class="o">{</span>
+<span class="w">            </span><span class="c1">// &quot;*&quot; means that task may be present or absent; it is not a glob.</span>
+<span class="w">            </span><span class="n">match</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">task</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;*&quot;</span>
+<span class="w">              </span><span class="n">filename_contains</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;_meg.fif&quot;</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">            </span><span class="n">source</span><span class="w"> </span><span class="o">{</span>
+<span class="w">              </span><span class="n">visualization</span><span class="w"> </span><span class="o">{</span>
+<span class="w">                </span><span class="n">mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;peak&quot;</span>
+<span class="w">              </span><span class="o">}</span>
+<span class="w">            </span><span class="o">}</span>
+<span class="w">          </span><span class="o">}</span>
+<span class="w">        </span><span class="o">}</span>
+<span class="w">      </span><span class="o">}</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="w">  </span><span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p><code class="docutils literal notranslate"><span class="pre">filename_contains</span></code> is useful when a meaningful distinction is not encoded
+as a supported BIDS entity, for example a vendor extension, acquisition token,
+or naming convention. Keep profiles mutually exclusive: the two broad example
+profiles above should not be enabled together for the same files.</p>
+<p><strong>Worked examples:</strong> <a class="reference internal" href="examples_profiles.html#example-recording-overrides"><span class="std std-ref">Recording-Specific Overrides</span></a> and
+<a class="reference internal" href="examples_profiles.html#example-opm-task-overrides"><span class="std std-ref">Three-Level OPM-COG Task Example</span></a>.</p>
+</section>
+<section id="dataset-discovery">
+<h2>Dataset Discovery<a class="headerlink" href="#dataset-discovery" title="Link to this heading">#</a></h2>
+<p>There are two ways to define datasets. At least one explicit profile with a
+<code class="docutils literal notranslate"><span class="pre">dataset_dir</span></code> or a valid <code class="docutils literal notranslate"><span class="pre">corpus_root</span></code> is required.</p>
+<p>Explicit dataset profiles:</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="w"> </span><span class="o">{</span>
+<span class="w">  </span><span class="n">megflow</span><span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="n">defaults</span><span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="n">steps</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;meg_all&quot;</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="w">    </span><span class="n">datasets</span><span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="n">LanguageStudy</span><span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="n">dataset_dir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/data/studies/LanguageStudy&quot;</span>
+<span class="w">        </span><span class="n">fs_subjects_dir</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/data/studies/LanguageStudy/smri&quot;</span>
+<span class="w">      </span><span class="o">}</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="w">  </span><span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>Corpus discovery:</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="w"> </span><span class="o">{</span>
+<span class="w">  </span><span class="n">megflow</span><span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="n">corpus_root</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;/data/corpus&quot;</span>
+<span class="w">    </span><span class="n">dataset_include</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[</span><span class="s2">&quot;DatasetA&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;DatasetB&quot;</span><span class="o">,</span><span class="w"> </span><span class="s2">&quot;DatasetC&quot;</span><span class="o">]</span>
+<span class="w">    </span><span class="n">dataset_exclude</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="o">[]</span>
+<span class="w">  </span><span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+<p>When <code class="docutils literal notranslate"><span class="pre">corpus_root</span></code> is set, every immediate child directory is a candidate
+dataset. <code class="docutils literal notranslate"><span class="pre">dataset_include</span></code> and <code class="docutils literal notranslate"><span class="pre">dataset_exclude</span></code> filter candidates by
+directory or profile name; <code class="docutils literal notranslate"><span class="pre">[]</span></code> means no include restriction and <code class="docutils literal notranslate"><span class="pre">&quot;*&quot;</span></code> can
+be used as a wildcard. Exclusion wins over inclusion. A matching entry in
+<code class="docutils literal notranslate"><span class="pre">datasets</span></code> can contain only overrides and may omit <code class="docutils literal notranslate"><span class="pre">dataset_dir</span></code>. Profile
+keys are matched case-insensitively after punctuation is normalized.</p>
+<p>An explicit profile that contains <code class="docutils literal notranslate"><span class="pre">dataset_dir</span></code> is also a candidate, even
+when <code class="docutils literal notranslate"><span class="pre">corpus_root</span></code> is set. In a container corpus run, profiles intended to
+customize children under <code class="docutils literal notranslate"><span class="pre">/input</span></code> should normally omit <code class="docutils literal notranslate"><span class="pre">dataset_dir</span></code> so the
+discovered container path is retained.</p>
+<p>Resolved dataset names must be unique after normalization. MEGFlow also rejects
+duplicate or nested <code class="docutils literal notranslate"><span class="pre">output_dir</span></code> and <code class="docutils literal notranslate"><span class="pre">preproc_dir</span></code> trees across datasets,
+including a preprocessed tree placed inside another dataset’s output tree.
+Within one dataset, imported raw files must produce unique recording basenames;
+two files that would write to the same <code class="docutils literal notranslate"><span class="pre">preprocessed/&lt;recording&gt;/</span></code> directory
+are rejected before preprocessing starts.</p>
+<p><strong>Worked example:</strong> <a class="reference internal" href="examples_profiles.html#example-docker-corpus"><span class="std std-ref">Docker Corpus with Different Dataset Settings</span></a>.</p>
+</section>
+<section id="stage-selection">
+<h2>Stage Selection<a class="headerlink" href="#stage-selection" title="Link to this heading">#</a></h2>
+<p>Set the shared <code class="docutils literal notranslate"><span class="pre">steps</span></code> value in <code class="docutils literal notranslate"><span class="pre">defaults</span></code> and override it in a dataset
+profile when datasets intentionally stop at different milestones. Recording
+overrides should only specialize an already enabled MEG path as described
+above.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 22.0%" />
+<col style="width: 78.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Value</p></th>
+<th class="head"><p>Behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">meg_all</span></code></p></td>
+<td><p>Full MEG workflow using an existing <code class="docutils literal notranslate"><span class="pre">fs_subjects_dir</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">all</span></code></p></td>
+<td><p>Structural MRI workflow plus the full MEG workflow.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">anatomy</span></code></p></td>
+<td><p>Structural MRI workflow only.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">meg_artifacts</span></code></p></td>
+<td><p>MEG import, continuous preprocessing, artifact detection, and report.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">meg_ica</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">meg_artifacts</span></code> plus ICA fitting, labeling, and application.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">meg_epochs</span></code></p></td>
+<td><p>Through epoch generation, then report.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">report</span></code></p></td>
+<td><p>Rebuild the static HTML report from existing outputs.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Aliases are accepted: <code class="docutils literal notranslate"><span class="pre">meg</span></code> maps to <code class="docutils literal notranslate"><span class="pre">meg_all</span></code>, <code class="docutils literal notranslate"><span class="pre">artifacts</span></code> maps to
+<code class="docutils literal notranslate"><span class="pre">meg_artifacts</span></code>, <code class="docutils literal notranslate"><span class="pre">ica</span></code> maps to <code class="docutils literal notranslate"><span class="pre">meg_ica</span></code>, and <code class="docutils literal notranslate"><span class="pre">epochs</span></code> maps to
+<code class="docutils literal notranslate"><span class="pre">meg_epochs</span></code>.</p>
+<p>Optional modifiers are comma-separated. <code class="docutils literal notranslate"><span class="pre">meg_epochs,skip_ica</span></code> creates epochs
+from OSL-preprocessed raw files instead of ICA-clean raw files and loads the
+detected bad-channel and bad-segment sidecars before epoch construction.
+<code class="docutils literal notranslate"><span class="pre">with_anatomy</span></code> can be used with <code class="docutils literal notranslate"><span class="pre">meg_artifacts</span></code>, <code class="docutils literal notranslate"><span class="pre">meg_ica</span></code>, or
+<code class="docutils literal notranslate"><span class="pre">meg_epochs</span></code> when anatomy should run in the same workflow. The structural and
+MEG branches may execute concurrently; anatomy becomes a MEG dependency only
+when downstream coregistration and source modeling require it.</p>
+<p><strong>Worked examples:</strong> <a class="reference internal" href="examples_single_dataset.html#example-first-meg-pass"><span class="std std-ref">Single Dataset: First MEG Pass</span></a>,
+<a class="reference internal" href="examples_single_dataset.html#example-anatomy-only"><span class="std std-ref">Structural MRI Only</span></a>, and <a class="reference internal" href="examples_single_dataset.html#example-full-meg"><span class="std std-ref">Full MEG with Existing Anatomy</span></a>.</p>
+</section>
+<section id="input-and-output-fields">
+<h2>Input and Output Fields<a class="headerlink" href="#input-and-output-fields" title="Link to this heading">#</a></h2>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 25.0%" />
+<col style="width: 20.0%" />
+<col style="width: 20.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Scope</p></th>
+<th class="head"><p>Docker default / requirement</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">code_dir</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/program/megflow</span></code>; required</p></td>
+<td><p>Directory containing MEGFlow Python scripts. Source runs normally point
+to the repository <code class="docutils literal notranslate"><span class="pre">megflow</span></code> directory.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">output_dir</span></code></p></td>
+<td><p>global or dataset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">/output</span></code></p></td>
+<td><p>Output root. In corpus mode, dataset outputs default to
+<code class="docutils literal notranslate"><span class="pre">&lt;output_dir&gt;/datasets/&lt;dataset_name&gt;</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">report_scope</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataset</span></code></p></td>
+<td><p>Run-level report layout. Use <code class="docutils literal notranslate"><span class="pre">dataset</span></code> for one dataset and <code class="docutils literal notranslate"><span class="pre">corpus</span></code>
+for <code class="docutils literal notranslate"><span class="pre">corpus_root</span></code> or multi-dataset runs. Supplied launchers and example
+configs set this automatically.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">error_mode</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lenient</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">lenient</span></code> applies process-specific exit-code retry and ignore rules;
+it is not semantic error classification. Validation failures, import
+and report failures, and covariance/source exit code 2 terminate.
+<code class="docutils literal notranslate"><span class="pre">strict</span></code> terminates on every process failure. See
+<a class="reference internal" href="configuration_execution.html"><span class="doc">Execution and Resource Configuration</span></a> for the complete policy.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">fs_subjects_root</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p>unset; optional</p></td>
+<td><p>Corpus-level FreeSurfer root. Dataset subjects directories
+default to <code class="docutils literal notranslate"><span class="pre">&lt;fs_subjects_root&gt;/&lt;dataset_name&gt;</span></code> when this is set.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">corpus_root</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p>empty string</p></td>
+<td><p>Directory whose immediate children are candidate datasets.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dataset_include</span></code> / <code class="docutils literal notranslate"><span class="pre">dataset_exclude</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p>empty lists</p></td>
+<td><p>Dataset-name filters used with <code class="docutils literal notranslate"><span class="pre">corpus_root</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">defaults</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p>required map</p></td>
+<td><p>Shared processing policy merged into every dataset.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">datasets</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">params.megflow</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">docker_input</span></code> placeholder</p></td>
+<td><p>Named dataset profile map. The entrypoint preserves named profiles in
+corpus mode and merges runtime paths into <code class="docutils literal notranslate"><span class="pre">docker_input</span></code> in single mode.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">name</span></code></p></td>
+<td><p>dataset</p></td>
+<td><p>profile key</p></td>
+<td><p>Optional output-facing dataset name. Unsafe punctuation is normalized.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dataset_dir</span></code></p></td>
+<td><p>dataset</p></td>
+<td><p>conditionally required</p></td>
+<td><p>MEG dataset root. May be omitted for a corpus-discovered profile.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">output_dir</span></code></p></td>
+<td><p>dataset</p></td>
+<td><p>derived</p></td>
+<td><p>Per-dataset output override. A single dataset uses the global output;
+corpus datasets use <code class="docutils literal notranslate"><span class="pre">&lt;global&gt;/datasets/&lt;name&gt;</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">preproc_dir</span></code></p></td>
+<td><p>dataset</p></td>
+<td><p>derived</p></td>
+<td><p>Main derivative directory. Defaults to
+<code class="docutils literal notranslate"><span class="pre">&lt;dataset_output_dir&gt;/preprocessed</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">fs_subjects_dir</span></code></p></td>
+<td><p>dataset</p></td>
+<td><p>derived</p></td>
+<td><p>FreeSurfer subjects directory used by coregistration, BEM, forward
+solution, and source reconstruction. It defaults to the corpus
+<code class="docutils literal notranslate"><span class="pre">fs_subjects_root</span></code> or <code class="docutils literal notranslate"><span class="pre">&lt;global_output&gt;/smri/&lt;dataset_name&gt;</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">t1_dir</span></code></p></td>
+<td><p>dataset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">dataset_dir</span></code></p></td>
+<td><p>Structural MRI input root when anatomy processing is enabled.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">dataset_format</span></code></p></td>
+<td><p>defaults or dataset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">auto</span></code></p></td>
+<td><p>MEG discovery format: <code class="docutils literal notranslate"><span class="pre">auto</span></code>, <code class="docutils literal notranslate"><span class="pre">bids</span></code>, or <code class="docutils literal notranslate"><span class="pre">raw</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">file_suffix</span></code></p></td>
+<td><p>defaults or dataset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.fif</span></code></p></td>
+<td><p>File or directory suffix used by raw discovery.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">is_bids</span></code></p></td>
+<td><p>defaults or dataset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>General BIDS assumption. <code class="docutils literal notranslate"><span class="pre">anatomy.is_bids</span></code> is the authoritative
+anatomy-specific value.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">visualize</span></code></p></td>
+<td><p>defaults or dataset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">true</span></code></p></td>
+<td><p>Shared visualization fallback; module-level values take precedence.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">rank_policy</span></code></p></td>
+<td><p>defaults, dataset, or recording</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">auto</span></code></p></td>
+<td><p>Shared default rank policy for covariance and source imaging. Allowed:
+<code class="docutils literal notranslate"><span class="pre">auto</span></code>, <code class="docutils literal notranslate"><span class="pre">info</span></code>, <code class="docutils literal notranslate"><span class="pre">full</span></code>, an MNE rank dictionary, or null.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">seeds.osl</span></code> / <code class="docutils literal notranslate"><span class="pre">seeds.ica</span></code></p></td>
+<td><p>defaults or dataset</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">2025</span></code> / <code class="docutils literal notranslate"><span class="pre">2025</span></code></p></td>
+<td><p>Reproducibility seeds for continuous preprocessing and ICA.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+</section>
+<section id="bids-subject-selection">
+<span id="id1"></span><h2>BIDS Subject Selection<a class="headerlink" href="#bids-subject-selection" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">meg_import.subject_id</span></code> and <code class="docutils literal notranslate"><span class="pre">mri_import.subject_id</span></code> accept these forms:</p>
+<div class="pst-scrollable-table-container"><table class="table" id="id2">
+<caption><span class="caption-number">Table 2 </span><span class="caption-text"><code class="docutils literal notranslate"><span class="pre">subject_id</span></code> forms</span><a class="headerlink" href="#id2" title="Link to this table">#</a></caption>
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Value</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">null</span></code></p></td>
+<td><p>Process every discovered subject that matches the other filters.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;01&quot;</span></code></p></td>
+<td><p>Process one subject.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">[&quot;01&quot;,</span> <span class="pre">&quot;02&quot;]</span></code></p></td>
+<td><p>Process exactly the listed subjects.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">&quot;first:N&quot;</span></code></p></td>
+<td><p>Process up to the first <code class="docutils literal notranslate"><span class="pre">N</span></code> subjects returned by BIDS discovery.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Use labels without the <code class="docutils literal notranslate"><span class="pre">sub-</span></code> prefix. In <code class="docutils literal notranslate"><span class="pre">&quot;first:N&quot;</span></code>, <code class="docutils literal notranslate"><span class="pre">N</span></code> must be a
+positive integer. If fewer than <code class="docutils literal notranslate"><span class="pre">N</span></code> subjects are available, all discovered
+subjects are selected. Discovery order determines which subjects are first;
+use an explicit list when exact membership must be reproducible.</p>
+<p><code class="docutils literal notranslate"><span class="pre">last:N</span></code>, numeric ranges, slice syntax, and wildcards are not supported.
+These entity filters apply to BIDS input. For non-BIDS input, use
+<code class="docutils literal notranslate"><span class="pre">raw_include_keywords</span></code> and <code class="docutils literal notranslate"><span class="pre">raw_exclude_keywords</span></code> instead.</p>
+</section>
+<section id="mri-import">
+<h2>MRI Import<a class="headerlink" href="#mri-import" title="Link to this heading">#</a></h2>
+<p><code class="docutils literal notranslate"><span class="pre">mri_import</span></code> filters structural BIDS files before FreeSurfer or DeepPrep.
+<code class="docutils literal notranslate"><span class="pre">mri_import.subject_id</span></code> follows the
+<a class="reference internal" href="#bids-subject-selection"><span class="std std-ref">BIDS subject selection rules</span></a>. <code class="docutils literal notranslate"><span class="pre">session_id</span></code>,
+<code class="docutils literal notranslate"><span class="pre">task</span></code>, and <code class="docutils literal notranslate"><span class="pre">run_id</span></code> accept null, a string, or a list, using entity values
+without BIDS prefixes. All default to null. Optional
+<code class="docutils literal notranslate"><span class="pre">t1_patterns</span></code> and <code class="docutils literal notranslate"><span class="pre">t1_exclude_keywords</span></code> narrow T1 selection when a dataset
+contains multiple structural derivatives. MRI import is used only for
+anatomy-enabled datasets whose configured method requires a real T1 image.</p>
+<p><strong>Worked example:</strong> <a class="reference internal" href="examples_single_dataset.html#example-anatomy-only"><span class="std std-ref">Structural MRI Only</span></a>.</p>
+</section>
+<section id="meg-import">
+<h2>MEG Import<a class="headerlink" href="#meg-import" title="Link to this heading">#</a></h2>
+<p>MEG input discovery is configured by <code class="docutils literal notranslate"><span class="pre">meg_import</span></code>. BIDS datasets use MNE-BIDS
+entities; raw datasets are discovered by suffix and optional filename keywords.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 20.0%" />
+<col style="width: 17.0%" />
+<col style="width: 35.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Field</p></th>
+<th class="head"><p>Type</p></th>
+<th class="head"><p>Default</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">dataset_format</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">auto</span></code>, <code class="docutils literal notranslate"><span class="pre">bids</span></code>, <code class="docutils literal notranslate"><span class="pre">raw</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">auto</span></code></p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">auto</span></code> treats a directory with <code class="docutils literal notranslate"><span class="pre">dataset_description.json</span></code> as BIDS.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">file_suffix</span></code></p></td>
+<td><p>string</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">.fif</span></code></p></td>
+<td><p>Raw discovery suffix, for example <code class="docutils literal notranslate"><span class="pre">.fif</span></code>, <code class="docutils literal notranslate"><span class="pre">.ds</span></code>, or <code class="docutils literal notranslate"><span class="pre">c,rfDC</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">meg_import.subject_id</span></code></p></td>
+<td><p>null, string, list</p></td>
+<td><p>null</p></td>
+<td><p>BIDS subject selector: null, one label, an explicit list, or
+<code class="docutils literal notranslate"><span class="pre">&quot;first:N&quot;</span></code>. See <a class="reference internal" href="#bids-subject-selection"><span class="std std-ref">BIDS subject selection rules</span></a>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">meg_import.session_id</span></code></p></td>
+<td><p>null, string, list</p></td>
+<td><p>null</p></td>
+<td><p>BIDS session filter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">meg_import.task</span></code></p></td>
+<td><p>null, string, list</p></td>
+<td><p>null</p></td>
+<td><p>BIDS task filter.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">meg_import.run_id</span></code></p></td>
+<td><p>null, string, list</p></td>
+<td><p>null</p></td>
+<td><p>BIDS run filter.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">meg_import.raw_include_keywords</span></code></p></td>
+<td><p>null, string, list</p></td>
+<td><p>null</p></td>
+<td><p>Raw input only. Keep candidates whose basename contains at least one
+listed keyword.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">meg_import.raw_exclude_keywords</span></code></p></td>
+<td><p>null, string, list</p></td>
+<td><p>null</p></td>
+<td><p>Raw input only. Drop candidates whose basename contains a listed
+keyword, such as <code class="docutils literal notranslate"><span class="pre">phantom</span></code> or <code class="docutils literal notranslate"><span class="pre">emptyroom</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Import filters are dataset-level because they run before recording profiles are
+resolved. For raw covariance, the recording named by
+<code class="docutils literal notranslate"><span class="pre">covariance.raw_covariance_task_id</span></code> must also be imported and processed to an
+ICA-clean continuous file. Do not exclude that task from <code class="docutils literal notranslate"><span class="pre">meg_import.task</span></code>.</p>
+<p><strong>Worked examples:</strong> <a class="reference internal" href="examples_single_dataset.html#example-first-meg-pass"><span class="std std-ref">Single Dataset: First MEG Pass</span></a>,
+<a class="reference internal" href="examples_single_dataset.html#example-full-meg"><span class="std std-ref">Full MEG with Existing Anatomy</span></a>, and <a class="reference internal" href="examples_single_dataset.html#example-raw-covariance"><span class="std std-ref">Raw or Empty-Room Covariance</span></a>.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="configuration.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Configuration Reference</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="configuration_preprocessing.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Preprocessing Configuration</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#profile-resolution">Profile Resolution</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#output-directory-contract">Output Directory Contract</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recording-matching">Recording Matching</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#dataset-discovery">Dataset Discovery</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-selection">Stage Selection</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#input-and-output-fields">Input and Output Fields</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#bids-subject-selection">BIDS Subject Selection</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#mri-import">MRI Import</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#meg-import">MEG Import</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By LiaoPan
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, LiaoPan.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

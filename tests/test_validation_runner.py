@@ -165,6 +165,34 @@ class ValidationRunnerTests(unittest.TestCase):
         self.assertIn('cd "${ROOT_DIR}"', text)
         self.assertIn("git ls-files 'nextflow/*.config'", text)
 
+    def test_shipped_config_validation_composes_the_full_overlay_with_both_bases(self):
+        text = VALIDATION_RUNNER.read_text(encoding="utf-8")
+        source_block = text.split('source_overlay_flat="$(', 1)[1].split(
+            '\n    )"', 1
+        )[0]
+        docker_block = text.split('docker_overlay_flat="$(', 1)[1].split(
+            '\n    )"', 1
+        )[0]
+        self.assertIn(
+            '-c "${ROOT_DIR}/nextflow/full_workflow.config" config',
+            source_block,
+        )
+        self.assertIn(
+            '-C "${ROOT_DIR}/nextflow/nextflow_for_docker.config"',
+            docker_block,
+        )
+        self.assertIn(
+            '-c "${ROOT_DIR}/nextflow/full_workflow.config" config',
+            docker_block,
+        )
+        for expected in (
+            "params.megflow.defaults.megqc.alarm_score = 70.0",
+            "params.megflow.defaults.report.coreg_max_threshold = 20.0",
+            "params.megflow.defaults.report.epoch_reject_rate_threshold = 0.90",
+        ):
+            with self.subTest(expected=expected):
+                self.assertIn(expected, text)
+
     def test_public_shell_script_contracts_run_in_both_routing_gates(self):
         text = VALIDATION_RUNNER.read_text(encoding="utf-8")
         function_pattern = re.compile(

@@ -31,17 +31,44 @@ function Resolve-DockerCommand {
     return $null
 }
 
+function Invoke-NativeDocker {
+    param(
+        [string[]]$Arguments,
+        [switch]$DiscardOutput
+    )
+
+    $PreviousErrorActionPreference = $ErrorActionPreference
+    $ExitCode = 1
+    try {
+        # Windows PowerShell 5.1 wraps native stderr as NativeCommandError.
+        # Docker can emit warnings on stderr even when it exits successfully.
+        $ErrorActionPreference = "Continue"
+        if ($DiscardOutput) {
+            & $script:DockerCommand @Arguments *> $null
+        }
+        else {
+            & $script:DockerCommand @Arguments 2>&1 | Out-Host
+        }
+        $ExitCode = $LASTEXITCODE
+    }
+    finally {
+        $ErrorActionPreference = $PreviousErrorActionPreference
+    }
+
+    return $ExitCode
+}
+
 function Test-DockerDaemon {
-    & $script:DockerCommand info *> $null
-    return $LASTEXITCODE -eq 0
+    $ExitCode = Invoke-NativeDocker -Arguments @("info") -DiscardOutput
+    return $ExitCode -eq 0
 }
 
 function Invoke-Docker {
     param([string[]]$Arguments)
 
-    & $script:DockerCommand @Arguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Docker command failed with exit code ${LASTEXITCODE}: docker $($Arguments -join ' ')"
+    $ExitCode = Invoke-NativeDocker -Arguments $Arguments
+    if ($ExitCode -ne 0) {
+        throw "Docker command failed with exit code ${ExitCode}: docker $($Arguments -join ' ')"
     }
 }
 

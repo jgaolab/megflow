@@ -1,0 +1,643 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Installation &#8212; MEGFlow Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=911fa163" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=f9c1cefe"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'quickstart/installation';</script>
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Quickstart" href="quick_guide.html" />
+    <link rel="prev" title="MEGFlow Documentation" href="../index.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.png" class="logo__image only-light" alt="MEGFlow Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="MEGFlow Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Quickstart</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="quick_guide.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/full_workflow.html">Full Workflow</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_local.html">Local Docker Run</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_cluster.html">Cluster Execution</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/reports.html">Reports</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/outputs.html">Outputs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Pipeline Details</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../details/pipeline_details.html">Pipeline Details</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../reference/configuration.html">Configuration Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration_datasets.html">Dataset and Stage Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration_preprocessing.html">Preprocessing Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration_source.html">Source and Report Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration_execution.html">Execution and Resource Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/rank_covariance.html">Rank, Covariance, and Source Imaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/deepreject.html">DeepReject Artifact Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/qc_metrics.html">Quality Control Metrics</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../reference/examples.html">Configuration Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reference/examples_single_dataset.html">Single-Dataset Configuration Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/examples_profiles.html">Multi-Dataset and Override Examples</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/opm_conversion.html">OPM Data Conversion</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../reference/validation.html">Validation and Regression Testing</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/quickstart/installation.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Installation</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-containerized-one-click-install">Recommended: Containerized One-Click Install</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#manual-docker-installation">Manual Docker Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alternative-local-installation-without-docker">Alternative: Local Installation Without Docker</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-entry-point-options">Docker Entry Point Options</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="installation">
+<h1>Installation<a class="headerlink" href="#installation" title="Link to this heading">#</a></h1>
+<p>MEGFlow is officially distributed as a container image. The containerized
+workflow is recommended because it provides the most reproducible runtime and
+avoids most local dependency conflicts.</p>
+<p>If Docker cannot be installed, the Docker daemon is unavailable, or the image
+cannot be pulled in your network environment, use the local development
+installation workflow. The local workflow installs MEGFlow from source and can
+run without a Docker image, but local system libraries and package versions may
+affect reproducibility.</p>
+<section id="recommended-containerized-one-click-install">
+<h2>Recommended: Containerized One-Click Install<a class="headerlink" href="#recommended-containerized-one-click-install" title="Link to this heading">#</a></h2>
+<p>The container installers are standalone files. You do not need to clone the
+MEGFlow repository: run the matching command from any writable directory. Set
+<code class="docutils literal notranslate"><span class="pre">MEGFLOW_VERSION</span></code> once to download the installer from the same Git release
+and pull the matching <code class="docutils literal notranslate"><span class="pre">cplmeg/megflow</span></code> image tag. Use the release number
+without a leading <code class="docutils literal notranslate"><span class="pre">v</span></code>, for example <code class="docutils literal notranslate"><span class="pre">1.0.0</span></code>.</p>
+<p>Direct downloads: <a class="reference external" href="https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_linux.sh">Linux installer</a>,
+<a class="reference external" href="https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_macos.sh">macOS installer</a>,
+and <a class="reference external" href="https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_windows.ps1">Windows installer</a>.</p>
+<p>Linux:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MEGFLOW_VERSION</span><span class="o">=</span><span class="m">1</span>.0.0<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span>install_megflow_linux.sh<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/jgaolab/megflow/v</span><span class="si">${</span><span class="nv">MEGFLOW_VERSION</span><span class="si">}</span><span class="s2">/scripts/install/install_megflow_linux.sh&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>bash<span class="w"> </span>install_megflow_linux.sh<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">MEGFLOW_VERSION</span><span class="si">}</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>macOS:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MEGFLOW_VERSION</span><span class="o">=</span><span class="m">1</span>.0.0<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span>install_megflow_macos.sh<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/jgaolab/megflow/v</span><span class="si">${</span><span class="nv">MEGFLOW_VERSION</span><span class="si">}</span><span class="s2">/scripts/install/install_megflow_macos.sh&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>bash<span class="w"> </span>install_megflow_macos.sh<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">MEGFLOW_VERSION</span><span class="si">}</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+<p>Windows PowerShell:</p>
+<div class="highlight-powershell notranslate"><div class="highlight"><pre><span></span><span class="nv">$MEGFLOW_VERSION</span> <span class="p">=</span> <span class="s2">&quot;1.0.0&quot;</span><span class="p">;</span> <span class="nv">$ErrorActionPreference</span> <span class="p">=</span> <span class="s2">&quot;Stop&quot;</span><span class="p">;</span> <span class="nb">Invoke-WebRequest</span> <span class="n">-Uri</span> <span class="s2">&quot;https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_windows.ps1&quot;</span> <span class="n">-OutFile</span> <span class="s2">&quot;install_megflow_windows.ps1&quot;</span><span class="p">;</span> <span class="n">powershell</span> <span class="n">-ExecutionPolicy</span> <span class="n">Bypass</span> <span class="o">-File</span> <span class="p">.\</span><span class="n">install_megflow_windows</span><span class="p">.</span><span class="n">ps1</span> <span class="n">-ImageTag</span> <span class="nv">$MEGFLOW_VERSION</span>
+</pre></div>
+</div>
+<p>On Linux, the optional second argument selects <code class="docutils literal notranslate"><span class="pre">auto</span></code> (default), <code class="docutils literal notranslate"><span class="pre">docker</span></code>,
+<code class="docutils literal notranslate"><span class="pre">apptainer</span></code>, or <code class="docutils literal notranslate"><span class="pre">singularity</span></code>. For example, force Apptainer with:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MEGFLOW_VERSION</span><span class="o">=</span><span class="m">1</span>.0.0<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span>install_megflow_linux.sh<span class="w"> </span><span class="s2">&quot;https://raw.githubusercontent.com/jgaolab/megflow/v</span><span class="si">${</span><span class="nv">MEGFLOW_VERSION</span><span class="si">}</span><span class="s2">/scripts/install/install_megflow_linux.sh&quot;</span><span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>bash<span class="w"> </span>install_megflow_linux.sh<span class="w"> </span><span class="s2">&quot;</span><span class="si">${</span><span class="nv">MEGFLOW_VERSION</span><span class="si">}</span><span class="s2">&quot;</span><span class="w"> </span>apptainer
+</pre></div>
+</div>
+<p>The first Linux argument is the image tag. The last two runtime names select
+the same SIF workflow. In <code class="docutils literal notranslate"><span class="pre">auto</span></code> mode, a usable Docker daemon is preferred
+and the installer otherwise selects Apptainer/Singularity.</p>
+<p>When Apptainer or Singularity is available, it downloads the OCI layers from
+<code class="docutils literal notranslate"><span class="pre">docker://cplmeg/megflow:&lt;version&gt;</span></code>, translates them into a local SIF, and
+runs the image entrypoint with <code class="docutils literal notranslate"><span class="pre">-h</span></code>. It does not use a Docker daemon or create
+a local Docker image. If neither runtime is installed, package-manager
+installation is best-effort because package availability differs among Linux
+distributions and HPC sites. Install the runtime through the site’s supported
+repository first when the automatic attempt is unavailable. See the
+<a class="reference external" href="https://apptainer.org/docs/user/latest/docker_and_oci.html">Apptainer Docker/OCI guide</a> for details of
+the OCI-to-SIF translation.</p>
+<p>Run the generated SIF with writable host directories bound to the paths used by
+the MEGFlow entrypoint. This example processes MEG through ICA:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>/data/out
+
+apptainer<span class="w"> </span>run<span class="w"> </span>--cleanenv<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bind<span class="w"> </span>/data/bids:/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--bind<span class="w"> </span>/data/out:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>./megflow_1.0.0.sif<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-i<span class="w"> </span>/input<span class="w"> </span>-o<span class="w"> </span>/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--steps<span class="w"> </span>meg_ica<span class="w"> </span>--resume
+</pre></div>
+</div>
+<p>Use <code class="docutils literal notranslate"><span class="pre">singularity</span> <span class="pre">run</span></code> instead on a SingularityCE system. A custom MEGFlow
+configuration can be added with
+<code class="docutils literal notranslate"><span class="pre">--bind</span> <span class="pre">/data/megflow/nextflow.config:/program/nextflow/nextflow.config:ro</span></code>.
+Bind structural MRI and FreeSurfer license paths in the same way when anatomy or
+source processing needs them. The SIF root remains read-only; generated runtime
+configuration and Nextflow state are written below the bound <code class="docutils literal notranslate"><span class="pre">/output</span></code> path.</p>
+<p>See <code class="docutils literal notranslate"><span class="pre">scripts/install/README.md</span></code> for installer options and troubleshooting.</p>
+</section>
+<section id="manual-docker-installation">
+<h2>Manual Docker Installation<a class="headerlink" href="#manual-docker-installation" title="Link to this heading">#</a></h2>
+<p>Install Docker according to your operating system. For detailed installation
+instructions, visit the <a class="reference external" href="https://docs.docker.com/get-docker/">Docker official website</a>.</p>
+<p>Check Docker:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>info
+</pre></div>
+</div>
+<p>Pull the MEGFlow image:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nv">MEGFLOW_VERSION</span><span class="o">=</span><span class="m">1</span>.0.0<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>docker<span class="w"> </span>pull<span class="w"> </span><span class="s2">&quot;cplmeg/megflow:</span><span class="si">${</span><span class="nv">MEGFLOW_VERSION</span><span class="si">}</span><span class="s2">&quot;</span>
+</pre></div>
+</div>
+</section>
+<section id="alternative-local-installation-without-docker">
+<h2>Alternative: Local Installation Without Docker<a class="headerlink" href="#alternative-local-installation-without-docker" title="Link to this heading">#</a></h2>
+<div class="admonition important">
+<p class="admonition-title">Important</p>
+<p>This is a source installation. The installer automatically clones or
+updates the GitHub source under <code class="docutils literal notranslate"><span class="pre">~/.megflow-dev/src/megflow</span></code> by default.
+You do not need to clone the repository first or run from its root; download
+and execute the installer from any writable directory. Git and access to
+GitHub are required.</p>
+</div>
+<p>This workflow installs or reuses Conda, Nextflow, FreeSurfer, and MEGFlow source
+dependencies in a local installation directory.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>curl<span class="w"> </span>-fL<span class="w"> </span>-o<span class="w"> </span>install_megflow_dev_linux.sh<span class="w"> </span>https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install-dev/install_megflow_dev_linux.sh<span class="w"> </span><span class="o">&amp;&amp;</span><span class="w"> </span>bash<span class="w"> </span>install_megflow_dev_linux.sh
+</pre></div>
+</div>
+<p>After downloading it, rerun <code class="docutils literal notranslate"><span class="pre">bash</span> <span class="pre">install_megflow_dev_linux.sh</span></code> with options
+such as <code class="docutils literal notranslate"><span class="pre">--install-dir</span> <span class="pre">/data/megflow-dev</span></code> or <code class="docutils literal notranslate"><span class="pre">--no-freesurfer</span></code> when needed.</p>
+<p>After installation, load the generated environment:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">source</span><span class="w"> </span>&lt;install-dir&gt;/env.sh
+</pre></div>
+</div>
+<p>See <code class="docutils literal notranslate"><span class="pre">scripts/install-dev/README.md</span></code> for the full local installation workflow.</p>
+</section>
+<section id="docker-entry-point-options">
+<h2>Docker Entry Point Options<a class="headerlink" href="#docker-entry-point-options" title="Link to this heading">#</a></h2>
+<p>Use <code class="docutils literal notranslate"><span class="pre">--steps</span></code> as the primary way to choose the pipeline stage. For example,
+use <code class="docutils literal notranslate"><span class="pre">--steps</span> <span class="pre">anatomy</span></code> for structural MRI only and <code class="docutils literal notranslate"><span class="pre">--steps</span> <span class="pre">meg_all</span></code> for the
+full MEG workflow with existing anatomy.</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>cplmeg/megflow:&lt;version&gt;<span class="w"> </span>-h
+</pre></div>
+</div>
+<p>Docker runs do not require Docker’s <code class="docutils literal notranslate"><span class="pre">--user</span></code> flag. The container entrypoint
+prepares mounted output permissions, then drops to the host UID/GID inferred
+from <code class="docutils literal notranslate"><span class="pre">/input</span></code> before running Nextflow. Report-only runs that only mount
+<code class="docutils literal notranslate"><span class="pre">/output</span></code> infer ownership from <code class="docutils literal notranslate"><span class="pre">/output</span></code>. If that inference is not
+appropriate, pass <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">LOCAL_UID=&quot;$(id</span> <span class="pre">-u)&quot;</span> <span class="pre">-e</span> <span class="pre">LOCAL_GID=&quot;$(id</span> <span class="pre">-g)&quot;</span></code> to choose
+the output owner explicitly.</p>
+<p>Before binding writable host directories, create them as the user who will run
+MEGFlow. This is especially important for the structural <code class="docutils literal notranslate"><span class="pre">/smri</span></code> mount:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>/data/out<span class="w"> </span>/data/smri
+<span class="nb">test</span><span class="w"> </span>-w<span class="w"> </span>/data/out
+<span class="nb">test</span><span class="w"> </span>-w<span class="w"> </span>/data/smri
+</pre></div>
+</div>
+<p>If a bind-mount source is missing, Docker may create the host directory as
+<code class="docutils literal notranslate"><span class="pre">root:root</span></code>. MEGFlow prepares the <code class="docutils literal notranslate"><span class="pre">/output</span></code> mount at startup, but a
+root-owned <code class="docutils literal notranslate"><span class="pre">/smri</span></code> can remain unwritable after the container drops to the
+host UID/GID and cause anatomy processing to fail. Correct host ownership or
+permissions before rerunning if either write check fails.</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>Usage: /program/nextflow/run.sh [options]
+Options:
+  -c, --config          Project configuration file
+  -i, --input           MEG dataset or corpus input directory
+  -o, --output          MEGFlow output directory
+  -s, --steps           Pipeline stage override, for example all or meg_all
+  --anat-method         Anatomy method: freesurfer, deepprep, or pseudomri
+  -r, --view-report     Run Streamlit to view the report and do not run Nextflow
+  --corpus              Process immediate input children as separate datasets
+  --fs_license_file     FreeSurfer license path inside the container
+  --fs_subjects_dir     FreeSurfer SUBJECTS_DIR inside the container
+  --t1_dir              Single-dataset structural MRI input root
+  --resume              Resume the previous Nextflow execution
+  -h, --help             Show this help message
+</pre></div>
+</div>
+<p>Common <code class="docutils literal notranslate"><span class="pre">--steps</span></code> values are <code class="docutils literal notranslate"><span class="pre">meg_all</span></code> for full MEG processing with existing
+anatomy, <code class="docutils literal notranslate"><span class="pre">all</span></code> for anatomy plus full MEG, <code class="docutils literal notranslate"><span class="pre">anatomy</span></code> for structural MRI only,
+and <code class="docutils literal notranslate"><span class="pre">report</span></code> for static report regeneration. See
+<a class="reference internal" href="../reference/configuration.html"><span class="doc">Configuration Reference</span></a> for all modes and modifiers.
+Use <code class="docutils literal notranslate"><span class="pre">--anat-method</span> <span class="pre">deepprep</span></code> to override the configured structural method for
+one Docker run. The accepted values are <code class="docutils literal notranslate"><span class="pre">freesurfer</span></code>, <code class="docutils literal notranslate"><span class="pre">deepprep</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">pseudomri</span></code>. When the option is omitted, the configured <code class="docutils literal notranslate"><span class="pre">anatomy.method</span></code>
+remains effective. In corpus mode the option changes the shared default while
+an explicit method in a named dataset profile remains authoritative.
+The entrypoint maps <code class="docutils literal notranslate"><span class="pre">--fs_license_file</span></code> into the effective
+<code class="docutils literal notranslate"><span class="pre">anatomy.fs_license_file</span></code> setting. In <code class="docutils literal notranslate"><span class="pre">--corpus</span></code> mode it also preserves
+named dataset profiles from the mounted config, including dataset-specific
+processing blocks and <code class="docutils literal notranslate"><span class="pre">dataset_include</span></code> / <code class="docutils literal notranslate"><span class="pre">dataset_exclude</span></code> filters.</p>
+<p>In single-dataset mode, <code class="docutils literal notranslate"><span class="pre">--t1_dir</span></code> explicitly overrides
+<code class="docutils literal notranslate"><span class="pre">datasets.docker_input.t1_dir</span></code>. When it is omitted, the entrypoint preserves
+the configured value and MEGFlow ultimately falls back to the dataset input
+directory. <code class="docutils literal notranslate"><span class="pre">--t1_dir</span></code> is rejected with <code class="docutils literal notranslate"><span class="pre">--corpus</span></code> because each corpus
+dataset can have a different MRI root; set <code class="docutils literal notranslate"><span class="pre">t1_dir</span></code> in each named profile.</p>
+<p>Other scientific and report behavior is configured only in <code class="docutils literal notranslate"><span class="pre">params.megflow</span></code>.
+Set <code class="docutils literal notranslate"><span class="pre">anatomy.t1_input_type</span></code>, <code class="docutils literal notranslate"><span class="pre">anatomy.t1_dicom_series_glob</span></code>,
+<code class="docutils literal notranslate"><span class="pre">report.static_task_log_mode</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">report.static_artifact_overview_duration</span></code> under shared defaults or the
+matching dataset profile. This keeps the effective values reviewable in the
+saved runtime config and allows heterogeneous corpus datasets to differ.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="../index.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">MEGFlow Documentation</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="quick_guide.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Quickstart</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#recommended-containerized-one-click-install">Recommended: Containerized One-Click Install</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#manual-docker-installation">Manual Docker Installation</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#alternative-local-installation-without-docker">Alternative: Local Installation Without Docker</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#docker-entry-point-options">Docker Entry Point Options</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By LiaoPan
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, LiaoPan.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

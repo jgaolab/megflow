@@ -1,0 +1,911 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Reports &#8212; MEGFlow Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=911fa163" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=f9c1cefe"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'tutorial/reports';</script>
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Outputs" href="outputs.html" />
+    <link rel="prev" title="Cluster Execution" href="tutorial_cluster.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.png" class="logo__image only-light" alt="MEGFlow Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="MEGFlow Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Quickstart</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/quick_guide.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="full_workflow.html">Full Workflow</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="tutorial_local.html">Local Docker Run</a></li>
+<li class="toctree-l1"><a class="reference internal" href="tutorial_cluster.html">Cluster Execution</a></li>
+<li class="toctree-l1 current active"><a class="current reference internal" href="#">Reports</a></li>
+<li class="toctree-l1"><a class="reference internal" href="outputs.html">Outputs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Pipeline Details</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../details/pipeline_details.html">Pipeline Details</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1 has-children"><a class="reference internal" href="../reference/configuration.html">Configuration Reference</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration_datasets.html">Dataset and Stage Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration_preprocessing.html">Preprocessing Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration_source.html">Source and Report Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/configuration_execution.html">Execution and Resource Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/rank_covariance.html">Rank, Covariance, and Source Imaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/deepreject.html">DeepReject Artifact Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/qc_metrics.html">Quality Control Metrics</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="../reference/examples.html">Configuration Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="../reference/examples_single_dataset.html">Single-Dataset Configuration Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="../reference/examples_profiles.html">Multi-Dataset and Override Examples</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="../reference/opm_conversion.html">OPM Data Conversion</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../reference/validation.html">Validation and Regression Testing</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/tutorial/reports.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Reports</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#downloadable-report-demonstrations">Downloadable Report Demonstrations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#static-processing-and-qc-report">Static Processing and QC Report</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#static-report-visual-tour">Static Report Visual Tour</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-level-evidence">Stage-Level Evidence</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#report-contents">Report Contents</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-log-bundling">Task Log Bundling</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-interpret-the-static-report">How to Interpret the Static Report</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-streamlit-report">Interactive Streamlit Report</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-review-and-editing">Interactive Review and Editing</a></li>
+</ul>
+</li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="reports">
+<h1>Reports<a class="headerlink" href="#reports" title="Link to this heading">#</a></h1>
+<p>MEGFlow provides two report interfaces:</p>
+<ul class="simple">
+<li><p>A portable static HTML report generated by the Nextflow workflow.</p></li>
+<li><p>An interactive Streamlit report viewer started with <code class="docutils literal notranslate"><span class="pre">-r</span></code> or
+<code class="docutils literal notranslate"><span class="pre">--view_report</span></code>.</p></li>
+</ul>
+<p>The static report is the first place to inspect a completed run. The
+interactive report is used when reviewers need to inspect the underlying
+recording, edit sidecar files, and continue the workflow with Nextflow
+<code class="docutils literal notranslate"><span class="pre">-resume</span></code>.</p>
+<section id="downloadable-report-demonstrations">
+<h2>Downloadable Report Demonstrations<a class="headerlink" href="#downloadable-report-demonstrations" title="Link to this heading">#</a></h2>
+<p>A complete MEGFlow report demonstration package is available from the
+<a class="reference external" href="https://doi.org/10.17605/OSF.IO/QE93S">MEGFlow demonstration archive on OSF</a>. The archive provides a complete,
+self-contained static HTML report package for download and a demonstration
+video showing how the interactive Streamlit report is opened and reviewed.
+After extracting the static report package, open its <code class="docutils literal notranslate"><span class="pre">index.html</span></code> file in a
+web browser; no running MEGFlow service is required.</p>
+<figure class="align-default" id="id1">
+<a class="megflow-report-figure reference internal image-reference" href="../_images/megflow_runtime.png"><img alt="MEGFlow running through Nextflow and completing selected processing steps." class="megflow-report-figure" src="../_images/megflow_runtime.png" style="width: 92%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Fig. 1 </span><span class="caption-text">A MEGFlow run records selected steps, task status, cache reuse, runtime, and
+completion statistics in the Nextflow console output.</span><a class="headerlink" href="#id1" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</section>
+<section id="static-processing-and-qc-report">
+<h2>Static Processing and QC Report<a class="headerlink" href="#static-processing-and-qc-report" title="Link to this heading">#</a></h2>
+<p>Every MEGFlow run that reaches a MEG milestone writes a static report under:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;output_dir&gt;/static_html_report/
+</pre></div>
+</div>
+<p>Open the report entry point:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>&lt;output_dir&gt;/static_html_report/index.html
+</pre></div>
+</div>
+<p>The static report can also be regenerated without rerunning the pipeline:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/bids:/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/out:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/smri:/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cplmeg/megflow:1.0.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-i<span class="w"> </span>/input<span class="w"> </span>-o<span class="w"> </span>/output<span class="w"> </span>--fs_subjects_dir<span class="w"> </span>/smri<span class="w"> </span>--steps<span class="w"> </span>report
+</pre></div>
+</div>
+<p>The report directory is self-contained and includes copied figures, sidecar
+files, JSON summaries, CSV summaries, and a config snapshot when available.
+Its <code class="docutils literal notranslate"><span class="pre">nextflow/</span></code> directory is owned by Nextflow and contains the execution
+report, timeline, trace, and launcher log when available. MEGFlow regenerates
+its own report assets without deleting this directory, and the dashboard links
+directly to these run-level files.
+Subject pages also include a collapsed <code class="docutils literal notranslate"><span class="pre">Task</span> <span class="pre">Details</span></code> table derived from the
+Nextflow trace file when one is available. If a task failed or was ignored, the
+page adds <code class="docutils literal notranslate"><span class="pre">Task</span> <span class="pre">Failure</span> <span class="pre">Details</span></code> with the error summary and packaged command
+log excerpts.</p>
+<section id="static-report-visual-tour">
+<h3>Static Report Visual Tour<a class="headerlink" href="#static-report-visual-tour" title="Link to this heading">#</a></h3>
+<p>The dataset dashboard is designed for triage. Start with the selected workflow,
+then move through aggregate metrics, completion status, alarm priority, and
+subject-level evidence.</p>
+<figure class="align-default" id="id2">
+<a class="megflow-report-figure reference internal image-reference" href="../_images/megflow_workflow.png"><img alt="Static report workflow diagram showing selected MEGFlow stages and completion state." class="megflow-report-figure" src="../_images/megflow_workflow.png" style="width: 100%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Fig. 2 </span><span class="caption-text">The workflow diagram is rendered from <code class="docutils literal notranslate"><span class="pre">megflow_run_manifest.json</span></code> and the
+effective configuration. It changes with <code class="docutils literal notranslate"><span class="pre">steps</span></code> so reviewers can verify
+that the report matches the intended run mode.</span><a class="headerlink" href="#id2" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 megflow-screenshot-grid docutils">
+<div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-1 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-2 sd-g-xs-2 sd-g-sm-2 sd-g-md-2 sd-g-lg-2 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Dataset overview</div>
+<a class="reference external image-reference" href="../_static/static_reports/megflow_dataset_overview.png"><img alt="Dataset overview cards summarizing NMDQ score, bad channels, bad segments, coregistration, and epoch rejection." class="megflow-card-image" src="../_images/megflow_dataset_overview.png" />
+</a>
+<p class="sd-card-text">Aggregate NMDQ score, bad-channel and bad-segment counts,
+coregistration distances, epoch rejection, status counts, and alarm
+totals are summarized at the dataset level.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+NormMEG-QC and NMDQ score</div>
+<a class="reference external image-reference" href="../_static/static_reports/megflow_normative_score.png"><img alt="NormMEG-QC panel showing metric-family scores, the overall NMDQ score, and thresholds." class="megflow-card-image" src="../_images/megflow_normative_score.png" />
+</a>
+<p class="sd-card-text">NormMEG-QC summarizes metric-family scores on a fixed 0-100 scale
+together with the overall NMDQ score, processing gate, and warning
+threshold.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Completion matrix</div>
+<a class="reference external image-reference" href="../_static/static_reports/megflow_completion_matrix.png"><img alt="Completion matrix showing which MEGFlow stages completed for each recording." class="megflow-card-image" src="../_images/megflow_completion_matrix.png" />
+</a>
+<p class="sd-card-text">The completion matrix shows which stages completed for each recording,
+making partial runs and failed or skipped branches easy to identify.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Priority review</div>
+<a class="reference external image-reference" href="../_static/static_reports/megflow_priority.png"><img alt="Priority review panel listing recordings with alarms that need attention." class="megflow-card-image" src="../_images/megflow_priority.png" />
+</a>
+<p class="sd-card-text">Alarm summaries highlight recordings that should be reviewed first
+before spending time on passed subjects.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Subject details</div>
+<a class="reference external image-reference" href="../_static/static_reports/megflow_subjects_details.png"><img alt="Subject-level static report page with alarm details, stage summaries, and task logs." class="megflow-card-image megflow-card-image-tall" src="../_images/megflow_subjects_details.png" />
+</a>
+<p class="sd-card-text">Subject pages collect alarms, stage-level evidence, packaged files, and
+Nextflow task logs for the selected recording.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section id="stage-level-evidence">
+<h3>Stage-Level Evidence<a class="headerlink" href="#stage-level-evidence" title="Link to this heading">#</a></h3>
+<p>Static subject pages include stage-specific figures so reviewers can inspect
+the evidence behind each warning or failed threshold.</p>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 megflow-screenshot-grid docutils">
+<div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-1 sd-row-cols-md-3 sd-row-cols-lg-3 sd-g-2 sd-g-xs-2 sd-g-sm-2 sd-g-md-2 sd-g-lg-2 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Artifacts</div>
+<a class="reference external image-reference" href="../_static/static_reports/megflow_artifacts.png"><img alt="Static report artifact section with bad-channel and bad-segment evidence." class="megflow-card-image" src="../_images/megflow_artifacts.png" />
+</a>
+<p class="sd-card-text">Bad-channel and bad-segment evidence is packaged with the report for
+offline inspection.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+ICA</div>
+<a class="reference external image-reference" href="../_static/static_reports/megflow_ica.png"><img alt="Static report ICA section with component labels and component figures." class="megflow-card-image megflow-card-image-tall" src="../_images/megflow_ica.png" />
+</a>
+<p class="sd-card-text">ICA labels, marked components, enabled ECG/EOG/outlier candidates,
+topographies, and overlay plots are grouped on the subject page. A
+category disabled in that recording’s resolved <code class="docutils literal notranslate"><span class="pre">ic_label</span></code> settings is
+omitted from missing-component alarms rather than being reported as a
+failed detection.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Coregistration</div>
+<a class="reference external image-reference" href="../_static/static_reports/megflow_coreg.png"><img alt="Static report coregistration section with alignment figures and distance summaries." class="megflow-card-image" src="../_images/megflow_coreg.png" />
+</a>
+<p class="sd-card-text">Coregistration figures and distance summaries help confirm that each MEG
+recording was matched to the intended MRI subject.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<section id="report-contents">
+<h3>Report Contents<a class="headerlink" href="#report-contents" title="Link to this heading">#</a></h3>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 32.0%" />
+<col style="width: 68.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Path</p></th>
+<th class="head"><p>Description</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">index.html</span></code></p></td>
+<td><p>Dataset-level dashboard with workflow diagram, aggregate metrics,
+subject table, alarm counts, and links to subject pages.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">subjects/&lt;recording&gt;.html</span></code></p></td>
+<td><p>Recording-level details for artifacts, ICA, coregistration, epochs,
+covariance, head model, source reconstruction, and packaged files.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">alarms.html</span></code></p></td>
+<td><p>Searchable alarm list across all recordings.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">data/dataset_summary.json</span></code></p></td>
+<td><p>Machine-readable dataset summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">data/subjects.csv</span></code></p></td>
+<td><p>Spreadsheet-friendly subject summary table.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">data/subjects/&lt;recording&gt;.json</span></code></p></td>
+<td><p>Machine-readable per-recording summary.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">data/nextflow.config.txt</span></code></p></td>
+<td><p>Nextflow runtime/project config snapshot when MEGFlow can locate one.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">data/megflow_run_manifest.json</span></code></p></td>
+<td><p>Workflow mode and run metadata used to render the workflow diagram.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">files/&lt;recording&gt;/errors/*.txt</span></code></p></td>
+<td><p>Packaged <code class="docutils literal notranslate"><span class="pre">.command.err</span></code>, <code class="docutils literal notranslate"><span class="pre">.command.log</span></code>, and <code class="docutils literal notranslate"><span class="pre">.command.out</span></code>
+excerpts for failed or ignored tasks, when available.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">files/&lt;recording&gt;/tasks/*.txt</span></code></p></td>
+<td><p>Optional <code class="docutils literal notranslate"><span class="pre">.command.log</span></code> excerpts for successful tasks when
+<code class="docutils literal notranslate"><span class="pre">static_task_log_mode</span> <span class="pre">=</span> <span class="pre">'all-command-log'</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>When dataset reports are bundled into a corpus report, the sticky navigation
+follows the report hierarchy. Dataset-level pages link to <code class="docutils literal notranslate"><span class="pre">Corpus</span> <span class="pre">overview</span></code>;
+subject pages link to their local <code class="docutils literal notranslate"><span class="pre">Dataset</span> <span class="pre">overview</span></code> so reviewing one subject
+does not unexpectedly leave the current dataset.</p>
+<p>Completion states are determined from required derivatives such as Epochs FIF,
+forward FIF, covariance/rank files, and source-estimate files. Optional PNG
+visualizations do not decide whether those processing stages completed.</p>
+</section>
+</section>
+<section id="task-log-bundling">
+<h2>Task Log Bundling<a class="headerlink" href="#task-log-bundling" title="Link to this heading">#</a></h2>
+<p>By default, MEGFlow copies successful-task <code class="docutils literal notranslate"><span class="pre">.command.log</span></code> excerpts as well
+as failed-task command logs so the portable report contains fuller task
+provenance. Configure this with <code class="docutils literal notranslate"><span class="pre">static_task_log_mode</span></code> in the Nextflow
+config. Put a shared value under <code class="docutils literal notranslate"><span class="pre">params.megflow.defaults.report</span></code> or override
+it in a named dataset profile.</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 72.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Value</p></th>
+<th class="head"><p>Behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">all-command-log</span></code></p></td>
+<td><p>Default. Copy <code class="docutils literal notranslate"><span class="pre">.command.err</span></code>, <code class="docutils literal notranslate"><span class="pre">.command.log</span></code>, and
+<code class="docutils literal notranslate"><span class="pre">.command.out</span></code> excerpts for failed or ignored tasks, and also copy
+<code class="docutils literal notranslate"><span class="pre">.command.log</span></code> for successful tasks.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">failed</span></code></p></td>
+<td><p>Copy command logs only for failed or ignored tasks when a smaller report
+package is preferred.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">none</span></code></p></td>
+<td><p>Do not copy <code class="docutils literal notranslate"><span class="pre">.command*</span></code> logs. The report still shows trace-derived
+task status, exit code, duration, memory, and hash values.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Example:</p>
+<div class="highlight-groovy notranslate"><div class="highlight"><pre><span></span><span class="n">params</span><span class="w"> </span><span class="o">{</span>
+<span class="w">  </span><span class="n">megflow</span><span class="w"> </span><span class="o">{</span>
+<span class="w">    </span><span class="n">defaults</span><span class="w"> </span><span class="o">{</span>
+<span class="w">      </span><span class="n">report</span><span class="w"> </span><span class="o">{</span>
+<span class="w">        </span><span class="n">static_task_log_mode</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;all-command-log&quot;</span>
+<span class="w">      </span><span class="o">}</span>
+<span class="w">    </span><span class="o">}</span>
+<span class="w">  </span><span class="o">}</span>
+<span class="o">}</span>
+</pre></div>
+</div>
+</section>
+<section id="how-to-interpret-the-static-report">
+<h2>How to Interpret the Static Report<a class="headerlink" href="#how-to-interpret-the-static-report" title="Link to this heading">#</a></h2>
+<p>Start from <code class="docutils literal notranslate"><span class="pre">index.html</span></code>:</p>
+<ol class="arabic simple">
+<li><p>Review the workflow diagram to verify that the selected <code class="docutils literal notranslate"><span class="pre">steps</span></code> mode
+matches the intended run.</p></li>
+<li><p>Sort the subject table by alarms, bad channels, bad segments, coregistration
+distance, or epoch rejection rate.</p></li>
+<li><p>Open subject pages for recordings marked <code class="docutils literal notranslate"><span class="pre">WARN</span></code> or <code class="docutils literal notranslate"><span class="pre">FAIL</span></code>.</p></li>
+<li><p>For artifact alarms, inspect the bad-channel list, bad-segment table, and
+artifact mask heatmap. The heatmap summarizes where bad channels and bad
+time segments occur across the recording before opening the more detailed
+waveform images.</p></li>
+<li><p>For ICA alarms, inspect marked components, ECG/EOG candidates, component
+topographies, and ICA overlay/PSD plots.</p></li>
+<li><p>For coregistration alarms, inspect the staged coregistration figures and
+confirm that the recording was matched to the correct MRI subject.</p></li>
+<li><p>If a subject is marked <code class="docutils literal notranslate"><span class="pre">FAIL</span></code> because a Nextflow task failed or was
+ignored, open <code class="docutils literal notranslate"><span class="pre">Task</span> <span class="pre">Failure</span> <span class="pre">Details</span></code> first, then expand <code class="docutils literal notranslate"><span class="pre">Task</span> <span class="pre">Details</span></code>
+for the full trace context.</p></li>
+</ol>
+<p>The report includes measured values, static alarms, and the NMDQ score produced
+by NormMEG-QC when <code class="docutils literal notranslate"><span class="pre">megqc.enabled</span> <span class="pre">=</span> <span class="pre">true</span></code>. See
+<a class="reference internal" href="../reference/qc_metrics.html"><span class="doc">Quality Control Metrics</span></a> for the complete metric list and score-gating
+details.</p>
+</section>
+<section id="interactive-streamlit-report">
+<h2>Interactive Streamlit Report<a class="headerlink" href="#interactive-streamlit-report" title="Link to this heading">#</a></h2>
+<p>To view quality control reports through the interactive Streamlit interface,
+run MEGFlow with Docker and expose port <code class="docutils literal notranslate"><span class="pre">8501</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>-p<span class="w"> </span><span class="m">8501</span>:8501<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/megflow_output:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cplmeg/megflow:&lt;version&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-r
+</pre></div>
+</div>
+<p>The Docker entrypoint handles mounted output permissions automatically. It
+starts as root, prepares <code class="docutils literal notranslate"><span class="pre">/output</span></code> when needed, then drops to the host UID/GID
+inferred from <code class="docutils literal notranslate"><span class="pre">/input</span></code>. For report-only runs that only mount <code class="docutils literal notranslate"><span class="pre">/output</span></code>, the
+UID/GID are inferred from <code class="docutils literal notranslate"><span class="pre">/output</span></code> instead, so an existing report directory
+owned by the submitting user stays writable. If neither mount has the desired
+owner, pass <code class="docutils literal notranslate"><span class="pre">-e</span> <span class="pre">LOCAL_UID=&quot;$(id</span> <span class="pre">-u)&quot;</span> <span class="pre">-e</span> <span class="pre">LOCAL_GID=&quot;$(id</span> <span class="pre">-g)&quot;</span></code>.</p>
+<p>Then open:</p>
+<div class="highlight-text notranslate"><div class="highlight"><pre><span></span>http://&lt;server_ip&gt;:8501
+</pre></div>
+</div>
+<p>Use <code class="docutils literal notranslate"><span class="pre">http://localhost:8501</span></code> when running locally. The Streamlit report is a
+viewer and does not run Nextflow preprocessing.</p>
+<p>For corpus-mode outputs, mount the output root and pass it as <code class="docutils literal notranslate"><span class="pre">-o</span></code>:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span>-p<span class="w"> </span><span class="m">8501</span>:8501<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/megflow_corpus_output:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cplmeg/megflow:&lt;version&gt;<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-r<span class="w"> </span>-o<span class="w"> </span>/output
+</pre></div>
+</div>
+<p>The Streamlit entrypoint detects <code class="docutils literal notranslate"><span class="pre">/output/datasets/&lt;dataset_name&gt;/</span></code> and adds
+a corpus dataset selector in the sidebar. After selecting a dataset, the usual
+interactive pages read that dataset’s <code class="docutils literal notranslate"><span class="pre">preprocessed/</span></code> tree. If
+<code class="docutils literal notranslate"><span class="pre">/output/smri/&lt;dataset_name&gt;/</span></code> exists, it is used as that dataset’s
+FreeSurfer <code class="docutils literal notranslate"><span class="pre">SUBJECTS_DIR</span></code>.</p>
+<section id="interactive-review-and-editing">
+<h3>Interactive Review and Editing<a class="headerlink" href="#interactive-review-and-editing" title="Link to this heading">#</a></h3>
+<p>The interactive report reads the same processing outputs used by the static
+report, but allows reviewers to inspect and edit selected sidecar files. After
+saving edits, rerun MEGFlow with <code class="docutils literal notranslate"><span class="pre">-resume</span></code> so the downstream tasks that depend
+on those sidecars are recomputed.</p>
+<div class="sd-container-fluid sd-sphinx-override sd-mb-4 megflow-screenshot-grid docutils">
+<div class="sd-row sd-row-cols-1 sd-row-cols-xs-1 sd-row-cols-sm-1 sd-row-cols-md-2 sd-row-cols-lg-2 sd-g-2 sd-g-xs-2 sd-g-sm-2 sd-g-md-2 sd-g-lg-2 docutils">
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Artifact review</div>
+<a class="reference external image-reference" href="../_static/interactive_reports/megflow_artifacts_review.png"><img alt="Interactive artifact review page showing PSD, filtered waveforms, and bad-segment editing." class="megflow-card-image megflow-card-image-tall" src="../_images/megflow_artifacts_review.png" />
+</a>
+<p class="sd-card-text">Review PSD and waveform evidence, edit bad channels or bad segments, and
+save corrections for resumed downstream processing.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Fast artifact review</div>
+<a class="reference external image-reference" href="../_static/interactive_reports/megflow_artifacts_fast_review.png"><img alt="Interactive fast artifact review page using generated waveform images." class="megflow-card-image" src="../_images/megflow_artifacts_fast_review.png" />
+</a>
+<p class="sd-card-text">MEGFlow can generate waveform images for quick browser review when
+<code class="docutils literal notranslate"><span class="pre">artifact_images_enabled:</span> <span class="pre">true</span></code> is configured.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+ICA review</div>
+<a class="reference external image-reference" href="../_static/interactive_reports/megflow_ICA_review.png"><img alt="Interactive ICA review page for checking and editing ICA component labels." class="megflow-card-image" src="../_images/megflow_ICA_review.png" />
+</a>
+<p class="sd-card-text">Review automatic ICA labels, inspect component evidence, edit artifact
+labels when needed, and save the selected components.</p>
+</div>
+</div>
+</div>
+<div class="sd-col sd-d-flex-row docutils">
+<div class="sd-card sd-sphinx-override sd-w-100 sd-shadow-sm megflow-screenshot-card docutils">
+<div class="sd-card-body docutils">
+<div class="sd-card-title sd-font-weight-bold docutils">
+Coregistration review</div>
+<a class="reference external image-reference" href="../_static/interactive_reports/megflow_coreg_review.png"><img alt="Interactive coregistration review page for ICP and manual transform adjustment." class="megflow-card-image megflow-card-image-tall" src="../_images/megflow_coreg_review.png" />
+</a>
+<p class="sd-card-text">Inspect the alignment, run ICP, manually adjust the transform when
+needed, and save the corrected coregistration matrix.</p>
+</div>
+</div>
+</div>
+</div>
+</div>
+<figure class="align-default" id="id3">
+<a class="megflow-report-figure reference internal image-reference" href="../_images/megflow_source_review.png"><img alt="Interactive source review page with time slider for source localization results." class="megflow-report-figure" src="../_images/megflow_source_review.png" style="width: 80%;" />
+</a>
+<figcaption>
+<p><span class="caption-number">Fig. 3 </span><span class="caption-text">Source review provides an interactive view of source-localization results,
+including time navigation for inspecting source estimates at different
+latencies.</span><a class="headerlink" href="#id3" title="Link to this image">#</a></p>
+</figcaption>
+</figure>
+</section>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="tutorial_cluster.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Cluster Execution</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="outputs.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Outputs</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#downloadable-report-demonstrations">Downloadable Report Demonstrations</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#static-processing-and-qc-report">Static Processing and QC Report</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#static-report-visual-tour">Static Report Visual Tour</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#stage-level-evidence">Stage-Level Evidence</a></li>
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#report-contents">Report Contents</a></li>
+</ul>
+</li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#task-log-bundling">Task Log Bundling</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#how-to-interpret-the-static-report">How to Interpret the Static Report</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-streamlit-report">Interactive Streamlit Report</a><ul class="visible nav section-nav flex-column">
+<li class="toc-h3 nav-item toc-entry"><a class="reference internal nav-link" href="#interactive-review-and-editing">Interactive Review and Editing</a></li>
+</ul>
+</li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By LiaoPan
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, LiaoPan.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,0 +1,709 @@
+
+<!DOCTYPE html>
+
+
+<html lang="en" data-content_root="../" >
+
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" /><meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>Execution and Resource Configuration &#8212; MEGFlow Documentation</title>
+  
+  
+  
+  <script data-cfasync="false">
+    document.documentElement.dataset.mode = localStorage.getItem("mode") || "";
+    document.documentElement.dataset.theme = localStorage.getItem("theme") || "";
+  </script>
+  
+  <!-- Loaded before other Sphinx assets -->
+  <link href="../_static/styles/theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/bootstrap.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+<link href="../_static/styles/pydata-sphinx-theme.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+
+  
+  <link href="../_static/vendor/fontawesome/6.5.2/css/all.min.css?digest=dfe6caa3a7d634c4db9b" rel="stylesheet" />
+  <link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-solid-900.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-brands-400.woff2" />
+<link rel="preload" as="font" type="font/woff2" crossorigin href="../_static/vendor/fontawesome/6.5.2/webfonts/fa-regular-400.woff2" />
+
+    <link rel="stylesheet" type="text/css" href="../_static/pygments.css?v=8f2a1f02" />
+    <link rel="stylesheet" type="text/css" href="../_static/styles/sphinx-book-theme.css?v=eba8b062" />
+    <link rel="stylesheet" type="text/css" href="../_static/copybutton.css?v=76b2166b" />
+    <link rel="stylesheet" type="text/css" href="../_static/sphinx-design.min.css?v=95c83b7e" />
+    <link rel="stylesheet" type="text/css" href="../_static/css/custom.css?v=911fa163" />
+  
+  <!-- Pre-loaded scripts that we'll load fully later -->
+  <link rel="preload" as="script" href="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b" />
+<link rel="preload" as="script" href="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b" />
+  <script src="../_static/vendor/fontawesome/6.5.2/js/all.min.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+    <script src="../_static/documentation_options.js?v=f9c1cefe"></script>
+    <script src="../_static/doctools.js?v=9a2dae69"></script>
+    <script src="../_static/sphinx_highlight.js?v=dc90522c"></script>
+    <script src="../_static/clipboard.min.js?v=a7894cd8"></script>
+    <script src="../_static/copybutton.js?v=f281be69"></script>
+    <script src="../_static/scripts/sphinx-book-theme.js?v=887ef09a"></script>
+    <script src="../_static/design-tabs.js?v=f930bc37"></script>
+    <script>DOCUMENTATION_OPTIONS.pagename = 'reference/configuration_execution';</script>
+    <link rel="icon" href="../_static/favicon.png"/>
+    <link rel="index" title="Index" href="../genindex.html" />
+    <link rel="search" title="Search" href="../search.html" />
+    <link rel="next" title="Rank, Covariance, and Source Imaging" href="rank_covariance.html" />
+    <link rel="prev" title="Source and Report Configuration" href="configuration_source.html" />
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <meta name="docsearch:language" content="en"/>
+  </head>
+  
+  
+  <body data-bs-spy="scroll" data-bs-target=".bd-toc-nav" data-offset="180" data-bs-root-margin="0px 0px -60%" data-default-mode="">
+
+  
+  
+  <div id="pst-skip-link" class="skip-link d-print-none"><a href="#main-content">Skip to main content</a></div>
+  
+  <div id="pst-scroll-pixel-helper"></div>
+  
+  <button type="button" class="btn rounded-pill" id="pst-back-to-top">
+    <i class="fa-solid fa-arrow-up"></i>Back to top</button>
+
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-primary-sidebar-checkbox"/>
+  <label class="overlay overlay-primary" for="pst-primary-sidebar-checkbox"></label>
+  
+  <input type="checkbox"
+          class="sidebar-toggle"
+          id="pst-secondary-sidebar-checkbox"/>
+  <label class="overlay overlay-secondary" for="pst-secondary-sidebar-checkbox"></label>
+  
+  <div class="search-button__wrapper">
+    <div class="search-button__overlay"></div>
+    <div class="search-button__search-container">
+<form class="bd-search d-flex align-items-center"
+      action="../search.html"
+      method="get">
+  <i class="fa-solid fa-magnifying-glass"></i>
+  <input type="search"
+         class="form-control"
+         name="q"
+         id="search-input"
+         placeholder="Search..."
+         aria-label="Search..."
+         autocomplete="off"
+         autocorrect="off"
+         autocapitalize="off"
+         spellcheck="false"/>
+  <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd>K</kbd></span>
+</form></div>
+  </div>
+
+  <div class="pst-async-banner-revealer d-none">
+  <aside id="bd-header-version-warning" class="d-none d-print-none" aria-label="Version warning"></aside>
+</div>
+
+  
+    <header class="bd-header navbar navbar-expand-lg bd-navbar d-print-none">
+    </header>
+  
+
+  <div class="bd-container">
+    <div class="bd-container__inner bd-page-width">
+      
+      
+      
+      <div class="bd-sidebar-primary bd-sidebar">
+        
+
+  
+  <div class="sidebar-header-items sidebar-primary__section">
+    
+    
+    
+    
+  </div>
+  
+    <div class="sidebar-primary-items__start sidebar-primary__section">
+        <div class="sidebar-primary-item">
+
+  
+    
+  
+
+<a class="navbar-brand logo" href="../index.html">
+  
+  
+  
+  
+  
+    
+    
+      
+    
+    
+    <img src="../_static/logo.png" class="logo__image only-light" alt="MEGFlow Documentation - Home"/>
+    <script>document.write(`<img src="../_static/logo.png" class="logo__image only-dark" alt="MEGFlow Documentation - Home"/>`);</script>
+  
+  
+</a></div>
+        <div class="sidebar-primary-item">
+
+ <script>
+ document.write(`
+   <button class="btn search-button-field search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass"></i>
+    <span class="search-button__default-text">Search</span>
+    <span class="search-button__kbd-shortcut"><kbd class="kbd-shortcut__modifier">Ctrl</kbd>+<kbd class="kbd-shortcut__modifier">K</kbd></span>
+   </button>
+ `);
+ </script></div>
+        <div class="sidebar-primary-item"><nav class="bd-links bd-docs-nav" aria-label="Main">
+    <div class="bd-toc-item navbar-nav active">
+        <p aria-level="2" class="caption" role="heading"><span class="caption-text">Quickstart</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/installation.html">Installation</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../quickstart/quick_guide.html">Quickstart</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/full_workflow.html">Full Workflow</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Tutorials</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_local.html">Local Docker Run</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/tutorial_cluster.html">Cluster Execution</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/reports.html">Reports</a></li>
+<li class="toctree-l1"><a class="reference internal" href="../tutorial/outputs.html">Outputs</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Pipeline Details</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="../details/pipeline_details.html">Pipeline Details</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Reference</span></p>
+<ul class="current nav bd-sidenav">
+<li class="toctree-l1 current active has-children"><a class="reference internal" href="configuration.html">Configuration Reference</a><details open="open"><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul class="current">
+<li class="toctree-l2"><a class="reference internal" href="configuration_datasets.html">Dataset and Stage Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_preprocessing.html">Preprocessing Configuration</a></li>
+<li class="toctree-l2"><a class="reference internal" href="configuration_source.html">Source and Report Configuration</a></li>
+<li class="toctree-l2 current active"><a class="current reference internal" href="#">Execution and Resource Configuration</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="rank_covariance.html">Rank, Covariance, and Source Imaging</a></li>
+<li class="toctree-l1"><a class="reference internal" href="deepreject.html">DeepReject Artifact Detection</a></li>
+<li class="toctree-l1"><a class="reference internal" href="qc_metrics.html">Quality Control Metrics</a></li>
+<li class="toctree-l1 has-children"><a class="reference internal" href="examples.html">Configuration Examples</a><details><summary><span class="toctree-toggle" role="presentation"><i class="fa-solid fa-chevron-down"></i></span></summary><ul>
+<li class="toctree-l2"><a class="reference internal" href="examples_single_dataset.html">Single-Dataset Configuration Examples</a></li>
+<li class="toctree-l2"><a class="reference internal" href="examples_profiles.html">Multi-Dataset and Override Examples</a></li>
+</ul>
+</details></li>
+<li class="toctree-l1"><a class="reference internal" href="opm_conversion.html">OPM Data Conversion</a></li>
+</ul>
+<p aria-level="2" class="caption" role="heading"><span class="caption-text">Development</span></p>
+<ul class="nav bd-sidenav">
+<li class="toctree-l1"><a class="reference internal" href="validation.html">Validation and Regression Testing</a></li>
+</ul>
+
+    </div>
+</nav></div>
+    </div>
+  
+  
+  <div class="sidebar-primary-items__end sidebar-primary__section">
+  </div>
+  
+  <div id="rtd-footer-container"></div>
+
+
+      </div>
+      
+      <main id="main-content" class="bd-main" role="main">
+        
+        
+
+<div class="sbt-scroll-pixel-helper"></div>
+
+          <div class="bd-content">
+            <div class="bd-article-container">
+              
+              <div class="bd-header-article d-print-none">
+<div class="header-article-items header-article__inner">
+  
+    <div class="header-article-items__start">
+      
+        <div class="header-article-item"><button class="sidebar-toggle primary-toggle btn btn-sm" title="Toggle primary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+  <span class="fa-solid fa-bars"></span>
+</button></div>
+      
+    </div>
+  
+  
+    <div class="header-article-items__end">
+      
+        <div class="header-article-item">
+
+<div class="article-header-buttons">
+
+
+
+
+
+<div class="dropdown dropdown-download-buttons">
+  <button class="btn dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Download this page">
+    <i class="fas fa-download"></i>
+  </button>
+  <ul class="dropdown-menu">
+      
+      
+      
+      <li><a href="../_sources/reference/configuration_execution.rst" target="_blank"
+   class="btn btn-sm btn-download-source-button dropdown-item"
+   title="Download source file"
+   data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file"></i>
+  </span>
+<span class="btn__text-container">.rst</span>
+</a>
+</li>
+      
+      
+      
+      
+      <li>
+<button onclick="window.print()"
+  class="btn btn-sm btn-download-pdf-button dropdown-item"
+  title="Print to PDF"
+  data-bs-placement="left" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-file-pdf"></i>
+  </span>
+<span class="btn__text-container">.pdf</span>
+</button>
+</li>
+      
+  </ul>
+</div>
+
+
+
+
+<button onclick="toggleFullScreen()"
+  class="btn btn-sm btn-fullscreen-button"
+  title="Fullscreen mode"
+  data-bs-placement="bottom" data-bs-toggle="tooltip"
+>
+  
+
+<span class="btn__icon-container">
+  <i class="fas fa-expand"></i>
+  </span>
+
+</button>
+
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm nav-link pst-navbar-icon theme-switch-button" title="light/dark" aria-label="light/dark" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="theme-switch fa-solid fa-sun fa-lg" data-mode="light"></i>
+    <i class="theme-switch fa-solid fa-moon fa-lg" data-mode="dark"></i>
+    <i class="theme-switch fa-solid fa-circle-half-stroke fa-lg" data-mode="auto"></i>
+  </button>
+`);
+</script>
+
+
+<script>
+document.write(`
+  <button class="btn btn-sm pst-navbar-icon search-button search-button__button" title="Search" aria-label="Search" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <i class="fa-solid fa-magnifying-glass fa-lg"></i>
+  </button>
+`);
+</script>
+<button class="sidebar-toggle secondary-toggle btn btn-sm" title="Toggle secondary sidebar" data-bs-placement="bottom" data-bs-toggle="tooltip">
+    <span class="fa-solid fa-list"></span>
+</button>
+</div></div>
+      
+    </div>
+  
+</div>
+</div>
+              
+              
+
+<div id="jb-print-docs-body" class="onlyprint">
+    <h1>Execution and Resource Configuration</h1>
+    <!-- Table of contents -->
+    <div id="print-main-content">
+        <div id="jb-print-toc">
+            
+            <div>
+                <h2> Contents </h2>
+            </div>
+            <nav aria-label="Page">
+                <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-dataset-docker-example">Multi-Dataset Docker Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#source-and-hpc-execution">Source and HPC Execution</a></li>
+</ul>
+            </nav>
+        </div>
+    </div>
+</div>
+
+              
+                
+<div id="searchbox"></div>
+                <article class="bd-article">
+                  
+  <section id="execution-and-resource-configuration">
+<span id="configuration-execution"></span><h1>Execution and Resource Configuration<a class="headerlink" href="#execution-and-resource-configuration" title="Link to this heading">#</a></h1>
+<p>This page covers multi-dataset Docker execution and advanced source,
+Docker-profile, Slurm, and Singularity launch settings.</p>
+<section id="multi-dataset-docker-example">
+<h2>Multi-Dataset Docker Example<a class="headerlink" href="#multi-dataset-docker-example" title="Link to this heading">#</a></h2>
+<p>For Docker, start from the corpus overlay in <a class="reference internal" href="examples.html"><span class="doc">Configuration Examples</span></a>. Mount the corpus
+root once, keep each dataset’s scientific settings in a named profile, and let
+the entrypoint assign container-visible dataset and output paths:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>docker<span class="w"> </span>run<span class="w"> </span>--rm<span class="w"> </span>-it<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus:/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus_megflow:/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus_smri:/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-v<span class="w"> </span>/data/corpus.config:/config/corpus.config:ro<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>cplmeg/megflow:1.0.0<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--config<span class="w"> </span>/config/corpus.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--input<span class="w"> </span>/input<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--output<span class="w"> </span>/output<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--fs_subjects_dir<span class="w"> </span>/smri<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--corpus<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>--resume
+</pre></div>
+</div>
+<p>The repository also provides
+<a class="reference external" href="https://github.com/jgaolab/megflow/blob/main/nextflow/nextflow_multi_dataset_demo.config">nextflow_multi_dataset_demo.config</a>
+for a WAND, SMN4Lang, and MEG-MASC source-mode run. It contains site-specific
+host paths and process resources. After checking those paths, launch it with
+<code class="docutils literal notranslate"><span class="pre">examples/run_scripts/corpus_source.sh</span> <span class="pre">--config</span> <span class="pre">nextflow/nextflow_multi_dataset_demo.config</span></code>.
+See <a class="reference internal" href="examples.html"><span class="doc">Configuration Examples</span></a> for both workflows and for recording-level task overrides.</p>
+<p><strong>Worked examples:</strong> <a class="reference internal" href="examples_profiles.html#example-docker-corpus"><span class="std std-ref">Docker Corpus with Different Dataset Settings</span></a> and
+<a class="reference internal" href="examples_profiles.html#example-source-multi-dataset"><span class="std std-ref">Runnable Three-Dataset Source Demo</span></a>.</p>
+</section>
+<section id="source-and-hpc-execution">
+<h2>Source and HPC Execution<a class="headerlink" href="#source-and-hpc-execution" title="Link to this heading">#</a></h2>
+<p>This section is for developers running from a source checkout and for HPC
+sites that launch Nextflow directly. Users of the distributed Docker command
+shown at the top of this page do not need these launcher options. The Docker
+image already runs Nextflow inside the container with the local executor; do
+not add a Nextflow <code class="docutils literal notranslate"><span class="pre">docker</span></code> profile to that command.</p>
+<p>Source launches should use Nextflow 24.10 or newer. The repository integration
+suite currently validates the workflow with Nextflow 24.10.3. Nextflow 26.04
+defaults to its stricter v2 syntax parser, while the current MEGFlow DSL2
+workflow still uses dynamic Groovy constructs supported by parser v1. The
+distributed image selects the compatible parser automatically. For a direct
+source launch with Nextflow 26, set it explicitly:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">NXF_SYNTAX_PARSER</span><span class="o">=</span>v1
+nextflow<span class="w"> </span>run<span class="w"> </span>nextflow/megflow.nf<span class="w"> </span>...
+</pre></div>
+</div>
+<p>The main source configuration defines the execution layer as well as
+<code class="docutils literal notranslate"><span class="pre">params.megflow</span></code>. Runtime observability files are stored inside the final
+report package. Single-dataset runs use <code class="docutils literal notranslate"><span class="pre">static_html_report/nextflow/</span></code> and
+corpus runs use <code class="docutils literal notranslate"><span class="pre">corpus_static_html_report/nextflow/</span></code>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 28.0%" />
+<col style="width: 32.0%" />
+<col style="width: 40.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Output</p></th>
+<th class="head"><p>Default path</p></th>
+<th class="head"><p>Purpose</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p>Nextflow log</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;report_package&gt;/nextflow/nextflow.log</span></code></p></td>
+<td><p>Driver messages, task submissions, retries, and failures.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Execution report</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;report_package&gt;/nextflow/report.html</span></code></p></td>
+<td><p>CPU, memory, duration, and task-level resource utilization.</p></td>
+</tr>
+<tr class="row-even"><td><p>Timeline</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;report_package&gt;/nextflow/timeline.html</span></code></p></td>
+<td><p>Chronological task scheduling and concurrency.</p></td>
+</tr>
+<tr class="row-odd"><td><p>Trace</p></td>
+<td><p><code class="docutils literal notranslate"><span class="pre">&lt;report_package&gt;/nextflow/trace.txt</span></code></p></td>
+<td><p>Machine-readable task status and resource accounting.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Nextflow initializes its launcher log before it loads pipeline configuration.
+A custom source launcher should therefore pass the configured log path through
+the top-level <code class="docutils literal notranslate"><span class="pre">-log</span></code> option.</p>
+<p>The commands below use <code class="docutils literal notranslate"><span class="pre">-C</span></code>, so <code class="docutils literal notranslate"><span class="pre">my_project.config</span></code> must be a complete
+configuration or include the repository base with
+<code class="docutils literal notranslate"><span class="pre">includeConfig</span> <span class="pre">&quot;nextflow.config&quot;</span></code>. Use <code class="docutils literal notranslate"><span class="pre">-c</span></code> instead for a small additive
+overlay. See <a class="reference internal" href="configuration.html#configuration-cli-flags"><span class="std std-ref">Configuration File Options: Docker, -c, and -C</span></a> for the exact soft- and
+hard-override behavior.</p>
+<p>For example:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span>mkdir<span class="w"> </span>-p<span class="w"> </span>/data/project/megflow_run/static_html_report/nextflow
+nextflow<span class="w"> </span>-log<span class="w"> </span>/data/project/megflow_run/static_html_report/nextflow/nextflow.log<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-C<span class="w"> </span>nextflow/my_project.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>run<span class="w"> </span>nextflow/megflow.nf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-profile<span class="w"> </span>local,strict<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-resume
+</pre></div>
+</div>
+<p>The base <code class="docutils literal notranslate"><span class="pre">process</span></code> scope assigns conservative defaults and then overrides
+CPU, memory, time, and retry limits with selectors that match current process
+names in <code class="docutils literal notranslate"><span class="pre">megflow.nf</span></code>. Memory-heavy stages use
+<code class="docutils literal notranslate"><span class="pre">task.attempt</span></code>-dependent memory, so a resource-related retry requests more
+memory. Slurm <code class="docutils literal notranslate"><span class="pre">queueSize</span></code> limits how many tasks Nextflow keeps submitted to
+the scheduler; it is not a per-process concurrency limit. Use <code class="docutils literal notranslate"><span class="pre">maxForks</span></code> in a
+project-specific process selector when one stage needs its own cap.</p>
+<p>Two failure policies are available:</p>
+<dl class="simple">
+<dt><code class="docutils literal notranslate"><span class="pre">lenient</span></code></dt><dd><p>Apply exit-code-based policies. Most processes retry exit codes 137-140 and
+ignore other failures after their retry policy. Coregistration also retries
+exit codes 1 and 134-136. Covariance and source reconstruction terminate on
+exit code 2, retry exit code 1 and 137-140, and may ignore other nonzero
+exits. MRI/MEG import and report generation always terminate. These rules do
+not infer whether an error is scientifically recoverable. Missing branches
+from ignored recording failures are allowed to close at the forward/source
+joins; dataset and corpus reports are then generated with the available
+outputs so the incomplete recordings remain auditable.</p>
+</dd>
+<dt><code class="docutils literal notranslate"><span class="pre">strict</span></code></dt><dd><p>Terminate on the first process failure and set <code class="docutils literal notranslate"><span class="pre">workflow.failOnIgnore</span></code>.
+Immediate termination does not guarantee report submission; use lenient
+mode when a partial-run report is required.</p>
+</dd>
+</dl>
+<p>The following execution profiles are defined in <code class="docutils literal notranslate"><span class="pre">nextflow.config</span></code>:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 24.0%" />
+<col style="width: 76.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Profile</p></th>
+<th class="head"><p>Behavior</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">local</span></code></p></td>
+<td><p>Run tasks directly on the current workstation or server.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">docker</span></code></p></td>
+<td><p>Keep the Nextflow driver on the host and run each workflow task in
+<code class="docutils literal notranslate"><span class="pre">cplmeg/megflow:1.0.0</span></code>. The image contains DeepPrep.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">slurm</span></code></p></td>
+<td><p>Submit each task to Slurm using process-specific CPU, memory, and time
+directives.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">singularity</span></code></p></td>
+<td><p>Keep the Nextflow driver on the host and run each task in the MEGFlow
+SIF image. Compose it with <code class="docutils literal notranslate"><span class="pre">slurm</span></code> on HPC.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">lenient</span></code> / <code class="docutils literal notranslate"><span class="pre">strict</span></code></p></td>
+<td><p>Select the failure policy independently of the executor.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">debug</span></code></p></td>
+<td><p>Enable DEBUG logging and set <code class="docutils literal notranslate"><span class="pre">maxForks</span> <span class="pre">=</span> <span class="pre">1</span></code> for each process. Different
+process definitions can still run concurrently when dependencies allow.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Docker, Slurm, and Singularity site settings for source launches are provided
+through environment variables instead of anatomy parameters or hard-coded
+cluster names:</p>
+<div class="pst-scrollable-table-container"><table class="table">
+<colgroup>
+<col style="width: 38.0%" />
+<col style="width: 62.0%" />
+</colgroup>
+<thead>
+<tr class="row-odd"><th class="head"><p>Variable</p></th>
+<th class="head"><p>Meaning</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_DOCKER_IMAGE</span></code></p></td>
+<td><p>Complete MEGFlow image used by the source <code class="docutils literal notranslate"><span class="pre">docker</span></code> profile; defaults
+to <code class="docutils literal notranslate"><span class="pre">cplmeg/megflow:1.0.0</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_DOCKER_RUN_OPTIONS</span></code></p></td>
+<td><p>Docker bind/runtime options; defaults to <code class="docutils literal notranslate"><span class="pre">-v</span> <span class="pre">/data:/data</span></code>.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_SLURM_PARTITION</span></code></p></td>
+<td><p>Slurm partition or comma-separated partition list.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_SLURM_ACCOUNT</span></code> / <code class="docutils literal notranslate"><span class="pre">MEGFLOW_SLURM_QOS</span></code></p></td>
+<td><p>Optional account and QoS flags.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_SLURM_EXTRA</span></code></p></td>
+<td><p>Additional <code class="docutils literal notranslate"><span class="pre">sbatch</span></code> options, for example a site constraint.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_SLURM_QUEUE_SIZE</span></code></p></td>
+<td><p>Maximum tasks kept in the Slurm submission queue; default 100.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_SLURM_WORKDIR</span></code></p></td>
+<td><p>Shared task work directory; defaults to <code class="docutils literal notranslate"><span class="pre">&lt;output_dir&gt;/work_slurm</span></code>.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_SIF</span></code></p></td>
+<td><p>MEGFlow SIF path.</p></td>
+</tr>
+<tr class="row-even"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_SINGULARITY_CACHE</span></code></p></td>
+<td><p>Shared image cache directory.</p></td>
+</tr>
+<tr class="row-odd"><td><p><code class="docutils literal notranslate"><span class="pre">MEGFLOW_SINGULARITY_RUN_OPTIONS</span></code></p></td>
+<td><p>Site-specific bind and runtime options, such as <code class="docutils literal notranslate"><span class="pre">-B</span> <span class="pre">/data:/data</span></code>.</p></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>These variables apply to direct Nextflow launches. The public
+<code class="docutils literal notranslate"><span class="pre">examples/run_scripts/corpus_source.sh</span></code> helper derives its <code class="docutils literal notranslate"><span class="pre">-w</span></code> and <code class="docutils literal notranslate"><span class="pre">-log</span></code>
+values from the configured output root; override them with its <code class="docutils literal notranslate"><span class="pre">--work-dir</span></code>
+and <code class="docutils literal notranslate"><span class="pre">--log-file</span></code> options.</p>
+<p>For Slurm with Singularity:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">MEGFLOW_SLURM_PARTITION</span><span class="o">=</span>cpu
+<span class="nb">export</span><span class="w"> </span><span class="nv">MEGFLOW_SLURM_ACCOUNT</span><span class="o">=</span>my_account
+<span class="nb">export</span><span class="w"> </span><span class="nv">MEGFLOW_SIF</span><span class="o">=</span>/shared/containers/cplmeg_megflow_1.0.0.sif
+<span class="nb">export</span><span class="w"> </span><span class="nv">MEGFLOW_SINGULARITY_RUN_OPTIONS</span><span class="o">=</span><span class="s1">&#39;-B /data:/data&#39;</span>
+
+nextflow<span class="w"> </span>-log<span class="w"> </span>/data/project/megflow_run/static_html_report/nextflow/nextflow.log<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-C<span class="w"> </span>nextflow/my_project.config<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>run<span class="w"> </span>nextflow/megflow.nf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-profile<span class="w"> </span>slurm,singularity,lenient<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-resume
+</pre></div>
+</div>
+<p>When Nextflow is launched from source with the <code class="docutils literal notranslate"><span class="pre">docker</span></code> profile, the host
+driver starts a separate MEGFlow container for each task. This is distinct from
+invoking the distributed image directly, where both the driver and local tasks
+run inside the outer container:</p>
+<div class="highlight-bash notranslate"><div class="highlight"><pre><span></span><span class="nb">export</span><span class="w"> </span><span class="nv">MEGFLOW_DOCKER_RUN_OPTIONS</span><span class="o">=</span><span class="s1">&#39;-v /data:/data -v /path/license.txt:/fs_license.txt:ro&#39;</span>
+nextflow<span class="w"> </span>-C<span class="w"> </span>nextflow/project.config<span class="w"> </span>run<span class="w"> </span>nextflow/megflow.nf<span class="w"> </span><span class="se">\</span>
+<span class="w">  </span>-profile<span class="w"> </span>docker,strict<span class="w"> </span>-resume
+</pre></div>
+</div>
+<p>The effective <code class="docutils literal notranslate"><span class="pre">anatomy.fs_license_file</span></code> must name the container-visible path
+(<code class="docutils literal notranslate"><span class="pre">/fs_license.txt</span></code> above). See <a class="reference internal" href="../tutorial/tutorial_cluster.html"><span class="doc">Cluster Execution</span></a> for shared
+filesystems, SIF setup, scheduler requirements, and site-specific examples.</p>
+<p><strong>Worked example:</strong> <a class="reference internal" href="examples_profiles.html#example-cluster-execution"><span class="std std-ref">Cluster Execution</span></a>.</p>
+</section>
+</section>
+
+
+                </article>
+              
+
+              
+              
+              
+              
+                <footer class="prev-next-footer d-print-none">
+                  
+<div class="prev-next-area">
+    <a class="left-prev"
+       href="configuration_source.html"
+       title="previous page">
+      <i class="fa-solid fa-angle-left"></i>
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">previous</p>
+        <p class="prev-next-title">Source and Report Configuration</p>
+      </div>
+    </a>
+    <a class="right-next"
+       href="rank_covariance.html"
+       title="next page">
+      <div class="prev-next-info">
+        <p class="prev-next-subtitle">next</p>
+        <p class="prev-next-title">Rank, Covariance, and Source Imaging</p>
+      </div>
+      <i class="fa-solid fa-angle-right"></i>
+    </a>
+</div>
+                </footer>
+              
+            </div>
+            
+            
+              
+                <div class="bd-sidebar-secondary bd-toc"><div class="sidebar-secondary-items sidebar-secondary__inner">
+
+
+  <div class="sidebar-secondary-item">
+  <div class="page-toc tocsection onthispage">
+    <i class="fa-solid fa-list"></i> Contents
+  </div>
+  <nav class="bd-toc-nav page-toc">
+    <ul class="visible nav section-nav flex-column">
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#multi-dataset-docker-example">Multi-Dataset Docker Example</a></li>
+<li class="toc-h2 nav-item toc-entry"><a class="reference internal nav-link" href="#source-and-hpc-execution">Source and HPC Execution</a></li>
+</ul>
+  </nav></div>
+
+</div></div>
+              
+            
+          </div>
+          <footer class="bd-footer-content">
+            
+<div class="bd-footer-content__inner container">
+  
+  <div class="footer-item">
+    
+<p class="component-author">
+By LiaoPan
+</p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+
+  <p class="copyright">
+    
+      © Copyright 2026, LiaoPan.
+      <br/>
+    
+  </p>
+
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+  <div class="footer-item">
+    
+  </div>
+  
+</div>
+          </footer>
+        
+
+      </main>
+    </div>
+  </div>
+  
+  <!-- Scripts loaded after <body> so the DOM is not blocked -->
+  <script src="../_static/scripts/bootstrap.js?digest=dfe6caa3a7d634c4db9b"></script>
+<script src="../_static/scripts/pydata-sphinx-theme.js?digest=dfe6caa3a7d634c4db9b"></script>
+
+  <footer class="bd-footer">
+  </footer>
+  </body>
+</html>

@@ -1,4 +1,5 @@
 import os
+import shutil
 import subprocess
 import tempfile
 import textwrap
@@ -119,6 +120,74 @@ class WindowsInstallerContractTests(unittest.TestCase):
         self.assertIn("function Test-DockerDaemon", script)
         self.assertIn('Invoke-Docker -Arguments @("pull", $Image)', script)
         self.assertIn('Invoke-Docker -Arguments @("run", "--rm", $Image, "-h")', script)
+
+    def test_windows_installer_allows_native_stderr_when_docker_succeeds(self):
+        script = WINDOWS_INSTALLER.read_text(encoding="utf-8")
+        self.assertIn("function Invoke-NativeDocker", script)
+        self.assertIn('$ErrorActionPreference = "Continue"', script)
+        self.assertIn(
+            'Invoke-NativeDocker -Arguments @("info") -DiscardOutput',
+            script,
+        )
+        self.assertIn("Invoke-NativeDocker -Arguments $Arguments", script)
+
+        if os.name != "nt":
+            return
+
+        powershell = shutil.which("powershell")
+        self.assertIsNotNone(
+            powershell,
+            "Windows PowerShell 5.1 is required for the native stderr regression test.",
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            bin_dir = root / "bin"
+            bin_dir.mkdir()
+            calls_file = root / "docker-calls.txt"
+            docker = bin_dir / "docker.cmd"
+            docker.write_text(
+                textwrap.dedent(
+                    """\
+                    @echo off
+                    echo WARNING: simulated Docker stderr warning 1>&2
+                    echo %*>>"%MEGFLOW_INSTALL_CALLS%"
+                    exit /b 0
+                    """
+                ),
+                encoding="ascii",
+            )
+            env = os.environ.copy()
+            env["PATH"] = f"{bin_dir}{os.pathsep}{env['PATH']}"
+            env["MEGFLOW_INSTALL_CALLS"] = str(calls_file)
+
+            result = subprocess.run(
+                [
+                    powershell,
+                    "-NoProfile",
+                    "-NonInteractive",
+                    "-ExecutionPolicy",
+                    "Bypass",
+                    "-File",
+                    str(WINDOWS_INSTALLER),
+                    "-ImageTag",
+                    "1.0.0",
+                ],
+                env=env,
+                text=True,
+                capture_output=True,
+                check=False,
+            )
+
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertEqual(
+                calls_file.read_text(encoding="utf-8").splitlines(),
+                [
+                    "info",
+                    "info",
+                    "pull cplmeg/megflow:1.0.0",
+                    "run --rm cplmeg/megflow:1.0.0 -h",
+                ],
+            )
 
 
 class LinuxInstallerContractTests(_InstallerContractTestCase):

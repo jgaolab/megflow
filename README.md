@@ -346,7 +346,7 @@ params {
       megqc {
         enabled = true
         min_score = 70.0    // processing gate
-        alarm_score = 60.0  // report warning only
+        alarm_score = 70.0  // report warning only
       }
     }
   }

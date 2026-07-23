@@ -2,12 +2,16 @@ import re
 import subprocess
 import unittest
 from pathlib import Path
+from typing import Optional, Set
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 PIPELINE = REPO_ROOT / "nextflow" / "megflow.nf"
 SOURCE_CONFIG = REPO_ROOT / "nextflow" / "nextflow.config"
 DOCKER_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_docker.config"
+FULL_WORKFLOW_CONFIG = REPO_ROOT / "nextflow" / "full_workflow.config"
+FULL_WORKFLOW_DOC = REPO_ROOT / "docs" / "source" / "tutorial" / "full_workflow.rst"
+QUICKSTART_DOC = REPO_ROOT / "docs" / "source" / "quickstart" / "quick_guide.rst"
 DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
 DOCKERFILE = REPO_ROOT / "megflow.Dockerfile"
 INTERACTIVE_APP = REPO_ROOT / "megflow" / "reports" / "reports.py"
@@ -50,6 +54,94 @@ def process_selectors(config: Path) -> list[str]:
     return [next(value for value in match.groups() if value) for match in pattern.finditer(text)]
 
 
+def strip_groovy_strings_and_comments(line: str) -> str:
+    code = line.split("//", 1)[0]
+    return re.sub(r"""'(?:\\.|[^'\\])*'|"(?:\\.|[^"\\])*" """.strip(), "", code)
+
+
+def named_config_block(text: str, block_name: str) -> str:
+    lines = text.splitlines()
+    start_pattern = re.compile(rf"^\s*{re.escape(block_name)}\s*\{{\s*$")
+    start = next(
+        (index for index, line in enumerate(lines) if start_pattern.match(line)),
+        None,
+    )
+    if start is None:
+        raise AssertionError(f"Missing config block: {block_name}")
+
+    depth = 1
+    body = []
+    for line in lines[start + 1 :]:
+        structural = strip_groovy_strings_and_comments(line)
+        depth += structural.count("{")
+        depth -= structural.count("}")
+        if depth == 0:
+            return "\n".join(body)
+        body.append(line)
+    raise AssertionError(f"Unterminated config block: {block_name}")
+
+
+def config_assignments(block: str) -> dict[str, str]:
+    assignments = {}
+    stack = []
+    block_pattern = re.compile(r"^\s*([A-Za-z_]\w*)\s*\{\s*$")
+    assignment_pattern = re.compile(
+        r"^\s*([A-Za-z_]\w*)\s*=\s*(.*?)\s*(?://.*)?$"
+    )
+    for line in block.splitlines():
+        structural = strip_groovy_strings_and_comments(line).strip()
+        block_match = block_pattern.match(structural)
+        if block_match:
+            stack.append(block_match.group(1))
+            continue
+        if structural == "}":
+            if stack:
+                stack.pop()
+            continue
+        assignment_match = assignment_pattern.match(line)
+        if assignment_match:
+            key, value = assignment_match.groups()
+            assignments[".".join((*stack, key))] = value
+    return assignments
+
+
+def normalized_config_block(
+    text: str,
+    block_name: str,
+    omitted_assignments: Optional[Set[str]] = None,
+) -> list[str]:
+    omitted_assignments = omitted_assignments or set()
+    normalized = []
+    for line in named_config_block(text, block_name).splitlines():
+        active = line.split("//", 1)[0].strip()
+        if not active:
+            continue
+        assignment = re.match(r"^([A-Za-z_]\w*)\s*=", active)
+        if assignment and assignment.group(1) in omitted_assignments:
+            continue
+        normalized.append(active)
+    return normalized
+
+
+def active_groovy_code(text: str) -> str:
+    return "\n".join(line.split("//", 1)[0] for line in text.splitlines())
+
+
+def top_level_config_blocks(text: str) -> list[str]:
+    blocks = []
+    depth = 0
+    block_pattern = re.compile(r"^\s*([A-Za-z_]\w*)\s*\{\s*$")
+    for line in active_groovy_code(text).splitlines():
+        structural = strip_groovy_strings_and_comments(line)
+        if depth == 0:
+            block_match = block_pattern.match(structural)
+            if block_match:
+                blocks.append(block_match.group(1))
+        depth += structural.count("{")
+        depth -= structural.count("}")
+    return blocks
+
+
 def available_configs() -> tuple[Path, ...]:
     return (SOURCE_CONFIG, DOCKER_CONFIG) if DOCKER_CONFIG.is_file() else (SOURCE_CONFIG,)
 
@@ -71,6 +163,112 @@ def workflow_job(workflow: str, job_name: str) -> str:
 
 
 class NextflowExecutionConfigTests(unittest.TestCase):
+    def test_source_and_docker_public_defaults_are_consistent(self):
+        source_defaults = normalized_config_block(
+            SOURCE_CONFIG.read_text(encoding="utf-8"),
+            "defaults",
+            omitted_assignments={"pseudomri_template_dir"},
+        )
+        docker_defaults = normalized_config_block(
+            DOCKER_CONFIG.read_text(encoding="utf-8"),
+            "defaults",
+            omitted_assignments={"pseudomri_template_dir"},
+        )
+        self.assertEqual(source_defaults, docker_defaults)
+
+    def test_unified_qc_threshold_defaults_are_exact(self):
+        expected = {
+            "megqc.alarm_score": "70.0",
+            "report.coreg_max_threshold": "20.0",
+            "report.epoch_reject_rate_threshold": "0.90",
+        }
+        for config in (SOURCE_CONFIG, DOCKER_CONFIG, FULL_WORKFLOW_CONFIG):
+            assignments = config_assignments(
+                named_config_block(config.read_text(encoding="utf-8"), "defaults")
+            )
+            with self.subTest(config=config.name):
+                self.assertEqual(
+                    {key: assignments.get(key) for key in expected},
+                    expected,
+                )
+
+    def test_public_docs_use_the_unified_qc_threshold_defaults(self):
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        qc_metrics = (
+            REPO_ROOT / "docs" / "source" / "reference" / "qc_metrics.rst"
+        ).read_text(encoding="utf-8")
+        self.assertIn("alarm_score = 70.0", readme)
+        for obsolete in (
+            "``60 / 70``",
+            "``coreg_max_threshold = 10.0 / 20.0``",
+            "``epoch_reject_rate_threshold = 0.30 / 0.90``",
+        ):
+            with self.subTest(obsolete=obsolete):
+                self.assertNotIn(obsolete, qc_metrics)
+        for current in (
+            "``70.0`` through ``megqc.alarm_score``",
+            "``coreg_max_threshold = 20.0`` mm",
+            "``epoch_reject_rate_threshold = 0.90``",
+        ):
+            with self.subTest(current=current):
+                self.assertIn(current, qc_metrics)
+
+    def test_full_workflow_overlay_covers_every_public_default(self):
+        self.assertTrue(FULL_WORKFLOW_CONFIG.is_file())
+        docker_defaults = normalized_config_block(
+            DOCKER_CONFIG.read_text(encoding="utf-8"),
+            "defaults",
+            omitted_assignments={"pseudomri_template_dir"},
+        )
+        overlay_defaults = normalized_config_block(
+            FULL_WORKFLOW_CONFIG.read_text(encoding="utf-8"),
+            "defaults",
+        )
+        self.assertEqual(overlay_defaults, docker_defaults)
+
+    def test_full_workflow_overlay_excludes_environment_and_failure_internals(self):
+        self.assertTrue(FULL_WORKFLOW_CONFIG.is_file())
+        text = FULL_WORKFLOW_CONFIG.read_text(encoding="utf-8")
+        active = active_groovy_code(text)
+        self.assertEqual(top_level_config_blocks(text), ["params"])
+        forbidden_patterns = (
+            r"(?m)^\s*(?:code_dir|output_dir|report_scope|corpus_root|workDir)\s*=",
+            r"(?m)^\s*(?:log|timeline|trace|workflow|profiles|docker)(?:\.|\s*\{)",
+            r"(?m)^\s*report\.",
+            r"(?m)^\s*datasets\s*\{",
+            r"\berrorStrategy\b",
+            r"\bexecutor\b",
+        )
+        for pattern in forbidden_patterns:
+            with self.subTest(pattern=pattern):
+                self.assertNotRegex(active, pattern)
+
+    def test_full_workflow_documentation_describes_the_overlay_contract(self):
+        text = FULL_WORKFLOW_DOC.read_text(encoding="utf-8")
+        compact = " ".join(text.split())
+        expected = (
+            ":doc:`Quickstart <../quickstart/quick_guide>`",
+            ":download:`Download full_workflow.config <../../../nextflow/full_workflow.config>`",
+            "``defaults -> dataset -> recording``",
+            "--config /config/full_workflow.config",
+            "-c /path/to/full_workflow.config",
+        )
+        for fragment in expected:
+            with self.subTest(fragment=fragment):
+                self.assertIn(fragment, text)
+        self.assertIn(
+            "Do not use Nextflow ``-C`` with it, and do not mount it over "
+            "``/program/nextflow/nextflow.config``",
+            compact,
+        )
+
+        quickstart = QUICKSTART_DOC.read_text(encoding="utf-8")
+        self.assertIn(
+            ":download:`complete user overlay "
+            "<../../../nextflow/full_workflow.config>`",
+            quickstart,
+        )
+
     def test_profile_integration_uses_a_test_local_nextflow_launch_directory(self):
         text = PROFILE_INTEGRATION_TEST.read_text(encoding="utf-8")
         self.assertIn("cwd=output_dir", text)

@@ -80,6 +80,34 @@ parse_shipped_configs() {
         "${MEGFLOW_NEXTFLOW}" -C "${config}" config "${ROOT_DIR}/nextflow/megflow.nf" -o flat >/dev/null
         printf 'parsed %s\n' "${config#${ROOT_DIR}/}"
     done
+
+    local full_overlay="${ROOT_DIR}/nextflow/full_workflow.config"
+    local source_overlay_flat
+    local docker_overlay_flat
+    source_overlay_flat="$(
+        "${MEGFLOW_NEXTFLOW}" \
+            -c "${ROOT_DIR}/nextflow/full_workflow.config" config \
+            "${ROOT_DIR}/nextflow/megflow.nf" -o flat
+    )"
+    docker_overlay_flat="$(
+        "${MEGFLOW_NEXTFLOW}" \
+            -C "${ROOT_DIR}/nextflow/nextflow_for_docker.config" \
+            -c "${ROOT_DIR}/nextflow/full_workflow.config" config \
+            "${ROOT_DIR}/nextflow/megflow.nf" -o flat
+    )"
+
+    local expected
+    for expected in \
+        "params.megflow.defaults.megqc.alarm_score = 70.0" \
+        "params.megflow.defaults.report.coreg_max_threshold = 20.0" \
+        "params.megflow.defaults.report.epoch_reject_rate_threshold = 0.90"
+    do
+        grep -Fqx "${expected}" <<<"${source_overlay_flat}" \
+            || die "source base did not apply ${expected}"
+        grep -Fqx "${expected}" <<<"${docker_overlay_flat}" \
+            || die "Docker base did not apply ${expected}"
+    done
+    printf 'composed %s over source and Docker bases\n' "${full_overlay#${ROOT_DIR}/}"
     report_duration "Shipped config parsing" "${started_at}"
 }
 
