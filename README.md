@@ -76,31 +76,24 @@ environments may lead to behavior that differs from the containerized workflow.
 
 ### Recommended: Containerized One-Click Install
 
-The container installers are standalone files. You do not need to clone the
-MEGFlow repository: run the matching command from any writable directory. Set
-`MEGFLOW_VERSION` once to download the installer from the same Git release and
-pull the matching `cplmeg/megflow` image tag. Use the release number without a
-leading `v`, for example `1.0.0`.
+The commands below automatically download the matching installer into the
+current writable directory and run it immediately. You do not need to clone the
+MEGFlow repository or download the installer separately.
 
-Direct downloads: [Linux installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_linux.sh),
-[macOS installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_macos.sh), and
-[Windows installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_windows.ps1).
+Set `MEGFLOW_VERSION` once to download the installer from the same Git release
+and pull the matching `cplmeg/megflow` image tag. Use the release number without
+a leading `v`, for example `1.0.0`.
+
+#### Linux
+
+Run the following command in a terminal:
 
 ```bash
-# Linux
 MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
-
-# macOS
-MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_macos.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_macos.sh" && bash install_megflow_macos.sh "${MEGFLOW_VERSION}"
 ```
 
-```powershell
-# Windows
-$MEGFLOW_VERSION = "1.0.0"; $ErrorActionPreference = "Stop"; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_windows.ps1" -OutFile "install_megflow_windows.ps1"; powershell -ExecutionPolicy Bypass -File .\install_megflow_windows.ps1 -ImageTag $MEGFLOW_VERSION
-```
-
-On Linux, the optional second argument selects `auto` (default), `docker`,
-`apptainer`, or `singularity`. For example, force Apptainer with:
+The optional second argument selects `auto` (default), `docker`, `apptainer`,
+or `singularity`. For example, force Apptainer with:
 
 ```bash
 MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}" apptainer
@@ -109,6 +102,34 @@ MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githu
 The Apptainer/Singularity path does not use a Docker daemon. It downloads the
 published OCI layers from Docker Hub and converts them into
 `./megflow_<version>.sif` (or `MEGFLOW_SIF_PATH`).
+
+#### macOS
+
+Run the following command in Terminal:
+
+```bash
+MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_macos.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_macos.sh" && bash install_megflow_macos.sh "${MEGFLOW_VERSION}"
+```
+
+#### Windows PowerShell
+
+Open **Windows PowerShell**, or open a **PowerShell** tab in Windows Terminal,
+and paste the complete command below. Do not run it in Command Prompt
+(`cmd.exe`) or Git Bash because it uses PowerShell syntax.
+
+```powershell
+$MEGFLOW_VERSION = "1.0.0"; $ErrorActionPreference = "Stop"; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_windows.ps1" -OutFile "install_megflow_windows.ps1"; powershell -ExecutionPolicy Bypass -File .\install_megflow_windows.ps1 -ImageTag $MEGFLOW_VERSION
+```
+
+#### Optional: Inspect or Download the Installer Manually
+
+The commands above already download the installer automatically. Use these
+direct links only if you want to inspect a script first or save it for later
+manual execution:
+
+[Linux installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_linux.sh),
+[macOS installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_macos.sh), and
+[Windows installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_windows.ps1).
 
 For more details, see `scripts/install/README.md`.
 
