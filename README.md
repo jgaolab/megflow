@@ -80,23 +80,24 @@ The commands below automatically download the matching installer into the
 current writable directory and run it immediately. You do not need to clone the
 MEGFlow repository or download the installer separately.
 
-Set `MEGFLOW_VERSION` once to download the installer from the same Git release
-and pull the matching `cplmeg/megflow` image tag. Use the release number without
-a leading `v`, for example `1.0.0`.
+The commands always download the current installer from the `main` branch.
+`MEGFLOW_VERSION` selects only the `cplmeg/megflow` image tag passed to that
+installer. The recommended value is `latest`; use a published version such as
+`1.0.0` when you need to pin the image.
 
 #### Linux
 
 Run the following command in a terminal:
 
 ```bash
-MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
+MEGFLOW_VERSION=latest && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
 ```
 
 The optional second argument selects `auto` (default), `docker`, `apptainer`,
 or `singularity`. For example, force Apptainer with:
 
 ```bash
-MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}" apptainer
+MEGFLOW_VERSION=latest && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}" apptainer
 ```
 
 The Apptainer/Singularity path does not use a Docker daemon. It downloads the
@@ -108,7 +109,7 @@ published OCI layers from Docker Hub and converts them into
 Run the following command in Terminal:
 
 ```bash
-MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_macos.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_macos.sh" && bash install_megflow_macos.sh "${MEGFLOW_VERSION}"
+MEGFLOW_VERSION=latest && curl -fL -o install_megflow_macos.sh "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_macos.sh" && bash install_megflow_macos.sh "${MEGFLOW_VERSION}"
 ```
 
 #### Windows PowerShell
@@ -118,7 +119,16 @@ and paste the complete command below. Do not run it in Command Prompt
 (`cmd.exe`) or Git Bash because it uses PowerShell syntax.
 
 ```powershell
-$MEGFLOW_VERSION = "1.0.0"; $ErrorActionPreference = "Stop"; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_windows.ps1" -OutFile "install_megflow_windows.ps1"; powershell -ExecutionPolicy Bypass -File .\install_megflow_windows.ps1 -ImageTag $MEGFLOW_VERSION
+$MEGFLOW_VERSION = "latest"; $ErrorActionPreference = "Stop"; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_windows.ps1" -OutFile "install_megflow_windows.ps1"; powershell -ExecutionPolicy Bypass -File .\install_megflow_windows.ps1 -ImageTag $MEGFLOW_VERSION
+```
+
+#### Optional: Pin an Image Version
+
+To install a specific published image while still using the current installer,
+set `MEGFLOW_VERSION` to that image tag:
+
+```bash
+MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
 ```
 
 #### Optional: Inspect or Download the Installer Manually
@@ -127,9 +137,9 @@ The commands above already download the installer automatically. Use these
 direct links only if you want to inspect a script first or save it for later
 manual execution:
 
-[Linux installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_linux.sh),
-[macOS installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_macos.sh), and
-[Windows installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_windows.ps1).
+[Linux installer](https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_linux.sh),
+[macOS installer](https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_macos.sh), and
+[Windows installer](https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_windows.ps1).
 
 For more details, see `scripts/install/README.md`.
 

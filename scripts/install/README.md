@@ -9,9 +9,9 @@ Docker to be installed.
 
 ## Script List
 
-- [Linux installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_linux.sh)
-- [macOS installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_macos.sh)
-- [Windows installer](https://raw.githubusercontent.com/jgaolab/megflow/v1.0.0/scripts/install/install_megflow_windows.ps1)
+- [Linux installer](https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_linux.sh)
+- [macOS installer](https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_macos.sh)
+- [Windows installer](https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_windows.ps1)
 
 ## What These Scripts Do
 
@@ -23,22 +23,23 @@ Each script automatically performs the following steps:
 3. Run `-h` inside the container image to print help text and verify installation.
 4. Validate basic inputs (for example, image tag cannot be empty).
 
-The default image tag is `1.0.0` when no version argument is supplied. The
-commands below still pass the version explicitly so the downloaded installer
-and container image remain visibly aligned.
+The default image tag is `1.0.0` when no version argument is supplied directly
+to an installer. The recommended commands below explicitly pass `latest`.
+Installer source and image selection are independent: the script is downloaded
+from `main`, while `MEGFLOW_VERSION` selects the image tag.
 
 ## Usage
 
 These installers are standalone files. You do not need a MEGFlow repository
-checkout, and you can run each command from any writable directory. The
-`MEGFLOW_VERSION` value selects both the Git release containing the installer
-and the container image tag, so changing one value keeps them aligned. Use the
-release number without a leading `v`, for example `1.0.0`.
+checkout, and you can run each command from any writable directory. The current
+installer is always downloaded from `main`. `MEGFLOW_VERSION` selects only the
+`cplmeg/megflow:<tag>` image; keep `latest` for the current published image or
+set a version such as `1.0.0` to pin it.
 
 ### Linux
 
 ```bash
-MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
+MEGFLOW_VERSION=latest && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
 ```
 
 Linux runtime mode argument (2nd arg):
@@ -50,7 +51,7 @@ Linux runtime mode argument (2nd arg):
 For example, force the Apptainer workflow with one command:
 
 ```bash
-MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}" apptainer
+MEGFLOW_VERSION=latest && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}" apptainer
 ```
 
 Optional environment variable:
@@ -91,7 +92,7 @@ read-only.
 ### macOS
 
 ```bash
-MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_macos.sh "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_macos.sh" && bash install_megflow_macos.sh "${MEGFLOW_VERSION}"
+MEGFLOW_VERSION=latest && curl -fL -o install_megflow_macos.sh "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_macos.sh" && bash install_megflow_macos.sh "${MEGFLOW_VERSION}"
 ```
 
 Notes:
@@ -100,7 +101,15 @@ Notes:
 ### Windows PowerShell
 
 ```powershell
-$MEGFLOW_VERSION = "1.0.0"; $ErrorActionPreference = "Stop"; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jgaolab/megflow/v${MEGFLOW_VERSION}/scripts/install/install_megflow_windows.ps1" -OutFile "install_megflow_windows.ps1"; powershell -ExecutionPolicy Bypass -File .\install_megflow_windows.ps1 -ImageTag $MEGFLOW_VERSION
+$MEGFLOW_VERSION = "latest"; $ErrorActionPreference = "Stop"; Invoke-WebRequest -Uri "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_windows.ps1" -OutFile "install_megflow_windows.ps1"; powershell -ExecutionPolicy Bypass -File .\install_megflow_windows.ps1 -ImageTag $MEGFLOW_VERSION
+```
+
+### Pin a Published Image
+
+To use a specific image while retaining the current installer implementation:
+
+```bash
+MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "https://raw.githubusercontent.com/jgaolab/megflow/main/scripts/install/install_megflow_linux.sh" && bash install_megflow_linux.sh "${MEGFLOW_VERSION}"
 ```
 
 ## Troubleshooting

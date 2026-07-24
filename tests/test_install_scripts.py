@@ -60,23 +60,51 @@ class _InstallerContractTestCase(unittest.TestCase):
 
 
 class InstallerMetadataContractTests(unittest.TestCase):
-    def test_container_install_docs_use_version_pinned_standalone_downloads(self):
+    def test_container_install_docs_use_current_installers_and_selectable_image_tags(
+        self,
+    ):
         documents = (PROJECT_README, INSTALLATION_DOC, INSTALL_README)
-        raw_base = (
-            "https://raw.githubusercontent.com/jgaolab/megflow/"
-            "v${MEGFLOW_VERSION}/scripts/install"
+        installer_base = (
+            "https://raw.githubusercontent.com/jgaolab/megflow/main/"
+            "scripts/install"
+        )
+        installer_urls = (
+            f"{installer_base}/install_megflow_linux.sh",
+            f"{installer_base}/install_megflow_macos.sh",
+            f"{installer_base}/install_megflow_windows.ps1",
+        )
+        recommended_commands = (
+            "MEGFLOW_VERSION=latest && curl -fL -o install_megflow_linux.sh "
+            f'"{installer_urls[0]}" && bash install_megflow_linux.sh '
+            '"${MEGFLOW_VERSION}"',
+            "MEGFLOW_VERSION=latest && curl -fL -o install_megflow_linux.sh "
+            f'"{installer_urls[0]}" && bash install_megflow_linux.sh '
+            '"${MEGFLOW_VERSION}" apptainer',
+            "MEGFLOW_VERSION=latest && curl -fL -o install_megflow_macos.sh "
+            f'"{installer_urls[1]}" && bash install_megflow_macos.sh '
+            '"${MEGFLOW_VERSION}"',
+            '$MEGFLOW_VERSION = "latest"; $ErrorActionPreference = "Stop"; '
+            f'Invoke-WebRequest -Uri "{installer_urls[2]}" '
+            '-OutFile "install_megflow_windows.ps1"; powershell '
+            "-ExecutionPolicy Bypass -File .\\install_megflow_windows.ps1 "
+            "-ImageTag $MEGFLOW_VERSION",
+        )
+        pinned_linux_command = (
+            "MEGFLOW_VERSION=1.0.0 && curl -fL -o install_megflow_linux.sh "
+            f'"{installer_urls[0]}" && bash install_megflow_linux.sh '
+            '"${MEGFLOW_VERSION}"'
         )
 
         for document in documents:
             with self.subTest(document=document.name):
                 text = document.read_text(encoding="utf-8")
-                self.assertIn("MEGFLOW_VERSION=1.0.0", text)
-                self.assertIn(f"{raw_base}/install_megflow_linux.sh", text)
-                self.assertIn(f"{raw_base}/install_megflow_macos.sh", text)
-                self.assertIn(
-                    f"{raw_base}/install_megflow_windows.ps1",
-                    text,
-                )
+                for command in recommended_commands:
+                    self.assertIn(command, text)
+                self.assertIn(pinned_linux_command, text)
+                for installer_url in installer_urls:
+                    self.assertIn(installer_url, text)
+                self.assertNotIn("v${MEGFLOW_VERSION}/scripts/install", text)
+                self.assertNotIn("/v1.0.0/scripts/install", text)
                 self.assertNotIn("wget ", text)
 
         install_readme = INSTALL_README.read_text(encoding="utf-8")
