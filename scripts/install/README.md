@@ -76,7 +76,7 @@ mkdir -p /data/out
 apptainer run --cleanenv \
   --bind /data/bids:/input \
   --bind /data/out:/output \
-  ./megflow_1.0.0.sif \
+  ./megflow_latest.sif \
   -i /input -o /output \
   --steps meg_ica --resume
 ```
