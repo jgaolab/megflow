@@ -466,6 +466,34 @@ DeepReject has an explicit ``artifacts.deepreject.enabled`` switch:
      }
    }
 
+Its default model-only preprocessing is explicit and leaves the main workflow
+FIF unchanged:
+
+.. code-block:: groovy
+
+   params {
+     megflow {
+       defaults {
+         artifacts {
+           deepreject {
+             preproc = [
+               [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
+                         iir_params: [order: 5, ftype: "butter"]]],
+               [notch_filter: [freqs: 50]],
+               [resample: [sfreq: 250]]
+             ]
+           }
+         }
+       }
+     }
+   }
+
+**Warning:** A custom recipe or disabled preprocessing departs from the
+**model-validated default**. Missing, null, or ``[]`` uses the built-in recipe;
+a non-empty list replaces it, and ``false`` or ``off`` disables it. Upsampling
+runs normally but **cannot recreate unavailable source information**. Narrower
+source bandwidth is recorded as a limitation rather than stopping inference.
+
 Bad-channel and bad-segment methods are enabled by configuration maps rather
 than one shared Boolean. Override an inherited method with ``null`` to disable
 only that method. For example, disable MNE LOF while keeping the other default

@@ -15,6 +15,7 @@ DOCKER_CONFIG = REPO_ROOT / "nextflow" / "nextflow_for_docker.config"
 FULL_WORKFLOW_CONFIG = REPO_ROOT / "nextflow" / "full_workflow.config"
 FULL_WORKFLOW_DOC = REPO_ROOT / "docs" / "source" / "tutorial" / "full_workflow.rst"
 QUICKSTART_DOC = REPO_ROOT / "docs" / "source" / "quickstart" / "quick_guide.rst"
+DEEPREJECT_DOC = REPO_ROOT / "docs" / "source" / "reference" / "deepreject.rst"
 DOCKER_RUNNER = REPO_ROOT / "nextflow" / "run_for_docker.sh"
 DOCKERFILE = REPO_ROOT / "megflow.Dockerfile"
 INTERACTIVE_APP = REPO_ROOT / "megflow" / "reports" / "reports.py"
@@ -647,6 +648,56 @@ params {
                     text,
                     r'(?m)^\s*artifact_image_n_jobs\s*=\s*"auto"\s*$',
                 )
+
+    def test_public_configs_show_the_model_validated_deepreject_preproc_recipe(self):
+        configs = (
+            SOURCE_CONFIG,
+            DOCKER_CONFIG,
+            FULL_WORKFLOW_CONFIG,
+            CORPUS_EXAMPLE,
+            MULTI_DATASET_DEMO,
+        )
+        expected_steps = (
+            '[filter: [l_freq: 1.0, h_freq: 100.0, method: "iir", '
+            'iir_params: [order: 5, ftype: "butter"]]]',
+            '[notch_filter: [freqs: 50]]',
+            '[resample: [sfreq: 250]]',
+        )
+        for config in configs:
+            text = config.read_text(encoding="utf-8")
+            deepreject_defaults = text.split("deepreject {", 1)[1].split(
+                "find_bad_channels {", 1
+            )[0]
+            with self.subTest(config=config.name):
+                self.assertIn("preproc = [", deepreject_defaults)
+                positions = [deepreject_defaults.index(step) for step in expected_steps]
+                self.assertEqual(positions, sorted(positions))
+                for legacy_field in (
+                    "filter_l_freq",
+                    "filter_h_freq",
+                    "resample_sfreq",
+                ):
+                    self.assertNotIn(legacy_field, text)
+
+    def test_public_docs_warn_when_departing_from_deepreject_default(self):
+        documents = (
+            REPO_ROOT / "README.md",
+            DEEPREJECT_DOC,
+            QUICKSTART_DOC,
+        )
+        for document in documents:
+            text = document.read_text(encoding="utf-8")
+            compact = " ".join(text.split()).lower()
+            with self.subTest(document=document.name):
+                self.assertIn("**warning", compact)
+                self.assertIn("model-validated default", compact)
+                self.assertIn("cannot recreate unavailable source information", compact)
+                for legacy_field in (
+                    "filter_l_freq",
+                    "filter_h_freq",
+                    "resample_sfreq",
+                ):
+                    self.assertNotIn(legacy_field, text)
 
     def test_process_native_thread_caps_follow_outer_parallelism(self):
         variable_thread_exports = (

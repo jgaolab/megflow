@@ -377,6 +377,34 @@ environments must provide PyTorch. See the
 [DeepReject reference](https://megflow-docs.readthedocs.io/en/latest/reference/deepreject.html)
 for thresholds, modes, formulas, and output interpretation.
 
+DeepReject applies the following model-only input recipe by default; the main
+workflow FIF is not modified:
+
+```groovy
+params {
+  megflow {
+    defaults {
+      artifacts {
+        deepreject {
+          preproc = [
+            [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir", iir_params: [order: 5, ftype: "butter"]]],
+            [notch_filter: [freqs: 50]],
+            [resample: [sfreq: 250]]
+          ]
+        }
+      }
+    }
+  }
+}
+```
+
+**Warning:** A custom recipe or disabled preprocessing departs from the
+**model-validated default**. Missing, `null`, or `[]` selects the built-in
+recipe; a non-empty `preproc` list replaces it completely, while `false` or
+`off` disables it. Upsampling runs normally but **cannot recreate unavailable
+source information**; DeepReject records that and narrower source bandwidth as
+limitations in `deepreject_summary.json`.
+
 **Examples (local Nextflow):**
 
 ```bash

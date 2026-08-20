@@ -25,8 +25,8 @@ For each preprocessed recording, MEGFlow performs the following operations:
 
 1. Select data MEG channels. Reference MEG, stimulus, ECG, EOG, EMG, and
    miscellaneous channels are excluded when ``pick_meg_only`` is true.
-2. Check the effective input high-pass, low-pass, and sampling frequency against
-   the recommended ``1-100 Hz`` and ``250 Hz`` model input.
+2. Resolve ``artifacts.deepreject.preproc`` and apply it to an isolated model
+   input copy. The main Raw object and workflow FIF remain unchanged.
 3. When ``run_bad_channels`` is true, run BadChnNet and combine the selected
    fold predictions into one bad-channel decision per channel.
 4. When both models run, mask the BadChnNet channels in the recording passed to
@@ -212,22 +212,51 @@ Input controls
    * - ``keep_meg_only_input``
      - boolean
      - ``false``
-     - Keeps the temporary MEG-only FIF for debugging.
-   * - ``filter_l_freq`` / ``filter_h_freq``
-     - number or null
-     - null
-     - Optional internal filtering immediately before inference.
-   * - ``resample_sfreq``
-     - number or null
-     - null
-     - Optional internal resampling immediately before inference.
+     - Keeps the temporary model-input FIF for debugging.
+   * - ``preproc``
+     - operation list, ``false``, or ``off``
+     - model-validated recipe below
+     - Replaces the complete model-input recipe. Missing, null, or ``[]`` uses
+       the built-in default; ``false`` or ``off`` disables it.
 
-The official Docker preprocessing default already produces ``1-100 Hz`` data
-at ``250 Hz``, so the internal filter and resample fields normally remain null.
-DeepReject records actual, requested, effective, and recommended values in
-``deepreject_summary.json``. It warns when they differ. Filtering or resampling
-cannot restore frequencies or temporal resolution that were already removed by
-earlier preprocessing.
+The explicit default recipe is:
+
+.. code-block:: groovy
+
+   params {
+     megflow {
+       defaults {
+         artifacts {
+           deepreject {
+             preproc = [
+               [filter: [l_freq: 1.0, h_freq: 100.0, method: "iir",
+                         iir_params: [order: 5, ftype: "butter"]]],
+               [notch_filter: [freqs: 50]],
+               [resample: [sfreq: 250]]
+             ]
+           }
+         }
+       }
+     }
+   }
+
+**Warning:** A custom recipe or disabled preprocessing departs from the
+**model-validated default** and may change inference behavior. A non-empty
+``preproc`` list replaces the whole recipe; it is not merged with the default.
+
+DeepReject always applies an enabled recipe to a loaded copy and writes a
+temporary prediction FIF, even when ``pick_meg_only`` is false. If a requested
+frequency is not admissible at the source Nyquist rate but a later resample
+target makes it admissible, resampling is performed first and the actual order
+is recorded. Otherwise, only the inadmissible frequency part is skipped with a
+reason. Upsampling runs normally, but it **cannot recreate unavailable source
+information**. Narrow source bandwidth likewise does not stop inference and is
+recorded as a source limitation.
+
+``deepreject_summary.json`` records ``source_before``, ``recipe_source``, the
+``resolved_recipe``, actual ``applied_steps``, ``model_input_after``, whether
+the recipe matches the default, and ``source_limitations``. Each applied
+resample also emits an INFO message stating that the main FIF is unchanged.
 
 Inference and resource controls
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~

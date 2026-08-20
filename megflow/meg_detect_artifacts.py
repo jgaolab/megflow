@@ -38,8 +38,10 @@ from utils import infer_artifact_vendor, set_random_seed, plot_snippets
 
 try:
     from tools.deepreject import DeepRejectPredictor
+    from tools.deepreject.preprocessing import apply_deepreject_preproc
 except ImportError:  # pragma: no cover - optional dependency path
     DeepRejectPredictor = None
+    apply_deepreject_preproc = None
 
 set_random_seed(2025)
 
@@ -548,13 +550,6 @@ DEEPREJECT_MODE_PRESETS = {
     },
 }
 
-DEEPREJECT_RECOMMENDED_INPUT = {
-    "highpass_hz": 1.0,
-    "lowpass_hz": 100.0,
-    "sfreq_hz": 250.0,
-}
-
-
 def _resolve_deepreject_mode_config(deep_config):
     mode_value = deep_config.get("mode", deep_config.get("profile", "default"))
     mode = "default" if mode_value is None else str(mode_value).strip().lower()
@@ -568,77 +563,6 @@ def _resolve_deepreject_mode_config(deep_config):
     resolved.update(deep_config)
     resolved["mode"] = mode
     return mode, resolved, dict(DEEPREJECT_MODE_PRESETS[mode])
-
-
-def _deepreject_input_preprocessing_summary(raw, deep_config):
-    actual_highpass = float(raw.info.get("highpass", 0.0) or 0.0)
-    actual_lowpass = float(raw.info.get("lowpass", 0.0) or 0.0)
-    actual_sfreq = float(raw.info.get("sfreq", 0.0) or 0.0)
-    requested_highpass = _optional_float(deep_config.get("filter_l_freq"))
-    requested_lowpass = _optional_float(deep_config.get("filter_h_freq"))
-    requested_sfreq = _optional_float(deep_config.get("resample_sfreq"))
-
-    effective_highpass = (
-        max(actual_highpass, requested_highpass)
-        if requested_highpass is not None
-        else actual_highpass
-    )
-    effective_lowpass = (
-        min(actual_lowpass, requested_lowpass)
-        if requested_lowpass is not None
-        else actual_lowpass
-    )
-    effective_sfreq = requested_sfreq if requested_sfreq is not None else actual_sfreq
-    recommended = DEEPREJECT_RECOMMENDED_INPUT
-    matches = (
-        np.isclose(effective_highpass, recommended["highpass_hz"], atol=0.05, rtol=0.0)
-        and np.isclose(effective_lowpass, recommended["lowpass_hz"], atol=0.05, rtol=0.0)
-        and np.isclose(effective_sfreq, recommended["sfreq_hz"], atol=0.1, rtol=0.0)
-    )
-
-    irreversible = []
-    if actual_highpass > recommended["highpass_hz"] + 0.05:
-        irreversible.append("input high-pass is above 1 Hz")
-    if actual_lowpass < recommended["lowpass_hz"] - 0.05:
-        irreversible.append("input low-pass is below 100 Hz")
-    if actual_sfreq < recommended["sfreq_hz"] - 0.1:
-        irreversible.append("input sampling rate is below 250 Hz")
-
-    summary = {
-        "actual": {
-            "highpass_hz": actual_highpass,
-            "lowpass_hz": actual_lowpass,
-            "sfreq_hz": actual_sfreq,
-        },
-        "requested_internal_preproc": {
-            "highpass_hz": requested_highpass,
-            "lowpass_hz": requested_lowpass,
-            "sfreq_hz": requested_sfreq,
-        },
-        "effective": {
-            "highpass_hz": effective_highpass,
-            "lowpass_hz": effective_lowpass,
-            "sfreq_hz": effective_sfreq,
-        },
-        "recommended": dict(recommended),
-        "recommended_input_match": bool(matches),
-        "irreversible_mismatches": irreversible,
-    }
-    if matches:
-        logger.info(
-            "DeepReject input preprocessing matches the recommended 1-100 Hz at 250 Hz."
-        )
-    else:
-        details = f" Irreversible mismatch: {'; '.join(irreversible)}." if irreversible else ""
-        logger.warning(
-            "DeepReject input preprocessing differs from the recommended 1-100 Hz at 250 Hz: "
-            "effective highpass=%.3g Hz, lowpass=%.3g Hz, sfreq=%.3g Hz.%s",
-            effective_highpass,
-            effective_lowpass,
-            effective_sfreq,
-            details,
-        )
-    return summary
 
 
 def _select_deepreject_channels(raw, *, exclude_marked_bads=False):
@@ -662,27 +586,45 @@ def _select_deepreject_channels(raw, *, exclude_marked_bads=False):
 
 def _prepare_deepreject_input(raw, input_path, output_dir, deep_config):
     pick_meg_only = _config_bool(deep_config.get("pick_meg_only"), True)
-    if not pick_meg_only:
+    if apply_deepreject_preproc is None:
+        raise RuntimeError("DeepReject preprocessing is not importable")
+    model_raw, preprocessing_summary = apply_deepreject_preproc(
+        raw,
+        deep_config.get("preproc"),
+    )
+    preprocessing_enabled = preprocessing_summary["recipe_source"] != "disabled"
+    if not pick_meg_only and not preprocessing_enabled:
         return Path(input_path), None, {
             "pick_meg_only": False,
             "input_path": str(input_path),
             "prediction_input_path": str(input_path),
             "input_channel_count": len(raw.ch_names),
             "prediction_channel_count": len(raw.ch_names),
+            "input_preprocessing": preprocessing_summary,
         }
 
-    exclude_marked_bads = _config_bool(deep_config.get("pick_exclude_marked_bads"), False)
-    channel_names = _select_deepreject_channels(raw, exclude_marked_bads=exclude_marked_bads)
-    tmp_path = Path(output_dir) / f"{Path(input_path).stem}_deepreject_meg_only_raw.fif"
-    raw.copy().pick(channel_names).save(tmp_path, overwrite=True)
+    exclude_marked_bads = _config_bool(
+        deep_config.get("pick_exclude_marked_bads"), False
+    )
+    if pick_meg_only:
+        channel_names = _select_deepreject_channels(
+            model_raw,
+            exclude_marked_bads=exclude_marked_bads,
+        )
+        model_raw.pick(channel_names)
+    else:
+        channel_names = list(model_raw.ch_names)
+    tmp_path = Path(output_dir) / f"{Path(input_path).stem}_deepreject_model_input_raw.fif"
+    model_raw.save(tmp_path, overwrite=True)
     return tmp_path, tmp_path, {
-        "pick_meg_only": True,
+        "pick_meg_only": pick_meg_only,
         "pick_exclude_marked_bads": exclude_marked_bads,
         "input_path": str(input_path),
         "prediction_input_path": str(tmp_path),
         "input_channel_count": len(raw.ch_names),
         "prediction_channel_count": len(channel_names),
         "prediction_channels": channel_names,
+        "input_preprocessing": preprocessing_summary,
     }
 
 
@@ -700,7 +642,6 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
     if not deep_config or not deep_config.get("enabled", False):
         return [], mne.Annotations([], [], []), None
     deepreject_mode, deep_config, deepreject_mode_preset = _resolve_deepreject_mode_config(deep_config)
-    input_preprocessing_summary = _deepreject_input_preprocessing_summary(raw, deep_config)
 
     if DeepRejectPredictor is None:
         raise RuntimeError("DeepReject runtime is not importable. Install its dependencies or disable artifacts.deepreject.enabled.")
@@ -770,87 +711,141 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
         deep_config=deep_config,
     )
 
-    predictor = DeepRejectPredictor(**predictor_kwargs)
-    pred = predictor.predict_fif(
-        Path(prediction_input_path),
-        category=category,
-        dataset=dataset,
-        pick_exclude_marked_bads=_config_bool(deep_config.get("pick_exclude_marked_bads"), False),
-        filter_l_freq=_optional_float(deep_config.get("filter_l_freq")),
-        filter_h_freq=_optional_float(deep_config.get("filter_h_freq")),
-        resample_sfreq=_optional_float(deep_config.get("resample_sfreq")),
-        run_bad_segments=_config_bool(deep_config.get("run_bad_segments"), True),
-        run_bad_channels=_config_bool(deep_config.get("run_bad_channels"), True),
-    )
+    try:
+        predictor = DeepRejectPredictor(**predictor_kwargs)
+        pred = predictor.predict_fif(
+            Path(prediction_input_path),
+            category=category,
+            dataset=dataset,
+            pick_exclude_marked_bads=_config_bool(
+                deep_config.get("pick_exclude_marked_bads"), False
+            ),
+            run_bad_segments=_config_bool(
+                deep_config.get("run_bad_segments"), True
+            ),
+            run_bad_channels=_config_bool(
+                deep_config.get("run_bad_channels"), True
+            ),
+        )
 
-    bad_channels = [
-        ch_name
-        for ch_name, is_bad in zip(pred.ch_names, np.asarray(pred.bad_channel_pred).reshape(-1))
-        if int(is_bad) == 1
-    ]
+        bad_channels = [
+            ch_name
+            for ch_name, is_bad in zip(
+                pred.ch_names,
+                np.asarray(pred.bad_channel_pred).reshape(-1),
+            )
+            if int(is_bad) == 1
+        ]
 
-    annotation_offset_sec = float(getattr(raw, "first_time", 0.0) or 0.0)
-    annots = mne.Annotations(
-        onset=[float(start) + annotation_offset_sec for start, _ in pred.bad_intervals],
-        duration=[max(0.0, float(stop) - float(start)) for start, stop in pred.bad_intervals],
-        description=["BAD_deepreject"] * len(pred.bad_intervals),
-        orig_time=raw.annotations.orig_time,
-    )
+        annotation_offset_sec = float(getattr(raw, "first_time", 0.0) or 0.0)
+        annots = mne.Annotations(
+            onset=[
+                float(start) + annotation_offset_sec
+                for start, _ in pred.bad_intervals
+            ],
+            duration=[
+                max(0.0, float(stop) - float(start))
+                for start, stop in pred.bad_intervals
+            ],
+            description=["BAD_deepreject"] * len(pred.bad_intervals),
+            orig_time=raw.annotations.orig_time,
+        )
 
-    summary = {
-        "enabled": True,
-        "backend": pred.backend,
-        "badsegnet_weights_dir": str(getattr(predictor, "badsegnet_weights_dir", "")),
-        "badchnnet_weights_dir": str(getattr(predictor, "badchnnet_weights_dir", "")),
-        "artifact_folds": np.asarray(pred.artifact_folds).astype(int).tolist(),
-        "bad_channel_folds": np.asarray(pred.bad_channel_folds).astype(int).tolist(),
-        "fold_workers": getattr(predictor, "fold_workers", None),
-        "cache_models": getattr(predictor, "cache_models", None),
-        "cpu_threads": getattr(predictor, "cpu_threads", None),
-        "cpu_interop_threads": getattr(predictor, "cpu_interop_threads", None),
-        "runtime_cpus": runtime_cpus,
-        "mode": deepreject_mode,
-        "mode_preset_parameters": deepreject_mode_preset,
-        "category": category,
-        "dataset": dataset,
-        "input_preprocessing": input_preprocessing_summary,
-        "artifact_window_count": int(np.asarray(pred.artifact_probs).size),
-        "badsegnet_hysteresis_high": getattr(predictor, "badsegnet_hysteresis_high", None),
-        "badsegnet_hysteresis_low": getattr(predictor, "badsegnet_hysteresis_low", None),
-        "badsegnet_merge_gap_sec": getattr(predictor, "badsegnet_merge_gap_sec", None),
-        "badsegnet_min_duration_sec": getattr(predictor, "badsegnet_min_duration_sec", None),
-        "badsegnet_short_keep_threshold": getattr(predictor, "badsegnet_short_keep_threshold", None),
-        "badchnnet_lambda_lcb": getattr(predictor, "badchnnet_lambda_lcb", None),
-        "badchnnet_floor": getattr(predictor, "badchnnet_floor", None),
-        "badchnnet_z": getattr(predictor, "badchnnet_z", None),
-        "badchnnet_min_type_channels": getattr(predictor, "badchnnet_min_type_channels", None),
-        "bad_interval_count": len(pred.bad_intervals),
-        "annotation_onset_offset_sec": annotation_offset_sec,
-        "bad_intervals": [{"onset_sec": float(s), "stop_sec": float(e), "duration_sec": float(e - s)} for s, e in pred.bad_intervals],
-        "bad_channel_count": len(bad_channels),
-        "bad_channels": bad_channels,
-    }
-    summary.update(input_summary)
-    if pred.bad_channel_probs is not None and pred.ch_names:
-        summary["bad_channel_probs"] = {
-            ch_name: float(prob)
-            for ch_name, prob in zip(pred.ch_names, np.asarray(pred.bad_channel_probs).reshape(-1))
+        summary = {
+            "enabled": True,
+            "backend": pred.backend,
+            "badsegnet_weights_dir": str(
+                getattr(predictor, "badsegnet_weights_dir", "")
+            ),
+            "badchnnet_weights_dir": str(
+                getattr(predictor, "badchnnet_weights_dir", "")
+            ),
+            "artifact_folds": np.asarray(pred.artifact_folds).astype(int).tolist(),
+            "bad_channel_folds": np.asarray(pred.bad_channel_folds)
+            .astype(int)
+            .tolist(),
+            "fold_workers": getattr(predictor, "fold_workers", None),
+            "cache_models": getattr(predictor, "cache_models", None),
+            "cpu_threads": getattr(predictor, "cpu_threads", None),
+            "cpu_interop_threads": getattr(
+                predictor, "cpu_interop_threads", None
+            ),
+            "runtime_cpus": runtime_cpus,
+            "mode": deepreject_mode,
+            "mode_preset_parameters": deepreject_mode_preset,
+            "category": category,
+            "dataset": dataset,
+            "input_preprocessing": input_summary["input_preprocessing"],
+            "artifact_window_count": int(np.asarray(pred.artifact_probs).size),
+            "badsegnet_hysteresis_high": getattr(
+                predictor, "badsegnet_hysteresis_high", None
+            ),
+            "badsegnet_hysteresis_low": getattr(
+                predictor, "badsegnet_hysteresis_low", None
+            ),
+            "badsegnet_merge_gap_sec": getattr(
+                predictor, "badsegnet_merge_gap_sec", None
+            ),
+            "badsegnet_min_duration_sec": getattr(
+                predictor, "badsegnet_min_duration_sec", None
+            ),
+            "badsegnet_short_keep_threshold": getattr(
+                predictor, "badsegnet_short_keep_threshold", None
+            ),
+            "badchnnet_lambda_lcb": getattr(
+                predictor, "badchnnet_lambda_lcb", None
+            ),
+            "badchnnet_floor": getattr(predictor, "badchnnet_floor", None),
+            "badchnnet_z": getattr(predictor, "badchnnet_z", None),
+            "badchnnet_min_type_channels": getattr(
+                predictor, "badchnnet_min_type_channels", None
+            ),
+            "bad_interval_count": len(pred.bad_intervals),
+            "annotation_onset_offset_sec": annotation_offset_sec,
+            "bad_intervals": [
+                {
+                    "onset_sec": float(start),
+                    "stop_sec": float(stop),
+                    "duration_sec": float(stop - start),
+                }
+                for start, stop in pred.bad_intervals
+            ],
+            "bad_channel_count": len(bad_channels),
+            "bad_channels": bad_channels,
         }
-    with open(output_dir / "deepreject_summary.json", "w", encoding="utf-8") as f:
-        json.dump(summary, f, ensure_ascii=False, indent=2)
+        summary.update(input_summary)
+        if pred.bad_channel_probs is not None and pred.ch_names:
+            summary["bad_channel_probs"] = {
+                ch_name: float(prob)
+                for ch_name, prob in zip(
+                    pred.ch_names,
+                    np.asarray(pred.bad_channel_probs).reshape(-1),
+                )
+            }
+        with open(
+            output_dir / "deepreject_summary.json", "w", encoding="utf-8"
+        ) as summary_file:
+            json.dump(summary, summary_file, ensure_ascii=False, indent=2)
 
-    logger.info(
-        "DeepReject detected %d bad channels and %d bad intervals using backend=%s",
-        len(bad_channels),
-        len(pred.bad_intervals),
-        pred.backend,
-    )
-    if temporary_input_path is not None and not _config_bool(deep_config.get("keep_meg_only_input"), False):
-        try:
-            temporary_input_path.unlink(missing_ok=True)
-        except Exception as exc:
-            logger.warning("Could not remove temporary DeepReject MEG-only file %s: %s", temporary_input_path, exc)
-    return bad_channels, annots, summary
+        logger.info(
+            "DeepReject detected %d bad channels and %d bad intervals using backend=%s",
+            len(bad_channels),
+            len(pred.bad_intervals),
+            pred.backend,
+        )
+        return bad_channels, annots, summary
+    finally:
+        if temporary_input_path is not None and not _config_bool(
+            deep_config.get("keep_meg_only_input"), False
+        ):
+            try:
+                temporary_input_path.unlink(missing_ok=True)
+            except Exception as exc:
+                logger.warning(
+                    "Could not remove temporary DeepReject model-input file %s: %s",
+                    temporary_input_path,
+                    exc,
+                )
     
 def main(args):
     logger.info("args.input: %s", args.input)

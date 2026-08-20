@@ -2,6 +2,8 @@
 """Self-contained FIF loading and input construction for MEGFlow inference."""
 from __future__ import annotations
 
+import logging
+from copy import deepcopy
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Set, Tuple
 
@@ -9,6 +11,309 @@ import numpy as np
 
 
 BAD_CHANNEL_SUFFIXES = ("_bad_chn.txt",)
+LOGGER = logging.getLogger(__name__)
+
+DEFAULT_DEEPREJECT_PREPROC: List[Dict[str, Any]] = [
+    {
+        "filter": {
+            "l_freq": 1.0,
+            "h_freq": 100.0,
+            "method": "iir",
+            "iir_params": {"order": 5, "ftype": "butter"},
+        }
+    },
+    {"notch_filter": {"freqs": 50}},
+    {"resample": {"sfreq": 250}},
+]
+_SUPPORTED_DEEPREJECT_PREPROC = {"filter", "notch_filter", "resample"}
+
+
+def _positive_float(value: Any, field_name: str) -> float:
+    try:
+        parsed = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{field_name} must be a positive number") from exc
+    if not np.isfinite(parsed) or parsed <= 0:
+        raise ValueError(f"{field_name} must be a positive number")
+    return parsed
+
+
+def _numeric_freqs(value: Any, field_name: str = "preproc.notch_filter.freqs") -> List[float]:
+    if isinstance(value, str):
+        values = value.replace(",", " ").split()
+    elif isinstance(value, (list, tuple, np.ndarray)):
+        values = list(value)
+    else:
+        values = [value]
+    if not values:
+        raise ValueError(f"{field_name} must contain at least one positive frequency")
+    return [_positive_float(item, field_name) for item in values]
+
+
+def resolve_deepreject_preproc(value: Any = None) -> List[Dict[str, Any]]:
+    """Resolve and validate the complete DeepReject model-input recipe.
+
+    Missing, null, and empty recipes select an isolated copy of the bundled
+    model-validated default. Only an explicit false/off value disables it.
+    """
+    if value is None or value == []:
+        return deepcopy(DEFAULT_DEEPREJECT_PREPROC)
+    if value is False or (
+        isinstance(value, str) and value.strip().lower() in {"false", "off"}
+    ):
+        return []
+    if not isinstance(value, list):
+        raise ValueError(
+            "artifacts.deepreject.preproc must be a list of single-operation mappings, false, or off"
+        )
+
+    resolved = deepcopy(value)
+    for index, step in enumerate(resolved):
+        if not isinstance(step, dict) or len(step) != 1:
+            raise ValueError(
+                f"artifacts.deepreject.preproc[{index}] must contain exactly one operation"
+            )
+        operation, parameters = next(iter(step.items()))
+        if operation not in _SUPPORTED_DEEPREJECT_PREPROC:
+            supported = ", ".join(sorted(_SUPPORTED_DEEPREJECT_PREPROC))
+            raise ValueError(
+                f"Unsupported artifacts.deepreject.preproc operation {operation!r}; "
+                f"supported operations: {supported}"
+            )
+        if not isinstance(parameters, dict):
+            raise ValueError(
+                f"artifacts.deepreject.preproc[{index}].{operation} must be a mapping"
+            )
+        if operation == "filter":
+            l_freq = parameters.get("l_freq")
+            h_freq = parameters.get("h_freq")
+            if l_freq is None and h_freq is None:
+                raise ValueError("DeepReject filter requires l_freq and/or h_freq")
+            if l_freq is not None:
+                l_freq = _positive_float(l_freq, "preproc.filter.l_freq")
+            if h_freq is not None:
+                h_freq = _positive_float(h_freq, "preproc.filter.h_freq")
+            if l_freq is not None and h_freq is not None and l_freq >= h_freq:
+                raise ValueError("preproc.filter.l_freq must be below h_freq")
+        elif operation == "notch_filter":
+            if "freqs" not in parameters:
+                raise ValueError("DeepReject notch_filter requires freqs")
+            _numeric_freqs(parameters["freqs"])
+        elif "sfreq" not in parameters:
+            raise ValueError("DeepReject resample requires sfreq")
+        else:
+            _positive_float(parameters["sfreq"], "preproc.resample.sfreq")
+    return resolved
+
+
+def _raw_frequency_summary(raw: Any) -> Dict[str, float]:
+    return {
+        "highpass_hz": float(raw.info.get("highpass", 0.0) or 0.0),
+        "lowpass_hz": float(raw.info.get("lowpass", 0.0) or 0.0),
+        "sfreq_hz": float(raw.info.get("sfreq", 0.0) or 0.0),
+    }
+
+
+def _recipe_source(value: Any) -> str:
+    if value is False or (
+        isinstance(value, str) and value.strip().lower() in {"false", "off"}
+    ):
+        return "disabled"
+    if value is None or value == []:
+        return "default"
+    return "user_override"
+
+
+def _step_requested_frequencies(step: Dict[str, Any]) -> List[float]:
+    operation, parameters = next(iter(step.items()))
+    if operation == "filter":
+        return [
+            float(parameters[key])
+            for key in ("l_freq", "h_freq")
+            if parameters.get(key) is not None
+        ]
+    if operation == "notch_filter":
+        return _numeric_freqs(parameters.get("freqs"))
+    return []
+
+
+def _execution_recipe(recipe: List[Dict[str, Any]], source_sfreq: float) -> List[Dict[str, Any]]:
+    """Move a future resample ahead only when it makes a frequency step admissible."""
+    pending = deepcopy(recipe)
+    execution: List[Dict[str, Any]] = []
+    current_sfreq = float(source_sfreq)
+    while pending:
+        step = pending[0]
+        operation = next(iter(step))
+        requested = _step_requested_frequencies(step)
+        if operation in {"filter", "notch_filter"} and any(
+            frequency >= current_sfreq / 2.0 for frequency in requested
+        ):
+            resample_index = next(
+                (
+                    index
+                    for index, candidate in enumerate(pending[1:], start=1)
+                    if "resample" in candidate
+                    and all(
+                        frequency
+                        < _positive_float(
+                            candidate["resample"].get("sfreq"),
+                            "preproc.resample.sfreq",
+                        )
+                        / 2.0
+                        for frequency in requested
+                    )
+                ),
+                None,
+            )
+            if resample_index is not None:
+                resample_step = pending.pop(resample_index)
+                execution.append(resample_step)
+                current_sfreq = float(resample_step["resample"]["sfreq"])
+                continue
+        execution.append(pending.pop(0))
+        if operation == "resample":
+            current_sfreq = float(step["resample"]["sfreq"])
+    return execution
+
+
+def apply_deepreject_preproc(raw: Any, value: Any = None) -> Tuple[Any, Dict[str, Any]]:
+    """Apply the resolved recipe to an isolated DeepReject model-input copy."""
+    import mne
+
+    recipe = resolve_deepreject_preproc(value)
+    recipe_source = _recipe_source(value)
+    source_before = _raw_frequency_summary(raw)
+    source_limitations: List[str] = []
+    if source_before["highpass_hz"] > 1.05:
+        source_limitations.append("source high-pass is above 1 Hz")
+    if source_before["lowpass_hz"] < 99.95:
+        source_limitations.append("source low-pass is below 100 Hz")
+    if source_before["sfreq_hz"] < 249.9:
+        source_limitations.append("source sampling rate is below 250 Hz")
+    for limitation in source_limitations:
+        LOGGER.info(
+            "DeepReject source limitation: %s; preprocessing cannot recreate unavailable source information.",
+            limitation,
+        )
+
+    model_raw = raw.copy()
+    applied_steps: List[Dict[str, Any]] = []
+    if recipe:
+        model_raw.load_data()
+        picks = mne.pick_types(
+            model_raw.info,
+            meg=True,
+            ref_meg=False,
+            exclude=[],
+        )
+        if len(picks) == 0:
+            raise ValueError("no MEG channels available for DeepReject preprocessing")
+
+        for step in _execution_recipe(recipe, source_before["sfreq_hz"]):
+            operation, configured = next(iter(step.items()))
+            parameters = deepcopy(configured)
+            sfreq_before = float(model_raw.info["sfreq"])
+            nyquist = sfreq_before / 2.0
+            if operation == "resample":
+                target = _positive_float(parameters.pop("sfreq"), "preproc.resample.sfreq")
+                if np.isclose(sfreq_before, target, rtol=0.0, atol=1e-9):
+                    applied_steps.append(
+                        {
+                            "step": "resample",
+                            "status": "skipped",
+                            "reason": "already at target sampling rate",
+                            "sfreq_before": sfreq_before,
+                            "sfreq_after": sfreq_before,
+                        }
+                    )
+                    continue
+                parameters.setdefault("npad", "auto")
+                parameters.setdefault("verbose", "error")
+                model_raw.resample(target, **parameters)
+                sfreq_after = float(model_raw.info["sfreq"])
+                applied_steps.append(
+                    {
+                        "step": "resample",
+                        "status": "applied",
+                        "sfreq_before": sfreq_before,
+                        "sfreq_after": sfreq_after,
+                    }
+                )
+                LOGGER.info(
+                    "DeepReject model input resampled from %.1f Hz to %.1f Hz "
+                    "(model-only; main FIF unchanged).",
+                    sfreq_before,
+                    sfreq_after,
+                )
+                continue
+
+            if operation == "filter":
+                l_freq = parameters.pop("l_freq", None)
+                h_freq = parameters.pop("h_freq", None)
+                skipped = []
+                if l_freq is not None and float(l_freq) >= nyquist:
+                    skipped.append(f"l_freq={float(l_freq):g} Hz is not below Nyquist={nyquist:g} Hz")
+                    l_freq = None
+                if h_freq is not None and float(h_freq) >= nyquist:
+                    skipped.append(f"h_freq={float(h_freq):g} Hz is not below Nyquist={nyquist:g} Hz")
+                    h_freq = None
+                if l_freq is None and h_freq is None:
+                    applied_steps.append(
+                        {"step": "filter", "status": "skipped", "reason": "; ".join(skipped)}
+                    )
+                    continue
+                parameters.update(l_freq=l_freq, h_freq=h_freq, picks=picks)
+                parameters.setdefault("verbose", "error")
+                model_raw.filter(**parameters)
+                record: Dict[str, Any] = {
+                    "step": "filter",
+                    "status": "applied",
+                    "l_freq": l_freq,
+                    "h_freq": h_freq,
+                }
+                if skipped:
+                    record["skipped_frequency_parts"] = skipped
+                    record["reason"] = "; ".join(skipped)
+                applied_steps.append(record)
+                continue
+
+            requested_freqs = _numeric_freqs(parameters.pop("freqs"))
+            usable_freqs = [frequency for frequency in requested_freqs if frequency < nyquist]
+            skipped_freqs = [frequency for frequency in requested_freqs if frequency >= nyquist]
+            if not usable_freqs:
+                applied_steps.append(
+                    {
+                        "step": "notch_filter",
+                        "status": "skipped",
+                        "freqs": requested_freqs,
+                        "reason": f"no requested frequency is below Nyquist={nyquist:g} Hz",
+                    }
+                )
+                continue
+            parameters.update(freqs=usable_freqs, picks=picks)
+            parameters.setdefault("verbose", "error")
+            model_raw.notch_filter(**parameters)
+            record = {
+                "step": "notch_filter",
+                "status": "applied",
+                "freqs": usable_freqs,
+            }
+            if skipped_freqs:
+                record["skipped_freqs"] = skipped_freqs
+                record["reason"] = f"frequencies at/above Nyquist={nyquist:g} Hz were skipped"
+            applied_steps.append(record)
+
+    provenance = {
+        "source_before": source_before,
+        "recipe_source": recipe_source,
+        "resolved_recipe": deepcopy(recipe),
+        "applied_steps": applied_steps,
+        "model_input_after": _raw_frequency_summary(model_raw),
+        "default_recipe_match": recipe == DEFAULT_DEEPREJECT_PREPROC,
+        "source_limitations": source_limitations,
+    }
+    return model_raw, provenance
 
 
 def meg_stem_for_annot(meg_path: Path) -> str:
