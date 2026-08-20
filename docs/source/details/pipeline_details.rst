@@ -270,8 +270,8 @@ could not be aligned with this recording and should be regenerated from it.
 ``invalid_bad_channel_sidecar`` identifies an unreadable bad-channel file, and
 ``invalid_ica_modality`` identifies a modality other than ``meg``, ``eeg``, or
 ``meeg``. When fitting a new ICA, ``invalid_component_request`` means the
-request must be ``None``, an integer of at least 2, or a finite fractional
-variance target strictly between 0 and 1.
+request must be an integer of at least 2 or a finite fractional variance target
+strictly between 0 and 1.
 
 Resting-State and Task-Based Epochs
 -----------------------------------

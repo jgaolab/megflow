@@ -4,7 +4,6 @@ import sys
 import tempfile
 import types
 import unittest
-from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
@@ -650,8 +649,6 @@ class IcaInputPreflightTests(unittest.TestCase):
         annotations=(),
         bad_channels=(),
         first_samp=0,
-        meas_date=None,
-        annotations_from_raw=False,
     ):
         directory = Path(directory)
         raw_path = directory / "synthetic_raw.fif"
@@ -668,7 +665,6 @@ class IcaInputPreflightTests(unittest.TestCase):
             first_samp=first_samp,
             verbose=False,
         )
-        raw.set_meas_date(meas_date)
         bad_channel_path.write_text(
             "".join(f"{name}\n" for name in bad_channels), encoding="utf-8"
         )
@@ -678,11 +674,8 @@ class IcaInputPreflightTests(unittest.TestCase):
             duration=[item[1] for item in annotation_list],
             description=[item[2] for item in annotation_list],
         )
-        if annotations_from_raw:
-            raw.set_annotations(saved_annotations)
         raw.save(raw_path, overwrite=True, verbose=False)
-        annotations_to_save = raw.annotations if annotations_from_raw else saved_annotations
-        annotations_to_save.save(bad_segment_path, overwrite=True)
+        saved_annotations.save(bad_segment_path, overwrite=True)
         return raw_path, bad_channel_path, bad_segment_path
 
     def _prepare(self, directory, *, n_components=2, **input_kwargs):
@@ -748,40 +741,23 @@ class IcaInputPreflightTests(unittest.TestCase):
         self.assertEqual(validation["bad_samples"], 15)
         self.assertEqual(validation["usable_samples"], 85)
 
-    def test_same_raw_txt_sidecar_uses_relative_samples_with_nonzero_first_samp(self):
-        for n_times in (50, 400):
-            with self.subTest(n_times=n_times), tempfile.TemporaryDirectory() as temp_dir:
-                raw, validation, _, _ = self._prepare(
-                    temp_dir,
-                    n_times=n_times,
-                    first_samp=100,
-                    annotations=((1.0, 1.0, "BAD_motion"),),
-                    annotations_from_raw=True,
-                )
-
-                starts, stops = _annotations_starts_stops(raw, ["BAD"])
-                np.testing.assert_array_equal(starts, [10])
-                np.testing.assert_array_equal(stops, [20])
-                self.assertEqual(validation["bad_samples"], 10)
-
-    def test_orig_time_sidecar_is_not_shifted_by_nonzero_first_samp(self):
-        meas_date = datetime(2020, 1, 1, 0, 0, 0, 123456, timezone.utc)
+    def test_relative_sidecar_uses_mne_native_nonzero_first_sample_axis(self):
         with tempfile.TemporaryDirectory() as temp_dir:
-            raw, validation, paths, _ = self._prepare(
+            raw, validation, _, _ = self._prepare(
                 temp_dir,
-                n_times=400,
+                n_times=50,
                 first_samp=100,
-                meas_date=meas_date,
-                annotations=((1.0, 1.0, "BAD_motion"),),
-                annotations_from_raw=True,
+                annotations=(
+                    (1.0, 1.0, "BAD_motion"),
+                    (3.0, 0.5, "EDGE_boundary"),
+                ),
             )
-            sidecar = mne.read_annotations(paths[2])
             starts, stops = _annotations_starts_stops(raw, ["BAD"])
 
-        self.assertEqual(sidecar.orig_time, meas_date)
         np.testing.assert_array_equal(starts, [10])
         np.testing.assert_array_equal(stops, [20])
         self.assertEqual(validation["bad_samples"], 10)
+        self.assertIn("EDGE_boundary", raw.annotations.description)
 
     def test_out_of_range_non_bad_annotation_does_not_invalidate_sidecar(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -1036,6 +1012,48 @@ class IcaInputPreflightTests(unittest.TestCase):
             self.assertFalse(validation["fit_required"])
             self.assertTrue(validation["ica_cache_exists"])
             self.assertEqual(validation["ica_cache_path"], str(cached_ica_path))
+
+    def test_new_fit_passes_normalized_python_component_scalar_to_mne(self):
+        values = (
+            (np.float32(0.95), float),
+            (np.int32(2), int),
+            (np.int64(2), int),
+        )
+        for value, expected_type in values:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as temp_dir:
+                temp_dir = Path(temp_dir)
+                paths = self._write_ica_inputs(temp_dir)
+                result_dir = temp_dir / "result"
+                fitted_ica = mock.Mock()
+                fitted_ica.n_components_ = 0
+                fitted_ica.unmixing_matrix_ = np.empty((0, 0))
+                fitted_ica.plot_properties.return_value = []
+                fitted_ica.plot_components.return_value = []
+                fitted_ica.get_sources.return_value = mne.io.RawArray(
+                    np.zeros((1, 100)),
+                    mne.create_info(["ICA000"], 10.0, ["misc"]),
+                    verbose=False,
+                )
+
+                with mock.patch.object(
+                    run_ica_module, "ICA", return_value=fitted_ica
+                ) as ica_class:
+                    run_ica_module.run_ica(
+                        subj_tag="synthetic",
+                        subj_res_path=result_dir,
+                        subj_res_path_ica=result_dir / "ica_results",
+                        fn_data=paths[0],
+                        fn_ica="new-ica.fif",
+                        n_IC=value,
+                        modality="meg",
+                        fname_bad_channels=paths[1],
+                        fname_bad_segments=paths[2],
+                        random_seed=2025,
+                    )
+
+                passed = ica_class.call_args.kwargs["n_components"]
+                self.assertIs(type(passed), expected_type)
+                self.assertEqual(passed, value.item())
 
     def test_missing_ica_cache_keeps_component_validation_before_load(self):
         with tempfile.TemporaryDirectory() as temp_dir:

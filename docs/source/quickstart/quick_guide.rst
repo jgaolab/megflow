@@ -542,10 +542,10 @@ data. If ``requested_components_exceed_available_input`` appears, request no
 more components than the number reported as available. A fractional request
 between 0 and 1 is a variance target and is not rejected using a guessed rank
 from the header. For a new fit, ``invalid_component_request`` means the setting
-must be ``None``, an integer of 2 or more, or a finite fraction strictly between
-0 and 1. ``invalid_bad_channel_sidecar`` points to a missing or unreadable
-bad-channel file, while ``invalid_ica_modality`` means the requested modality
-must be ``meg``, ``eeg``, or ``meeg``.
+must be an integer of 2 or more, or a finite fraction strictly between 0 and 1.
+``invalid_bad_channel_sidecar`` points to a missing or unreadable bad-channel
+file, while ``invalid_ica_modality`` means the requested modality must be
+``meg``, ``eeg``, or ``meeg``.
 
 The JSON fields ``fit_required``, ``ica_cache_exists``, and ``ica_cache_path``
 tell you whether MEGFlow found an existing ICA. When it reuses that file, the

@@ -211,10 +211,6 @@ def prepare_ica_input(
                 category=RuntimeWarning,
             )
             raw = load_bad_chn_seg(raw, fname_bad_channels, fname_bad_segments)
-            annotations_to_apply = sidecar_annotations.copy()
-            if annotations_to_apply.orig_time is None:
-                annotations_to_apply.onset -= raw._first_time
-            raw.set_annotations(annotations_to_apply)
     except Exception as exc:
         _fail_ica_input_validation(
             "invalid_bad_segment_sidecar",
@@ -453,7 +449,7 @@ def run_ica(
     compute_explained_variance = bool(compute_explained_variance)
     ica_path = subj_res_path / fn_ica
     fit_required = not ica_path.exists()
-    raw, _ = prepare_ica_input(
+    raw, input_validation = prepare_ica_input(
         fn_data=fn_data,
         n_components=n_IC,
         modality=modality,
@@ -468,7 +464,7 @@ def run_ica(
     remove_stale_component_property_outputs(subj_res_path, subj_res_path_ica, compute_explained_variance)
 
     if fit_required:
-        ica = ICA(n_components=n_IC,
+        ica = ICA(n_components=input_validation["requested_components"],
                 method='fastica',
                 max_iter='auto', 
                 random_state=random_seed)
