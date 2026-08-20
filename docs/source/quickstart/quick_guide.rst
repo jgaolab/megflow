@@ -522,6 +522,27 @@ default OSL bad-segment method. See :doc:`preprocessing configuration
 <../reference/deepreject>` before changing thresholds or enabling additional
 methods.
 
+Fix an ICA Input Validation Error
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+ICA first performs a quick check without loading the large signal array. Look
+for ``ica_input_validation.json`` in the recording's ICA output when this check
+stops the run. The file shows how many samples are total, marked bad, and still
+usable; it also names the exact bad-channel and bad-segment files that were
+checked.
+
+For ``ICA_INPUT_ALL_BAD``, ``bad_coverage_fraction`` is ``1.0``: every sample
+is covered by a ``BAD...`` annotation. Open the artifact report and inspect the
+listed bad-segment file. Correct accidental whole-recording intervals or
+regenerate artifact detection, then rerun with ``-resume``. For
+``no_eligible_meg_channels``, review the listed bad-channel file because it
+marks every MEG channel bad. For ``invalid_bad_segment_sidecar``, regenerate
+the bad-segment file from the same recording; its times do not align with the
+data. If ``requested_components_exceed_available_input`` appears, request no
+more components than the number reported as available. A fractional request
+between 0 and 1 is a variance target and is not rejected using a guessed rank
+from the header.
+
 Control Which ICA Components Are Removed
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

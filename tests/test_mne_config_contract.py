@@ -1,4 +1,5 @@
 import inspect
+import json
 import sys
 import tempfile
 import types
@@ -635,6 +636,259 @@ class IcaNumComponentsContractTests(unittest.TestCase):
 
         self.assertIsInstance(value, int)
         self.assertEqual(value, 60)
+
+
+class IcaInputPreflightTests(unittest.TestCase):
+    def _write_ica_inputs(
+        self,
+        directory,
+        *,
+        sfreq=10.0,
+        n_times=100,
+        annotations=(),
+        bad_channels=(),
+    ):
+        directory = Path(directory)
+        raw_path = directory / "synthetic_raw.fif"
+        bad_channel_path = directory / "bad_channels.txt"
+        bad_segment_path = directory / "bad_segments.txt"
+        info = mne.create_info(
+            ["MEG001", "MEG002", "STI 014"],
+            sfreq,
+            ch_types=["mag", "mag", "stim"],
+        )
+        raw = mne.io.RawArray(
+            np.zeros((3, n_times), dtype=float), info, verbose=False
+        )
+        raw.save(raw_path, overwrite=True, verbose=False)
+        bad_channel_path.write_text(
+            "".join(f"{name}\n" for name in bad_channels), encoding="utf-8"
+        )
+        annotation_list = list(annotations)
+        saved_annotations = mne.Annotations(
+            onset=[item[0] for item in annotation_list],
+            duration=[item[1] for item in annotation_list],
+            description=[item[2] for item in annotation_list],
+        )
+        saved_annotations.save(bad_segment_path, overwrite=True)
+        return raw_path, bad_channel_path, bad_segment_path
+
+    def _prepare(self, directory, *, n_components=2, **input_kwargs):
+        paths = self._write_ica_inputs(directory, **input_kwargs)
+        validation_path = Path(directory) / "ica_input_validation.json"
+        raw, validation = run_ica_module.prepare_ica_input(
+            fn_data=paths[0],
+            n_components=n_components,
+            modality="meg",
+            fname_bad_channels=paths[1],
+            fname_bad_segments=paths[2],
+            validation_path=validation_path,
+        )
+        return raw, validation, paths, validation_path
+
+    def test_empty_annotations_validate_without_preloading_or_reading_signal(self):
+        with tempfile.TemporaryDirectory() as temp_dir, mock.patch.object(
+            mne.io.BaseRaw,
+            "load_data",
+            side_effect=AssertionError("preflight must not read signal samples"),
+        ):
+            raw, validation, _, validation_path = self._prepare(temp_dir)
+            saved_validation = json.loads(validation_path.read_text())
+
+        self.assertFalse(raw.preload)
+        self.assertEqual(validation["status"], "passed")
+        self.assertEqual(validation["total_samples"], 100)
+        self.assertEqual(validation["bad_samples"], 0)
+        self.assertEqual(validation["usable_samples"], 100)
+        self.assertEqual(validation["eligible_channel_count"], 2)
+        self.assertEqual(validation["bad_channel_count"], 0)
+        self.assertEqual(saved_validation, validation)
+
+    def test_overlapping_adjacent_bad_annotations_are_merged_by_sample(self):
+        annotations = (
+            (1.0, 2.0, "BAD_motion"),
+            (2.0, 2.0, "bad_overlap"),
+            (4.0, 1.0, "Bad_adjacent"),
+            (5.0, 0.0, "BAD_zero_duration"),
+            (6.0, 1.0, "notbad"),
+            (7.0, 1.0, "EDGE boundary"),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            _, validation, _, _ = self._prepare(
+                temp_dir, annotations=annotations
+            )
+
+        self.assertEqual(validation["bad_samples"], 40)
+        self.assertEqual(validation["usable_samples"], 60)
+        self.assertAlmostEqual(validation["bad_seconds"], 4.0)
+        self.assertAlmostEqual(validation["bad_coverage_fraction"], 0.4)
+
+    def test_bad_annotations_are_cropped_to_recording_boundaries(self):
+        annotations = (
+            (-1.0, 2.0, "BAD_before_start"),
+            (9.5, 2.0, "BAD_after_end"),
+        )
+        with tempfile.TemporaryDirectory() as temp_dir:
+            _, validation, _, _ = self._prepare(
+                temp_dir, annotations=annotations
+            )
+
+        self.assertEqual(validation["bad_samples"], 15)
+        self.assertEqual(validation["usable_samples"], 85)
+
+    def test_all_meg_channels_bad_has_stable_actionable_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = self._write_ica_inputs(
+                temp_dir, bad_channels=("MEG001", "MEG002")
+            )
+            validation_path = Path(temp_dir) / "ica_input_validation.json"
+            with self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                run_ica_module.prepare_ica_input(
+                    fn_data=paths[0],
+                    n_components=2,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    validation_path=validation_path,
+                )
+
+            error = raised.exception
+            self.assertEqual(error.code, "no_eligible_meg_channels")
+            self.assertIn(str(paths[2]), str(error))
+            self.assertIn("bad-channel", str(error).lower())
+            self.assertEqual(
+                json.loads(validation_path.read_text())["error_code"], error.code
+            )
+
+    def test_all_samples_bad_has_named_error_and_coverage_statistics(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = self._write_ica_inputs(
+                temp_dir, annotations=((0.0, 10.0, "BAD_everything"),)
+            )
+            validation_path = Path(temp_dir) / "ica_input_validation.json"
+            with self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                run_ica_module.prepare_ica_input(
+                    fn_data=paths[0],
+                    n_components=2,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    validation_path=validation_path,
+                )
+
+            error = raised.exception
+            self.assertEqual(
+                error.code, "no_usable_samples_after_bad_annotations"
+            )
+            self.assertIn("ICA_INPUT_ALL_BAD", str(error))
+            self.assertIn("100/100", str(error))
+            self.assertIn(str(paths[2]), str(error))
+            validation = json.loads(validation_path.read_text())
+            self.assertEqual(validation["bad_samples"], 100)
+            self.assertEqual(validation["usable_samples"], 0)
+            self.assertEqual(validation["bad_coverage_fraction"], 1.0)
+
+    def test_integer_components_cannot_exceed_channels_or_usable_samples(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = self._write_ica_inputs(temp_dir)
+            with self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                run_ica_module.prepare_ica_input(
+                    fn_data=paths[0],
+                    n_components=3,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                )
+
+        self.assertEqual(
+            raised.exception.code,
+            "requested_components_exceed_available_input",
+        )
+        self.assertIn("2 eligible", str(raised.exception))
+
+    def test_float_components_require_at_least_two_usable_samples(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = self._write_ica_inputs(temp_dir, n_times=1)
+            with self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                run_ica_module.prepare_ica_input(
+                    fn_data=paths[0],
+                    n_components=0.999,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                )
+
+        self.assertEqual(
+            raised.exception.code,
+            "requested_components_exceed_available_input",
+        )
+        self.assertIn("at least 2 usable samples", str(raised.exception))
+
+    def test_float_components_are_not_rejected_from_header_rank_guessing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            _, validation, _, _ = self._prepare(
+                temp_dir, n_components=0.9999
+            )
+
+        self.assertEqual(validation["status"], "passed")
+        self.assertEqual(validation["requested_components"], 0.9999)
+
+    def test_misaligned_annotation_sidecar_has_stable_error_and_json(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = self._write_ica_inputs(
+                temp_dir,
+                annotations=((1000.0, 1.0, "BAD_from_another_recording"),),
+            )
+            validation_path = Path(temp_dir) / "ica_input_validation.json"
+            with self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                run_ica_module.prepare_ica_input(
+                    fn_data=paths[0],
+                    n_components=2,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    validation_path=validation_path,
+                )
+
+            error = raised.exception
+            self.assertEqual(error.code, "invalid_bad_segment_sidecar")
+            self.assertIn(str(paths[2]), str(error))
+            self.assertIn("regenerate", str(error).lower())
+            self.assertEqual(
+                json.loads(validation_path.read_text())["error_code"], error.code
+            )
+
+    def test_run_ica_writes_failed_validation_before_loading_signal(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
+            paths = self._write_ica_inputs(
+                temp_dir, annotations=((0.0, 10.0, "BAD_everything"),)
+            )
+            result_dir = temp_dir / "result"
+            with mock.patch.object(
+                mne.io.BaseRaw,
+                "load_data",
+                side_effect=AssertionError("failed preflight loaded signal"),
+            ), self.assertRaises(run_ica_module.ICAInputValidationError):
+                run_ica_module.run_ica(
+                    subj_tag="synthetic",
+                    subj_res_path=result_dir,
+                    subj_res_path_ica=result_dir / "ica_results",
+                    fn_data=paths[0],
+                    fn_ica="synthetic-ica.fif",
+                    n_IC=2,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    random_seed=2025,
+                )
+
+            validation_path = result_dir / "ica_input_validation.json"
+            self.assertTrue(validation_path.is_file())
+            self.assertEqual(
+                json.loads(validation_path.read_text())["error_code"],
+                "no_usable_samples_after_bad_annotations",
+            )
 
 
 if __name__ == "__main__":

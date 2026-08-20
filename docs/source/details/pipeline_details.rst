@@ -144,7 +144,15 @@ this core rather than one of its signal-processing operations.
 
 5. ``run_ica`` loads the preprocessed raw file plus the artifact sidecars. Bad
    channels are excluded from picks, and bad annotations are ignored during ICA
-   fitting through ``reject_by_annotation=True``.
+   fitting through ``reject_by_annotation=True``. Before signal samples are
+   loaded, a fast preflight reads only the FIF header and sidecars. It checks
+   that at least one requested MEG channel and some unannotated samples remain,
+   and that an integer component request fits the available input. Overlapping
+   or touching ``BAD...`` annotations are counted once using the same sample
+   boundaries as MNE ICA. The result is saved as
+   ``ica_input_validation.json`` with sample, second, channel, component, and
+   sidecar details. This file is also written when validation fails whenever
+   the output directory is available.
 
 6. ``run_ic_label`` labels artifact-related ICA components using configured MNE
    ECG/EOG detection, the original MNE-ICALabel MEGNet model, the independently
@@ -245,6 +253,16 @@ deletion.
 DeepReject intervals use the annotation description ``BAD_deepreject``. See
 :doc:`../reference/deepreject` for the BadChnNet and BadSegNet decision rules,
 mode thresholds, and provenance output.
+
+If ICA stops with ``ICA_INPUT_ALL_BAD``, open
+``ica_input_validation.json`` and check ``bad_coverage_fraction`` and the
+recorded bad-segment sidecar path. A value of ``1.0`` means the annotations
+cover every sample, so ICA has no data from which to learn components. Inspect
+the bad-segment report, correct or regenerate an over-broad sidecar, and resume
+the workflow. Do not work around this error by merely increasing the component
+count. ``no_eligible_meg_channels`` similarly means the bad-channel sidecar
+excluded every MEG channel. ``invalid_bad_segment_sidecar`` means the sidecar
+could not be aligned with this recording and should be regenerated from it.
 
 Resting-State and Task-Based Epochs
 -----------------------------------
