@@ -555,8 +555,39 @@ settings belong in the matching dataset profile. Task-specific settings belong
 in that dataset's `recordings` profiles.
 
 Dataset tuple channels and Nextflow's normal process parallelism handle
-scheduling in one DAG. Tune process-level `maxForks`, CPU, and memory settings
-in the Nextflow config according to available compute and I/O capacity.
+scheduling in one DAG. Local runs default to `"auto"` CPU, memory, and task
+capacity, using the resources visible to the host or outer container. A fixed
+workstation budget can be supplied in an additive config:
+
+```groovy
+params {
+  megflow {
+    execution {
+      local_cpus = 16
+      local_memory = "48 GB"
+      local_max_tasks = 3
+    }
+  }
+}
+```
+
+`local_max_tasks = N` maps to the local executor `queueSize`. Actual
+concurrency may be lower because CPU, memory, the workflow DAG, and per-process
+`maxForks` limits all apply cumulatively. Keep `maxForks` for stages that need
+an additional process-specific cap:
+
+```groovy
+process {
+  withName: detect_artifacts {
+    maxForks = 2
+  }
+}
+```
+
+Native OMP, MKL, OpenBLAS, and NumExpr threads default to `task.cpus` for each
+task. `score_meg_quality` and `detect_artifacts` use one native thread per
+outer worker. Advanced users can override `beforeScript` globally or in a
+process selector after validating the native library's threading behavior.
 
 The main config includes `local`, `docker`, `slurm`, `singularity`, `lenient`,
 `strict`, and `debug` execution profiles. The `docker` profile containerizes the

@@ -110,8 +110,58 @@ The base ``process`` scope assigns conservative defaults and then overrides
 CPU, memory, time, and retry limits with selectors that match current process
 names in ``megflow.nf``. Memory-heavy stages use
 ``task.attempt``-dependent memory, so a resource-related retry requests more
-memory. Slurm ``queueSize`` limits how many tasks Nextflow keeps submitted to
-the scheduler; it is not a per-process concurrency limit. Use ``maxForks`` in a
+memory.
+
+Local Resource Budgets
+----------------------
+
+By default, ``params.megflow.execution.local_cpus``, ``local_memory``, and
+``local_max_tasks`` are all ``"auto"``. Auto mode leaves local-executor
+resource detection to Nextflow, so it uses all CPUs visible to the driver or
+outer container, the visible/default memory budget, and its default local task
+capacity. The existing per-process ``cpus`` and ``memory`` requests are then
+accounted against those budgets.
+
+Set any limit independently in an additive overlay. For example, this
+workstation configuration budgets 16 CPUs and 48 GB across at most three
+running local tasks:
+
+.. code-block:: groovy
+
+   params {
+     megflow {
+       execution {
+         local_cpus = 16
+         local_memory = "48 GB"
+         local_max_tasks = 3
+       }
+     }
+   }
+
+``local_max_tasks = N`` maps to the local executor's ``queueSize``. It is a
+global ceiling, not a promise that N tasks will run: actual concurrency can be
+lower because the local CPU budget, local memory budget, workflow DAG, and any
+per-process ``maxForks`` constraint apply cumulatively. A per-process cap is
+still useful for an I/O-heavy or otherwise sensitive stage:
+
+.. code-block:: groovy
+
+   process {
+     withName: detect_artifacts {
+       maxForks = 2
+     }
+   }
+
+MEGFlow also sets ``OMP_NUM_THREADS``, ``MKL_NUM_THREADS``,
+``OPENBLAS_NUM_THREADS``, and ``NUMEXPR_MAX_THREADS`` per task from
+``task.cpus``. Processes that already create outer workers use one native
+thread per worker; in particular, ``score_meg_quality`` keeps
+``--n_jobs ${task.cpus}``. A project may override ``beforeScript`` globally or
+in a process selector when a native library has a tested, different threading
+requirement.
+
+Slurm ``queueSize`` limits how many tasks Nextflow keeps submitted to the
+scheduler; it is not a per-process concurrency limit. Use ``maxForks`` in a
 project-specific process selector when one stage needs its own cap.
 
 Two failure policies are available:

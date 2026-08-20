@@ -84,7 +84,7 @@ def named_config_block(text: str, block_name: str) -> str:
 def config_assignments(block: str) -> dict[str, str]:
     assignments = {}
     stack = []
-    block_pattern = re.compile(r"^\s*([A-Za-z_]\w*)\s*\{\s*$")
+    block_pattern = re.compile(r"^\s*(\$?[A-Za-z_]\w*)\s*\{\s*$")
     assignment_pattern = re.compile(
         r"^\s*([A-Za-z_]\w*)\s*=\s*(.*?)\s*(?://.*)?$"
     )
@@ -501,6 +501,134 @@ class NextflowExecutionConfigTests(unittest.TestCase):
             text = config.read_text(encoding="utf-8")
             self.assertNotRegex(text, r"(?m)^\s*def\s+", config.name)
             self.assertNotRegex(text, r"(?m)^\s*if\s*\(", config.name)
+
+    def test_local_execution_defaults_are_identical_and_public(self):
+        expected = {
+            "local_cpus": '"auto"',
+            "local_memory": '"auto"',
+            "local_max_tasks": '"auto"',
+        }
+        for config in (SOURCE_CONFIG, DOCKER_CONFIG, FULL_WORKFLOW_CONFIG):
+            assignments = config_assignments(
+                named_config_block(config.read_text(encoding="utf-8"), "execution")
+            )
+            with self.subTest(config=config.name):
+                self.assertEqual(assignments, expected)
+
+    def test_local_executor_maps_each_fixed_resource_override_independently(self):
+        expected = {
+            "$local.cpus": (
+                '"${-> params.megflow.execution.local_cpus == \'auto\' ? '
+                "Runtime.runtime.availableProcessors() : "
+                'params.megflow.execution.local_cpus}"'
+            ),
+            "$local.memory": (
+                '"${-> params.megflow.execution.local_memory == \'auto\' ? '
+                "java.lang.management.ManagementFactory.operatingSystemMXBean."
+                "totalPhysicalMemorySize : params.megflow.execution.local_memory}"
+                '"'
+            ),
+            "$local.queueSize": (
+                '"${-> params.megflow.execution.local_max_tasks == \'auto\' ? '
+                "Runtime.runtime.availableProcessors() : "
+                'params.megflow.execution.local_max_tasks}"'
+            ),
+        }
+        for config in available_configs():
+            assignments = config_assignments(
+                named_config_block(config.read_text(encoding="utf-8"), "executor")
+            )
+            with self.subTest(config=config.name):
+                self.assertEqual(
+                    {key: assignments.get(key) for key in expected},
+                    expected,
+                )
+
+    def test_process_native_thread_caps_follow_outer_parallelism(self):
+        variable_thread_exports = (
+            "NUMEXPR_MAX_THREADS=${task.cpus}",
+            "OMP_NUM_THREADS=${task.cpus}",
+            "MKL_NUM_THREADS=${task.cpus}",
+            "OPENBLAS_NUM_THREADS=${task.cpus}",
+        )
+        single_thread_exports = tuple(
+            export.replace("${task.cpus}", "1")
+            for export in variable_thread_exports
+        )
+        for config in available_configs():
+            text = config.read_text(encoding="utf-8")
+            process_block = named_config_block(text, "process")
+            default_before_script = re.search(
+                r"(?m)^\s{4}beforeScript\s*=\s*\{\s*\"(?P<value>[^\"]+)\"\s*\}\s*$",
+                process_block,
+            )
+            self.assertIsNotNone(default_before_script, config.name)
+            for export in variable_thread_exports:
+                self.assertIn(export, default_before_script.group("value"), config.name)
+
+            for process_name in ("score_meg_quality", "detect_artifacts"):
+                selector = re.search(
+                    rf"(?ms)^\s{{4}}withName:\s*{process_name}\s*\{{(?P<body>.*?)^\s{{4}}\}}",
+                    process_block,
+                )
+                self.assertIsNotNone(selector, f"{config.name}: {process_name}")
+                selector_body = selector.group("body")
+                for export in single_thread_exports:
+                    self.assertIn(export, selector_body, f"{config.name}: {process_name}")
+
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+        score_process = pipeline.split("process score_meg_quality {", 1)[1].split(
+            "process detect_artifacts {", 1
+        )[0]
+        self.assertIn('--n_jobs ${task.cpus}', score_process)
+
+    def test_corpus_examples_do_not_bundle_fixed_thread_or_fork_limits(self):
+        fixed_thread_pattern = re.compile(
+            r"(?:NUMEXPR_MAX_THREADS|OMP_NUM_THREADS|MKL_NUM_THREADS|"
+            r"OPENBLAS_NUM_THREADS)=8"
+        )
+        for config in (CORPUS_EXAMPLE, MULTI_DATASET_DEMO):
+            text = config.read_text(encoding="utf-8")
+            with self.subTest(config=config.name):
+                self.assertNotRegex(text, fixed_thread_pattern)
+                self.assertNotRegex(text, r"(?m)^\s*maxForks\s*=\s*(?:4|6)\s*$")
+                self.assertEqual(
+                    re.findall(r"(?m)^\s*maxForks\s*=\s*(\d+)\s*$", text),
+                    ["1"],
+                )
+                import_selector = re.search(
+                    r"(?ms)withName:\s*import_meg_dataset\s*\{(?P<body>.*?)\}",
+                    text,
+                )
+                self.assertIsNotNone(import_selector, config.name)
+                self.assertIn("maxForks = 1", import_selector.group("body"))
+
+    def test_full_overlay_and_docs_show_global_and_per_process_limits(self):
+        overlay = FULL_WORKFLOW_CONFIG.read_text(encoding="utf-8")
+        self.assertIn('local_cpus = "auto"', overlay)
+        self.assertIn('local_memory = "auto"', overlay)
+        self.assertIn('local_max_tasks = "auto"', overlay)
+        self.assertRegex(
+            overlay,
+            r"(?ms)^// process \{.*?withName:\s*detect_artifacts\s*\{.*?"
+            r"maxForks\s*=\s*\d+",
+        )
+
+        for document in (
+            REPO_ROOT / "docs" / "source" / "reference" / "configuration_execution.rst",
+            REPO_ROOT / "README.md",
+        ):
+            text = document.read_text(encoding="utf-8")
+            with self.subTest(document=document.name):
+                self.assertIn('local_cpus = 16', text)
+                self.assertIn('local_memory = "48 GB"', text)
+                self.assertIn('local_max_tasks = 3', text)
+                self.assertRegex(
+                    text,
+                    r"(?ms)process\s*\{.*?withName:\s*\w+\s*\{.*?maxForks\s*=\s*\d+",
+                )
+                for concept in ("CPU", "memory", "DAG", "maxForks"):
+                    self.assertIn(concept, text)
 
     def test_docker_runner_generates_declarative_runtime_overrides(self):
         text = packaged_docker_runner().read_text(encoding="utf-8")
