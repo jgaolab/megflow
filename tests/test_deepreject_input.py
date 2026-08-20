@@ -229,6 +229,47 @@ class DeepRejectModelInputPreprocessingTests(unittest.TestCase):
         self.assertEqual(step["freqs"], [10.0])
         self.assertIn("50 Hz", step.get("reason", ""))
 
+    def test_notch_resamples_when_future_target_improves_admissible_subset(self):
+        raw = self._raw(sfreq=101.0, duration=10.0)
+        recipe = [
+            {
+                "notch_filter": {
+                    "freqs": [50, 100],
+                    "notch_widths": [0.2, 0.4],
+                }
+            },
+            {"resample": {"sfreq": 180}},
+        ]
+
+        model_raw, provenance = self._applier()(raw, recipe)
+
+        self.assertEqual(model_raw.info["sfreq"], 180.0)
+        self.assertEqual(
+            [step["step"] for step in provenance["applied_steps"]],
+            ["resample", "notch_filter"],
+        )
+        notch_step = provenance["applied_steps"][1]
+        self.assertEqual(notch_step["status"], "applied")
+        self.assertEqual(notch_step["freqs"], [50.0])
+        self.assertEqual(notch_step["notch_widths"], [0.2])
+        self.assertIn("100 Hz", notch_step.get("reason", ""))
+
+    def test_notch_does_not_resample_when_future_target_has_no_improvement(self):
+        raw = self._raw(sfreq=101.0, duration=10.0)
+        recipe = [
+            {"notch_filter": {"freqs": [50, 100]}},
+            {"resample": {"sfreq": 80}},
+        ]
+
+        model_raw, provenance = self._applier()(raw, recipe)
+
+        self.assertEqual(model_raw.info["sfreq"], 80.0)
+        self.assertEqual(
+            [step["step"] for step in provenance["applied_steps"]],
+            ["notch_filter", "resample"],
+        )
+        self.assertEqual(provenance["applied_steps"][0]["status"], "skipped")
+
     def test_enabled_preprocessing_writes_model_only_fif_even_without_meg_pick(self):
         raw = self._raw(sfreq=200.0, duration=4.0)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -403,6 +444,32 @@ class DeepRejectModelInputPreprocessingTests(unittest.TestCase):
                 [],
             )
 
+    def test_partial_model_input_is_retained_when_save_fails_with_keep(self):
+        raw = self._raw(sfreq=250.0, duration=4.0)
+
+        def partial_save_then_fail(instance, path, **kwargs):
+            Path(path).write_bytes(b"partial-fif")
+            raise RuntimeError("synthetic kept save failure")
+
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.object(
+            mne.io.BaseRaw,
+            "save",
+            partial_save_then_fail,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "synthetic kept save failure"):
+                detect_artifacts_module._prepare_deepreject_input(
+                    raw,
+                    Path(tmpdir) / "source_raw.fif",
+                    tmpdir,
+                    {
+                        "pick_meg_only": False,
+                        "keep_meg_only_input": True,
+                    },
+                )
+            retained = list(Path(tmpdir).rglob("*deepreject_model_input*"))
+            self.assertEqual(len(retained), 1)
+            self.assertEqual(retained[0].read_bytes(), b"partial-fif")
+
     @staticmethod
     def _simulated_split_save(instance, path, **kwargs):
         path = Path(path)
@@ -492,6 +559,15 @@ class DeepRejectModelInputPreprocessingTests(unittest.TestCase):
     def test_explicit_keep_preserves_all_split_model_input_files(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             retained = self._run_with_simulated_split(tmpdir, keep=True)
+            self.assertEqual(len(retained), 3)
+
+    def test_explicit_keep_preserves_split_files_after_prediction_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            retained = self._run_with_simulated_split(
+                tmpdir,
+                fail_prediction=True,
+                keep=True,
+            )
             self.assertEqual(len(retained), 3)
 
 

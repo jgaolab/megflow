@@ -652,7 +652,8 @@ def _prepare_deepreject_input(raw, input_path, output_dir, deep_config):
     try:
         model_raw.save(tmp_path, overwrite=True)
     except BaseException:
-        _cleanup_deepreject_temporary_input(tmp_path)
+        if not _config_bool(deep_config.get("keep_meg_only_input"), False):
+            _cleanup_deepreject_temporary_input(tmp_path)
         raise
     return tmp_path, tmp_path, {
         "pick_meg_only": pick_meg_only,

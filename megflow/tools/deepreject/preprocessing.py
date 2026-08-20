@@ -217,6 +217,50 @@ def _mne_notch_design_error(
     return None
 
 
+def _mne_notch_frequency_outcomes(
+    sfreq: float,
+    parameters: Dict[str, Any],
+) -> Tuple[List[float], Optional[List[float]], List[str]]:
+    """Return usable notch centers, aligned widths, and skipped reasons."""
+    requested_freqs = _numeric_freqs(parameters.get("freqs"))
+    configured_widths = parameters.get("notch_widths")
+    if configured_widths is not None:
+        aligned_widths = np.atleast_1d(
+            np.asarray(configured_widths, dtype=float)
+        )
+        if aligned_widths.size == 1:
+            aligned_widths = np.repeat(aligned_widths, len(requested_freqs))
+        elif aligned_widths.size != len(requested_freqs):
+            raise ValueError(
+                "preproc.notch_filter.notch_widths must be scalar or match freqs"
+            )
+    else:
+        aligned_widths = None
+
+    usable_freqs: List[float] = []
+    usable_widths: Optional[List[float]] = [] if aligned_widths is not None else None
+    skipped_reasons: List[str] = []
+    for index, frequency in enumerate(requested_freqs):
+        single_frequency_config = deepcopy(parameters)
+        if aligned_widths is not None:
+            single_frequency_config["notch_widths"] = float(aligned_widths[index])
+        design_error = _mne_notch_design_error(
+            sfreq,
+            single_frequency_config,
+            freqs=[frequency],
+        )
+        if design_error is None:
+            usable_freqs.append(frequency)
+            if usable_widths is not None:
+                usable_widths.append(float(aligned_widths[index]))
+        else:
+            skipped_reasons.append(
+                f"{frequency:g} Hz: MNE notch design is not admissible "
+                f"at {float(sfreq):g} Hz ({design_error})"
+            )
+    return usable_freqs, usable_widths, skipped_reasons
+
+
 def _execution_recipe(recipe: List[Dict[str, Any]], source_sfreq: float) -> List[Dict[str, Any]]:
     """Move a future resample ahead only when it makes a frequency step admissible."""
     pending = deepcopy(recipe)
@@ -227,13 +271,13 @@ def _execution_recipe(recipe: List[Dict[str, Any]], source_sfreq: float) -> List
         operation = next(iter(step))
         requested = _step_requested_frequencies(step)
         if operation == "notch_filter":
-            frequency_step_is_admissible = (
-                _mne_notch_design_error(
+            current_admissible_count = len(
+                _mne_notch_frequency_outcomes(
                     current_sfreq,
                     step["notch_filter"],
-                )
-                is None
+                )[0]
             )
+            frequency_step_is_admissible = current_admissible_count == len(requested)
         else:
             frequency_step_is_admissible = not any(
                 frequency >= current_sfreq / 2.0 for frequency in requested
@@ -245,14 +289,13 @@ def _execution_recipe(recipe: List[Dict[str, Any]], source_sfreq: float) -> List
                     for index, candidate in enumerate(pending[1:], start=1)
                     if "resample" in candidate
                     and (
-                        _mne_notch_design_error(
-                            _positive_float(
+                        len(
+                            _mne_notch_frequency_outcomes(
                                 candidate["resample"].get("sfreq"),
-                                "preproc.resample.sfreq",
-                            ),
-                            step["notch_filter"],
+                                step["notch_filter"],
+                            )[0]
                         )
-                        is None
+                        > current_admissible_count
                         if operation == "notch_filter"
                         else all(
                             frequency
@@ -380,42 +423,12 @@ def apply_deepreject_preproc(raw: Any, value: Any = None) -> Tuple[Any, Dict[str
                 continue
 
             requested_freqs = _numeric_freqs(parameters.pop("freqs"))
-            usable_freqs = []
-            usable_widths = []
-            skipped_reasons = []
-            configured_widths = parameters.get("notch_widths")
-            if configured_widths is not None:
-                aligned_widths = np.atleast_1d(
-                    np.asarray(configured_widths, dtype=float)
-                )
-                if aligned_widths.size == 1:
-                    aligned_widths = np.repeat(aligned_widths, len(requested_freqs))
-                elif aligned_widths.size != len(requested_freqs):
-                    raise ValueError(
-                        "preproc.notch_filter.notch_widths must be scalar or match freqs"
-                    )
-            else:
-                aligned_widths = None
-            for index, frequency in enumerate(requested_freqs):
-                single_frequency_config = deepcopy(configured)
-                if aligned_widths is not None:
-                    single_frequency_config["notch_widths"] = float(
-                        aligned_widths[index]
-                    )
-                design_error = _mne_notch_design_error(
+            usable_freqs, usable_widths, skipped_reasons = (
+                _mne_notch_frequency_outcomes(
                     sfreq_before,
-                    single_frequency_config,
-                    freqs=[frequency],
+                    configured,
                 )
-                if design_error is None:
-                    usable_freqs.append(frequency)
-                    if aligned_widths is not None:
-                        usable_widths.append(float(aligned_widths[index]))
-                else:
-                    skipped_reasons.append(
-                        f"{frequency:g} Hz: MNE notch design is not admissible "
-                        f"at {sfreq_before:g} Hz ({design_error})"
-                    )
+            )
             if not usable_freqs:
                 applied_steps.append(
                     {
@@ -426,7 +439,7 @@ def apply_deepreject_preproc(raw: Any, value: Any = None) -> Tuple[Any, Dict[str
                     }
                 )
                 continue
-            if aligned_widths is not None:
+            if usable_widths is not None:
                 parameters["notch_widths"] = np.asarray(usable_widths, dtype=float)
             parameters.update(freqs=usable_freqs, picks=picks)
             parameters.setdefault("verbose", "error")
@@ -436,6 +449,8 @@ def apply_deepreject_preproc(raw: Any, value: Any = None) -> Tuple[Any, Dict[str
                 "status": "applied",
                 "freqs": usable_freqs,
             }
+            if usable_widths is not None:
+                record["notch_widths"] = usable_widths
             if skipped_reasons:
                 record["reason"] = "; ".join(skipped_reasons)
             applied_steps.append(record)
