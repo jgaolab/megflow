@@ -322,14 +322,15 @@ def prepare_ica_input(
                 validation,
                 validation_path,
             )
-    elif isinstance(component_request, float):
+    elif component_request is None or isinstance(component_request, float):
         if usable_samples < 2:
             _fail_ica_input_validation(
                 "requested_components_exceed_available_input",
                 "REQUESTED_COMPONENTS_EXCEED_AVAILABLE_INPUT",
                 (
-                    "a variance-threshold component request needs at least 2 usable "
-                    "samples; correct the bad annotations or provide more data"
+                    "automatic or variance-threshold component selection needs at "
+                    "least 2 usable samples; correct the bad annotations or provide "
+                    "more data"
                 ),
                 validation,
                 validation_path,

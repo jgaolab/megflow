@@ -857,6 +857,54 @@ class IcaInputPreflightTests(unittest.TestCase):
         )
         self.assertIn("at least 2 usable samples", str(raised.exception))
 
+    def test_none_components_require_two_usable_samples_before_signal_load(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
+            paths = self._write_ica_inputs(
+                temp_dir,
+                n_times=2,
+                annotations=((0.0, 0.1, "BAD_one_sample"),),
+            )
+            result_dir = temp_dir / "result"
+            caught = None
+            with mock.patch.object(
+                mne.io.BaseRaw,
+                "load_data",
+                side_effect=AssertionError("None request loaded signal"),
+            ) as load_data:
+                try:
+                    run_ica_module.run_ica(
+                        subj_tag="synthetic",
+                        subj_res_path=result_dir,
+                        subj_res_path_ica=result_dir / "ica_results",
+                        fn_data=paths[0],
+                        fn_ica="new-ica.fif",
+                        n_IC=None,
+                        modality="meg",
+                        fname_bad_channels=paths[1],
+                        fname_bad_segments=paths[2],
+                        random_seed=2025,
+                    )
+                except Exception as exc:
+                    caught = exc
+
+            self.assertIsInstance(caught, run_ica_module.ICAInputValidationError)
+            self.assertEqual(
+                caught.code, "requested_components_exceed_available_input"
+            )
+            self.assertIn("at least 2 usable samples", str(caught))
+            load_data.assert_not_called()
+            validation = json.loads(
+                (result_dir / "ica_input_validation.json").read_text()
+            )
+            self.assertEqual(validation["status"], "failed")
+            self.assertEqual(validation["bad_samples"], 1)
+            self.assertEqual(validation["usable_samples"], 1)
+            self.assertEqual(
+                validation["error_code"],
+                "requested_components_exceed_available_input",
+            )
+
     def test_float_components_are_not_rejected_from_header_rank_guessing(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             _, validation, _, _ = self._prepare(
