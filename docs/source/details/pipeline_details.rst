@@ -151,8 +151,12 @@ this core rather than one of its signal-processing operations.
    or touching ``BAD...`` annotations are counted once using the same sample
    boundaries as MNE ICA. The result is saved as
    ``ica_input_validation.json`` with sample, second, channel, component, and
-   sidecar details. This file is also written when validation fails whenever
-   the output directory is available.
+   sidecar details. ``fit_required``, ``ica_cache_exists``, and
+   ``ica_cache_path`` show whether this run will fit a new ICA or reuse an
+   existing one. A cached ICA still requires usable channels and samples, but a
+   new component request is checked only when a new fit is required. This file
+   is also written when validation fails whenever the output directory is
+   available.
 
 6. ``run_ic_label`` labels artifact-related ICA components using configured MNE
    ECG/EOG detection, the original MNE-ICALabel MEGNet model, the independently
@@ -263,6 +267,11 @@ the workflow. Do not work around this error by merely increasing the component
 count. ``no_eligible_meg_channels`` similarly means the bad-channel sidecar
 excluded every MEG channel. ``invalid_bad_segment_sidecar`` means the sidecar
 could not be aligned with this recording and should be regenerated from it.
+``invalid_bad_channel_sidecar`` identifies an unreadable bad-channel file, and
+``invalid_ica_modality`` identifies a modality other than ``meg``, ``eeg``, or
+``meeg``. When fitting a new ICA, ``invalid_component_request`` means the
+request must be ``None``, an integer of at least 2, or a finite fractional
+variance target strictly between 0 and 1.
 
 Resting-State and Task-Based Epochs
 -----------------------------------

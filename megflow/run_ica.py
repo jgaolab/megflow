@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 import math
+import warnings
 from numbers import Integral
 import numpy as np
 import mne
@@ -43,6 +44,16 @@ def _write_ica_input_validation(validation_path, validation):
     )
 
 
+def _json_safe_component_request(value):
+    if isinstance(value, np.generic):
+        value = value.item()
+    try:
+        json.dumps(value, allow_nan=False)
+    except (TypeError, ValueError):
+        return repr(value)
+    return value
+
+
 def _ica_picks(raw, modality):
     if modality == 'eeg':
         return mne.pick_types(raw.info, meg=False, eeg=True, eog=False,
@@ -54,6 +65,14 @@ def _ica_picks(raw, modality):
         return mne.pick_types(raw.info, meg=True, eeg=True, eog=False,
                               stim=False, exclude='bads')
     return None
+
+
+def _is_bad_annotation(description):
+    return str(description).upper().startswith("BAD")
+
+
+def _bad_annotation_count(annotations):
+    return sum(_is_bad_annotation(desc) for desc in annotations.description)
 
 
 def _merged_bad_sample_count(raw):
@@ -86,6 +105,7 @@ def _fail_ica_input_validation(code, title, guidance, validation, validation_pat
         )
     message = (
         f"{title} [{code}]\n"
+        f"Bad-channel sidecar: {validation['bad_channel_sidecar']}\n"
         f"Bad-segment sidecar: {validation['bad_segment_sidecar']}\n"
         f"{coverage}\n"
         f"How to fix: {guidance}"
@@ -106,13 +126,23 @@ def prepare_ica_input(
     fname_bad_channels,
     fname_bad_segments,
     validation_path=None,
+    fit_required=True,
+    ica_cache_path=None,
 ):
     """Validate ICA input from FIF metadata and annotations without signal reads."""
+    fit_required = bool(fit_required)
+    component_request = (
+        n_components.item() if isinstance(n_components, np.generic) else n_components
+    )
+    cache_path = Path(ica_cache_path) if ica_cache_path is not None else None
     validation = {
         "status": "pending",
         "error_code": None,
         "error_message": None,
-        "requested_components": n_components,
+        "requested_components": _json_safe_component_request(component_request),
+        "fit_required": fit_required,
+        "ica_cache_exists": bool(cache_path is not None and cache_path.exists()),
+        "ica_cache_path": str(cache_path) if cache_path is not None else None,
         "bad_channel_sidecar": str(fname_bad_channels),
         "bad_segment_sidecar": str(fname_bad_segments),
         "sidecars": {
@@ -134,9 +164,19 @@ def prepare_ica_input(
         bad_channel_count=None,
     )
 
+    if modality not in {"eeg", "meg", "meeg"}:
+        _fail_ica_input_validation(
+            "invalid_ica_modality",
+            "INVALID_ICA_MODALITY",
+            (
+                f"choose one of 'eeg', 'meg', or 'meeg'; received {modality!r}"
+            ),
+            validation,
+            validation_path,
+        )
+
     try:
         sidecar_annotations = mne.read_annotations(fname_bad_segments)
-        raw = load_bad_chn_seg(raw, fname_bad_channels, fname_bad_segments)
     except Exception as exc:
         _fail_ica_input_validation(
             "invalid_bad_segment_sidecar",
@@ -148,13 +188,53 @@ def prepare_ica_input(
             validation,
             validation_path,
         )
-    if len(raw.annotations) < len(sidecar_annotations):
+
+    try:
+        Path(fname_bad_channels).read_text(encoding="utf-8")
+    except Exception as exc:
+        _fail_ica_input_validation(
+            "invalid_bad_channel_sidecar",
+            "INVALID_BAD_CHANNEL_SIDECAR",
+            (
+                "restore or regenerate the bad-channel sidecar and confirm it is "
+                f"readable UTF-8 text. Original error: {exc}"
+            ),
+            validation,
+            validation_path,
+        )
+
+    try:
+        with warnings.catch_warnings():
+            warnings.filterwarnings(
+                "ignore",
+                message=r"Omitted .* annotation\(s\) that were outside data range\.",
+                category=RuntimeWarning,
+            )
+            raw = load_bad_chn_seg(raw, fname_bad_channels, fname_bad_segments)
+            annotations_to_apply = sidecar_annotations.copy()
+            if annotations_to_apply.orig_time is None:
+                annotations_to_apply.onset -= raw._first_time
+            raw.set_annotations(annotations_to_apply)
+    except Exception as exc:
+        _fail_ica_input_validation(
+            "invalid_bad_segment_sidecar",
+            "INVALID_BAD_SEGMENT_SIDECAR",
+            (
+                "regenerate the bad-segment sidecar from this recording and check "
+                f"its time origin. Original error: {exc}"
+            ),
+            validation,
+            validation_path,
+        )
+    if _bad_annotation_count(raw.annotations) < _bad_annotation_count(
+        sidecar_annotations
+    ):
         _fail_ica_input_validation(
             "invalid_bad_segment_sidecar",
             "INVALID_BAD_SEGMENT_SIDECAR",
             (
                 "regenerate the bad-segment sidecar from this recording; one or "
-                "more annotation times fall completely outside the data"
+                "more BAD annotation times fall completely outside the data"
             ),
             validation,
             validation_path,
@@ -182,10 +262,10 @@ def prepare_ica_input(
     if eligible_channel_count == 0:
         _fail_ica_input_validation(
             "no_eligible_meg_channels",
-            "NO_ELIGIBLE_MEG_CHANNELS",
+            "NO_ELIGIBLE_ICA_CHANNELS",
             (
-                "review the bad-channel list and restore valid MEG channels, then "
-                "rerun artifact detection and ICA"
+                f"review the bad-channel list and restore valid {modality.upper()} "
+                "channels for ICA, then rerun artifact detection and ICA"
             ),
             validation,
             validation_path,
@@ -202,9 +282,39 @@ def prepare_ica_input(
             validation_path,
         )
 
-    if isinstance(n_components, Integral) and not isinstance(n_components, bool):
+    if not fit_required:
+        validation["status"] = "passed"
+        _write_ica_input_validation(validation_path, validation)
+        return raw, validation
+
+    valid_component_request = (
+        component_request is None
+        or (
+            isinstance(component_request, Integral)
+            and not isinstance(component_request, bool)
+            and component_request >= 2
+        )
+        or (
+            isinstance(component_request, float)
+            and math.isfinite(component_request)
+            and 0 < component_request < 1
+        )
+    )
+    if not valid_component_request:
+        _fail_ica_input_validation(
+            "invalid_component_request",
+            "INVALID_COMPONENT_REQUEST",
+            (
+                "use None, an integer of at least 2, or a finite variance target "
+                "strictly between 0 and 1"
+            ),
+            validation,
+            validation_path,
+        )
+
+    if isinstance(component_request, Integral):
         available = min(eligible_channel_count, usable_samples)
-        if n_components > available:
+        if component_request > available:
             _fail_ica_input_validation(
                 "requested_components_exceed_available_input",
                 "REQUESTED_COMPONENTS_EXCEED_AVAILABLE_INPUT",
@@ -216,7 +326,7 @@ def prepare_ica_input(
                 validation,
                 validation_path,
             )
-    elif isinstance(n_components, (float, np.floating)) and 0 < n_components < 1:
+    elif isinstance(component_request, float):
         if usable_samples < 2:
             _fail_ica_input_validation(
                 "requested_components_exceed_available_input",
@@ -341,6 +451,8 @@ def run_ica(
     subj_res_path_ica = Path(subj_res_path_ica)
     subj_res_path_ica.mkdir(parents=True, exist_ok=True)
     compute_explained_variance = bool(compute_explained_variance)
+    ica_path = subj_res_path / fn_ica
+    fit_required = not ica_path.exists()
     raw, _ = prepare_ica_input(
         fn_data=fn_data,
         n_components=n_IC,
@@ -348,13 +460,15 @@ def run_ica(
         fname_bad_channels=fname_bad_channels,
         fname_bad_segments=fname_bad_segments,
         validation_path=subj_res_path / "ica_input_validation.json",
+        fit_required=fit_required,
+        ica_cache_path=ica_path,
     )
     raw.load_data()
     raw_ = raw
     remove_stale_component_property_outputs(subj_res_path, subj_res_path_ica, compute_explained_variance)
 
-    if not os.path.exists(os.path.join(subj_res_path, fn_ica)):
-        ica = ICA(n_components=n_IC, 
+    if fit_required:
+        ica = ICA(n_components=n_IC,
                 method='fastica',
                 max_iter='auto', 
                 random_state=random_seed)
@@ -362,9 +476,9 @@ def run_ica(
         picks = _ica_picks(raw_, modality)
 
         ica.fit(raw_, picks=picks, reject_by_annotation=True)
-        ica.save(os.path.join(subj_res_path, fn_ica))
+        ica.save(ica_path)
     else:
-        ica = read_ica(os.path.join(subj_res_path, fn_ica))
+        ica = read_ica(str(ica_path))
     
     fig_list = []
     try:

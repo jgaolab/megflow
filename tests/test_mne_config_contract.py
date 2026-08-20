@@ -4,11 +4,13 @@ import sys
 import tempfile
 import types
 import unittest
+from datetime import datetime, timezone
 from pathlib import Path
 from unittest import mock
 
 import mne
 import numpy as np
+from mne.annotations import _annotations_starts_stops
 
 
 MEGFLOW_DIR = Path(__file__).resolve().parents[1] / "megflow"
@@ -647,6 +649,9 @@ class IcaInputPreflightTests(unittest.TestCase):
         n_times=100,
         annotations=(),
         bad_channels=(),
+        first_samp=0,
+        meas_date=None,
+        annotations_from_raw=False,
     ):
         directory = Path(directory)
         raw_path = directory / "synthetic_raw.fif"
@@ -658,9 +663,12 @@ class IcaInputPreflightTests(unittest.TestCase):
             ch_types=["mag", "mag", "stim"],
         )
         raw = mne.io.RawArray(
-            np.zeros((3, n_times), dtype=float), info, verbose=False
+            np.zeros((3, n_times), dtype=float),
+            info,
+            first_samp=first_samp,
+            verbose=False,
         )
-        raw.save(raw_path, overwrite=True, verbose=False)
+        raw.set_meas_date(meas_date)
         bad_channel_path.write_text(
             "".join(f"{name}\n" for name in bad_channels), encoding="utf-8"
         )
@@ -670,7 +678,11 @@ class IcaInputPreflightTests(unittest.TestCase):
             duration=[item[1] for item in annotation_list],
             description=[item[2] for item in annotation_list],
         )
-        saved_annotations.save(bad_segment_path, overwrite=True)
+        if annotations_from_raw:
+            raw.set_annotations(saved_annotations)
+        raw.save(raw_path, overwrite=True, verbose=False)
+        annotations_to_save = raw.annotations if annotations_from_raw else saved_annotations
+        annotations_to_save.save(bad_segment_path, overwrite=True)
         return raw_path, bad_channel_path, bad_segment_path
 
     def _prepare(self, directory, *, n_components=2, **input_kwargs):
@@ -735,6 +747,51 @@ class IcaInputPreflightTests(unittest.TestCase):
 
         self.assertEqual(validation["bad_samples"], 15)
         self.assertEqual(validation["usable_samples"], 85)
+
+    def test_same_raw_txt_sidecar_uses_relative_samples_with_nonzero_first_samp(self):
+        for n_times in (50, 400):
+            with self.subTest(n_times=n_times), tempfile.TemporaryDirectory() as temp_dir:
+                raw, validation, _, _ = self._prepare(
+                    temp_dir,
+                    n_times=n_times,
+                    first_samp=100,
+                    annotations=((1.0, 1.0, "BAD_motion"),),
+                    annotations_from_raw=True,
+                )
+
+                starts, stops = _annotations_starts_stops(raw, ["BAD"])
+                np.testing.assert_array_equal(starts, [10])
+                np.testing.assert_array_equal(stops, [20])
+                self.assertEqual(validation["bad_samples"], 10)
+
+    def test_orig_time_sidecar_is_not_shifted_by_nonzero_first_samp(self):
+        meas_date = datetime(2020, 1, 1, 0, 0, 0, 123456, timezone.utc)
+        with tempfile.TemporaryDirectory() as temp_dir:
+            raw, validation, paths, _ = self._prepare(
+                temp_dir,
+                n_times=400,
+                first_samp=100,
+                meas_date=meas_date,
+                annotations=((1.0, 1.0, "BAD_motion"),),
+                annotations_from_raw=True,
+            )
+            sidecar = mne.read_annotations(paths[2])
+            starts, stops = _annotations_starts_stops(raw, ["BAD"])
+
+        self.assertEqual(sidecar.orig_time, meas_date)
+        np.testing.assert_array_equal(starts, [10])
+        np.testing.assert_array_equal(stops, [20])
+        self.assertEqual(validation["bad_samples"], 10)
+
+    def test_out_of_range_non_bad_annotation_does_not_invalidate_sidecar(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            _, validation, _, _ = self._prepare(
+                temp_dir,
+                annotations=((1000.0, 1.0, "EDGE_from_another_recording"),),
+            )
+
+        self.assertEqual(validation["status"], "passed")
+        self.assertEqual(validation["bad_samples"], 0)
 
     def test_all_meg_channels_bad_has_stable_actionable_error(self):
         with tempfile.TemporaryDirectory() as temp_dir:
@@ -833,10 +890,48 @@ class IcaInputPreflightTests(unittest.TestCase):
         self.assertEqual(validation["status"], "passed")
         self.assertEqual(validation["requested_components"], 0.9999)
 
+    def test_complete_valid_component_request_domain_is_accepted(self):
+        values = (2, 0.95, None, np.int64(2), np.float64(0.95))
+        for value in values:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as temp_dir:
+                _, validation, _, validation_path = self._prepare(
+                    temp_dir, n_components=value
+                )
+                saved = json.loads(validation_path.read_text())
+
+            self.assertEqual(validation["status"], "passed")
+            self.assertEqual(saved["requested_components"], validation["requested_components"])
+
+    def test_invalid_component_requests_fail_before_signal_loading(self):
+        values = (True, False, 0, -1, 1, 0.0, 1.0, 1.1, np.nan, np.inf, "auto")
+        for value in values:
+            with self.subTest(value=value), tempfile.TemporaryDirectory() as temp_dir:
+                paths = self._write_ica_inputs(temp_dir)
+                validation_path = Path(temp_dir) / "ica_input_validation.json"
+                with mock.patch.object(
+                    mne.io.BaseRaw,
+                    "load_data",
+                    side_effect=AssertionError("invalid request loaded signal"),
+                ), self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                    run_ica_module.prepare_ica_input(
+                        fn_data=paths[0],
+                        n_components=value,
+                        modality="meg",
+                        fname_bad_channels=paths[1],
+                        fname_bad_segments=paths[2],
+                        validation_path=validation_path,
+                    )
+
+                saved = json.loads(validation_path.read_text())
+                self.assertEqual(raised.exception.code, "invalid_component_request")
+                self.assertEqual(saved["status"], "failed")
+                self.assertEqual(saved["error_code"], "invalid_component_request")
+
     def test_misaligned_annotation_sidecar_has_stable_error_and_json(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             paths = self._write_ica_inputs(
                 temp_dir,
+                first_samp=100,
                 annotations=((1000.0, 1.0, "BAD_from_another_recording"),),
             )
             validation_path = Path(temp_dir) / "ica_input_validation.json"
@@ -857,6 +952,158 @@ class IcaInputPreflightTests(unittest.TestCase):
             self.assertEqual(
                 json.loads(validation_path.read_text())["error_code"], error.code
             )
+
+    def test_missing_bad_channel_sidecar_has_its_own_error_code(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = self._write_ica_inputs(temp_dir)
+            paths[1].unlink()
+            validation_path = Path(temp_dir) / "ica_input_validation.json"
+            with self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                run_ica_module.prepare_ica_input(
+                    fn_data=paths[0],
+                    n_components=2,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    validation_path=validation_path,
+                )
+
+            saved = json.loads(validation_path.read_text())
+            self.assertEqual(raised.exception.code, "invalid_bad_channel_sidecar")
+            self.assertIn(str(paths[1]), str(raised.exception))
+            self.assertEqual(saved["error_code"], "invalid_bad_channel_sidecar")
+
+    def test_unknown_modality_has_stable_error(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            paths = self._write_ica_inputs(temp_dir)
+            validation_path = Path(temp_dir) / "ica_input_validation.json"
+            with self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                run_ica_module.prepare_ica_input(
+                    fn_data=paths[0],
+                    n_components=2,
+                    modality="fnirs",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    validation_path=validation_path,
+                )
+
+            saved = json.loads(validation_path.read_text())
+            self.assertEqual(raised.exception.code, "invalid_ica_modality")
+            self.assertEqual(saved["error_code"], "invalid_ica_modality")
+
+    def test_cached_ica_skips_fit_only_component_validation(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
+            paths = self._write_ica_inputs(temp_dir)
+            result_dir = temp_dir / "result"
+            result_dir.mkdir()
+            cached_ica_path = result_dir / "synthetic-ica.fif"
+            cached_ica_path.touch()
+            cached_ica = mock.Mock()
+            cached_ica.n_components_ = 0
+            cached_ica.unmixing_matrix_ = np.empty((0, 0))
+            cached_ica.plot_properties.return_value = []
+            cached_ica.plot_components.return_value = []
+            sources = mne.io.RawArray(
+                np.zeros((1, 100)),
+                mne.create_info(["ICA000"], 10.0, ["misc"]),
+                verbose=False,
+            )
+            cached_ica.get_sources.return_value = sources
+
+            with mock.patch.object(
+                run_ica_module, "read_ica", return_value=cached_ica
+            ) as read_ica, mock.patch.object(run_ica_module, "ICA") as ica_class:
+                run_ica_module.run_ica(
+                    subj_tag="synthetic",
+                    subj_res_path=result_dir,
+                    subj_res_path_ica=result_dir / "ica_results",
+                    fn_data=paths[0],
+                    fn_ica=cached_ica_path.name,
+                    n_IC=999,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    random_seed=2025,
+                )
+
+            validation = json.loads(
+                (result_dir / "ica_input_validation.json").read_text()
+            )
+            read_ica.assert_called_once_with(str(cached_ica_path))
+            ica_class.assert_not_called()
+            self.assertTrue((result_dir / "ica_sources.fif").is_file())
+            self.assertFalse(validation["fit_required"])
+            self.assertTrue(validation["ica_cache_exists"])
+            self.assertEqual(validation["ica_cache_path"], str(cached_ica_path))
+
+    def test_missing_ica_cache_keeps_component_validation_before_load(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
+            paths = self._write_ica_inputs(temp_dir)
+            result_dir = temp_dir / "result"
+            with mock.patch.object(
+                mne.io.BaseRaw,
+                "load_data",
+                side_effect=AssertionError("invalid request loaded signal"),
+            ), self.assertRaises(run_ica_module.ICAInputValidationError) as raised:
+                run_ica_module.run_ica(
+                    subj_tag="synthetic",
+                    subj_res_path=result_dir,
+                    subj_res_path_ica=result_dir / "ica_results",
+                    fn_data=paths[0],
+                    fn_ica="missing-ica.fif",
+                    n_IC=1,
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    random_seed=2025,
+                )
+
+            validation = json.loads(
+                (result_dir / "ica_input_validation.json").read_text()
+            )
+            self.assertEqual(raised.exception.code, "invalid_component_request")
+            self.assertTrue(validation["fit_required"])
+            self.assertFalse(validation["ica_cache_exists"])
+
+    def test_cached_ica_still_rejects_all_bad_samples_before_load(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_dir = Path(temp_dir)
+            paths = self._write_ica_inputs(
+                temp_dir, annotations=((0.0, 10.0, "BAD_everything"),)
+            )
+            result_dir = temp_dir / "result"
+            result_dir.mkdir()
+            (result_dir / "cached-ica.fif").touch()
+            with mock.patch.object(
+                mne.io.BaseRaw,
+                "load_data",
+                side_effect=AssertionError("all-bad input loaded signal"),
+            ), mock.patch.object(run_ica_module, "read_ica") as read_ica, self.assertRaises(
+                run_ica_module.ICAInputValidationError
+            ) as raised:
+                run_ica_module.run_ica(
+                    subj_tag="synthetic",
+                    subj_res_path=result_dir,
+                    subj_res_path_ica=result_dir / "ica_results",
+                    fn_data=paths[0],
+                    fn_ica="cached-ica.fif",
+                    n_IC="ignored",
+                    modality="meg",
+                    fname_bad_channels=paths[1],
+                    fname_bad_segments=paths[2],
+                    random_seed=2025,
+                )
+
+            validation = json.loads(
+                (result_dir / "ica_input_validation.json").read_text()
+            )
+            self.assertEqual(
+                raised.exception.code, "no_usable_samples_after_bad_annotations"
+            )
+            read_ica.assert_not_called()
+            self.assertFalse(validation["fit_required"])
 
     def test_run_ica_writes_failed_validation_before_loading_signal(self):
         with tempfile.TemporaryDirectory() as temp_dir:
