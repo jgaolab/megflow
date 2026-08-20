@@ -112,13 +112,22 @@ install_apptainer_linux() {
 }
 
 apptainer_cmd() {
-  if command -v apptainer >/dev/null 2>&1; then
-    echo "apptainer"
-  elif command -v singularity >/dev/null 2>&1; then
-    echo "singularity"
-  else
-    echo ""
-  fi
+  case "${RUNTIME}" in
+    singularity)
+      if command -v singularity >/dev/null 2>&1; then
+        echo "singularity"
+      elif command -v apptainer >/dev/null 2>&1; then
+        echo "apptainer"
+      fi
+      ;;
+    *)
+      if command -v apptainer >/dev/null 2>&1; then
+        echo "apptainer"
+      elif command -v singularity >/dev/null 2>&1; then
+        echo "singularity"
+      fi
+      ;;
+  esac
 }
 
 docker_usable() {
