@@ -172,6 +172,63 @@ class DeepRejectModelInputPreprocessingTests(unittest.TestCase):
         self.assertIsNone(step["h_freq"])
         self.assertIn("h_freq=100 Hz", step.get("reason", ""))
 
+    def test_notch_uses_mne_design_domain_to_resample_before_filtering(self):
+        raw = self._raw(sfreq=101.0, duration=10.0)
+        recipe = [
+            {"notch_filter": {"freqs": 50}},
+            {"resample": {"sfreq": 250}},
+        ]
+
+        try:
+            model_raw, provenance = self._applier()(raw, recipe)
+        except ValueError as exc:
+            self.fail(f"future resample should make the MNE notch design valid: {exc}")
+
+        self.assertEqual(model_raw.info["sfreq"], 250.0)
+        self.assertEqual(
+            [step["step"] for step in provenance["applied_steps"]],
+            ["resample", "notch_filter"],
+        )
+        self.assertEqual(provenance["applied_steps"][1]["status"], "applied")
+
+    def test_notch_without_admissible_future_resample_is_skipped(self):
+        raw = self._raw(sfreq=101.0, duration=10.0)
+
+        try:
+            model_raw, provenance = self._applier()(
+                raw,
+                [{"notch_filter": {"freqs": 50}}],
+            )
+        except ValueError as exc:
+            self.fail(f"inadmissible MNE notch design should be skipped: {exc}")
+
+        self.assertEqual(model_raw.info["sfreq"], 101.0)
+        step = provenance["applied_steps"][0]
+        self.assertEqual(step["step"], "notch_filter")
+        self.assertEqual(step["status"], "skipped")
+        self.assertIn("MNE notch design", step.get("reason", ""))
+
+    def test_notch_preserves_per_frequency_widths_when_partially_skipping(self):
+        raw = self._raw(sfreq=101.0, duration=10.0)
+        recipe = [
+            {
+                "notch_filter": {
+                    "freqs": [10, 50],
+                    "notch_widths": [0.1, 0.25],
+                }
+            }
+        ]
+
+        try:
+            _, provenance = self._applier()(raw, recipe)
+        except ValueError as exc:
+            self.fail(f"valid per-frequency notch widths must remain aligned: {exc}")
+
+        step = provenance["applied_steps"][0]
+        self.assertEqual(step["status"], "applied")
+        self.assertEqual(step["freqs"], [10.0])
+        self.assertIn("50 Hz", step.get("reason", ""))
+
     def test_enabled_preprocessing_writes_model_only_fif_even_without_meg_pick(self):
         raw = self._raw(sfreq=200.0, duration=4.0)
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -321,6 +378,121 @@ class DeepRejectModelInputPreprocessingTests(unittest.TestCase):
                 list(Path(tmpdir).glob("*_deepreject_model_input_raw.fif")),
                 [],
             )
+
+    def test_partial_model_input_is_removed_when_save_fails(self):
+        raw = self._raw(sfreq=250.0, duration=4.0)
+
+        def partial_save_then_fail(instance, path, **kwargs):
+            Path(path).write_bytes(b"partial-fif")
+            raise RuntimeError("synthetic save failure")
+
+        with tempfile.TemporaryDirectory() as tmpdir, mock.patch.object(
+            mne.io.BaseRaw,
+            "save",
+            partial_save_then_fail,
+        ):
+            with self.assertRaisesRegex(RuntimeError, "synthetic save failure"):
+                detect_artifacts_module._prepare_deepreject_input(
+                    raw,
+                    Path(tmpdir) / "source_raw.fif",
+                    tmpdir,
+                    {"pick_meg_only": False},
+                )
+            self.assertEqual(
+                list(Path(tmpdir).rglob("*deepreject_model_input*")),
+                [],
+            )
+
+    @staticmethod
+    def _simulated_split_save(instance, path, **kwargs):
+        path = Path(path)
+        path.write_bytes(b"base-fif")
+        path.with_name(f"{path.stem}-1{path.suffix}").write_bytes(b"split-1")
+        path.with_name(f"{path.stem}-2{path.suffix}").write_bytes(b"split-2")
+
+    @staticmethod
+    def _empty_prediction():
+        return SimpleNamespace(
+            backend="fake",
+            artifact_folds=np.array([], dtype=int),
+            bad_channel_folds=np.array([], dtype=int),
+            artifact_probs=np.array([]),
+            bad_intervals=[],
+            ch_names=[],
+            bad_channel_pred=np.array([], dtype=int),
+            bad_channel_probs=None,
+        )
+
+    def _run_with_simulated_split(self, tmpdir, *, fail_prediction=False, keep=False):
+        raw = self._raw(sfreq=250.0, duration=4.0)
+
+        prediction = self._empty_prediction()
+
+        class SplitPredictor:
+            def __init__(self, **kwargs):
+                self.fold_workers = kwargs["fold_workers"]
+                self.cpu_threads = kwargs["cpu_threads"]
+                self.cpu_interop_threads = kwargs["cpu_interop_threads"]
+                self.cache_models = True
+
+            def predict_fif(self, path, **kwargs):
+                if fail_prediction:
+                    raise RuntimeError("synthetic split prediction failure")
+                return prediction
+
+        source_path = Path(tmpdir) / "source_raw.fif"
+        with mock.patch.object(
+            detect_artifacts_module,
+            "DeepRejectPredictor",
+            SplitPredictor,
+        ), mock.patch.object(
+            mne.io.BaseRaw,
+            "save",
+            self._simulated_split_save,
+        ):
+            config = {
+                "runtime_cpus": 4,
+                "deepreject": {
+                    "enabled": True,
+                    "pick_meg_only": False,
+                    "keep_meg_only_input": keep,
+                },
+            }
+            if fail_prediction:
+                with self.assertRaisesRegex(
+                    RuntimeError,
+                    "synthetic split prediction failure",
+                ):
+                    detect_artifacts_module.run_deepreject_detection(
+                        raw,
+                        source_path,
+                        config,
+                        tmpdir,
+                    )
+            else:
+                detect_artifacts_module.run_deepreject_detection(
+                    raw,
+                    source_path,
+                    config,
+                    tmpdir,
+                )
+        return sorted(Path(tmpdir).rglob("*deepreject_model_input*"))
+
+    def test_all_split_model_input_files_are_removed_after_success(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.assertEqual(self._run_with_simulated_split(tmpdir), [])
+
+    def test_all_split_model_input_files_are_removed_after_prediction_failure(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            self.assertEqual(
+                self._run_with_simulated_split(tmpdir, fail_prediction=True),
+                [],
+            )
+
+    def test_explicit_keep_preserves_all_split_model_input_files(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            retained = self._run_with_simulated_split(tmpdir, keep=True)
+            self.assertEqual(len(retained), 3)
 
 
 class DeepRejectRuntimeParallelismTests(unittest.TestCase):

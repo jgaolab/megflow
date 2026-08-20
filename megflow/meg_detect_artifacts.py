@@ -19,6 +19,8 @@ import numpy as np
 import matplotlib as mpl
 import json
 import sys
+import shutil
+import tempfile
 
 mpl.use("Agg")
 import matplotlib.pyplot as plt
@@ -584,6 +586,32 @@ def _select_deepreject_channels(raw, *, exclude_marked_bads=False):
     return [raw.ch_names[pick] for pick in picks]
 
 
+DEEPREJECT_TEMP_DIR_PREFIX = ".megflow-deepreject-"
+
+
+def _cleanup_deepreject_temporary_input(temporary_input_path):
+    if temporary_input_path is None:
+        return
+    temporary_input_path = Path(temporary_input_path)
+    temporary_dir = temporary_input_path.parent
+    if not temporary_dir.name.startswith(DEEPREJECT_TEMP_DIR_PREFIX):
+        logger.warning(
+            "Refusing to recursively clean unexpected DeepReject temporary directory %s",
+            temporary_dir,
+        )
+        return
+    try:
+        shutil.rmtree(temporary_dir)
+    except FileNotFoundError:
+        pass
+    except Exception as exc:
+        logger.warning(
+            "Could not remove temporary DeepReject model-input directory %s: %s",
+            temporary_dir,
+            exc,
+        )
+
+
 def _prepare_deepreject_input(raw, input_path, output_dir, deep_config):
     pick_meg_only = _config_bool(deep_config.get("pick_meg_only"), True)
     if apply_deepreject_preproc is None:
@@ -614,8 +642,18 @@ def _prepare_deepreject_input(raw, input_path, output_dir, deep_config):
         model_raw.pick(channel_names)
     else:
         channel_names = list(model_raw.ch_names)
-    tmp_path = Path(output_dir) / f"{Path(input_path).stem}_deepreject_model_input_raw.fif"
-    model_raw.save(tmp_path, overwrite=True)
+    temporary_dir = Path(
+        tempfile.mkdtemp(
+            prefix=DEEPREJECT_TEMP_DIR_PREFIX,
+            dir=output_dir,
+        )
+    )
+    tmp_path = temporary_dir / f"{Path(input_path).stem}_deepreject_model_input_raw.fif"
+    try:
+        model_raw.save(tmp_path, overwrite=True)
+    except BaseException:
+        _cleanup_deepreject_temporary_input(tmp_path)
+        raise
     return tmp_path, tmp_path, {
         "pick_meg_only": pick_meg_only,
         "pick_exclude_marked_bads": exclude_marked_bads,
@@ -838,14 +876,7 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
         if temporary_input_path is not None and not _config_bool(
             deep_config.get("keep_meg_only_input"), False
         ):
-            try:
-                temporary_input_path.unlink(missing_ok=True)
-            except Exception as exc:
-                logger.warning(
-                    "Could not remove temporary DeepReject model-input file %s: %s",
-                    temporary_input_path,
-                    exc,
-                )
+            _cleanup_deepreject_temporary_input(temporary_input_path)
     
 def main(args):
     logger.info("args.input: %s", args.input)
