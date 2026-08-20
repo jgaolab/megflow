@@ -270,6 +270,79 @@ class DeepRejectModelInputPreprocessingTests(unittest.TestCase):
         )
         self.assertEqual(provenance["applied_steps"][0]["status"], "skipped")
 
+    def test_notch_reordering_preserves_multiple_resample_order_and_final_target(self):
+        raw = self._raw(sfreq=101.0, duration=10.0)
+        recipe = [
+            {"notch_filter": {"freqs": 50}},
+            {"resample": {"sfreq": 80}},
+            {"resample": {"sfreq": 250}},
+        ]
+
+        model_raw, provenance = self._applier()(raw, recipe)
+
+        self.assertEqual(model_raw.info["sfreq"], 250.0)
+        self.assertEqual(
+            [step["step"] for step in provenance["applied_steps"]],
+            ["resample", "resample", "notch_filter"],
+        )
+        self.assertEqual(
+            [
+                (step["sfreq_before"], step["sfreq_after"])
+                for step in provenance["applied_steps"][:2]
+            ],
+            [(101.0, 80.0), (80.0, 250.0)],
+        )
+        self.assertEqual(provenance["applied_steps"][2]["status"], "applied")
+        self.assertEqual(provenance["applied_steps"][2]["freqs"], [50.0])
+
+    def test_notch_moves_after_first_partial_improvement_without_reversing_resamples(self):
+        raw = self._raw(sfreq=101.0, duration=10.0)
+        recipe = [
+            {"notch_filter": {"freqs": [50, 100]}},
+            {"resample": {"sfreq": 80}},
+            {"resample": {"sfreq": 180}},
+        ]
+
+        model_raw, provenance = self._applier()(raw, recipe)
+
+        self.assertEqual(model_raw.info["sfreq"], 180.0)
+        self.assertEqual(
+            [step["step"] for step in provenance["applied_steps"]],
+            ["resample", "resample", "notch_filter"],
+        )
+        resamples = [
+            step for step in provenance["applied_steps"] if step["step"] == "resample"
+        ]
+        self.assertEqual(
+            [(step["sfreq_before"], step["sfreq_after"]) for step in resamples],
+            [(101.0, 80.0), (80.0, 180.0)],
+        )
+        notch_step = provenance["applied_steps"][2]
+        self.assertEqual(notch_step["status"], "applied")
+        self.assertEqual(notch_step["freqs"], [50.0])
+        self.assertIn("100 Hz", notch_step.get("reason", ""))
+
+    def test_notch_with_no_improving_resample_keeps_all_resamples_in_order(self):
+        raw = self._raw(sfreq=101.0, duration=10.0)
+        recipe = [
+            {"notch_filter": {"freqs": [50, 100]}},
+            {"resample": {"sfreq": 80}},
+            {"resample": {"sfreq": 90}},
+        ]
+
+        model_raw, provenance = self._applier()(raw, recipe)
+
+        self.assertEqual(model_raw.info["sfreq"], 90.0)
+        self.assertEqual(
+            [step["step"] for step in provenance["applied_steps"]],
+            ["notch_filter", "resample", "resample"],
+        )
+        self.assertEqual(provenance["applied_steps"][0]["status"], "skipped")
+        self.assertEqual(
+            [step["sfreq_after"] for step in provenance["applied_steps"][1:]],
+            [80.0, 90.0],
+        )
+
     def test_enabled_preprocessing_writes_model_only_fif_even_without_meg_pick(self):
         raw = self._raw(sfreq=200.0, duration=4.0)
         with tempfile.TemporaryDirectory() as tmpdir:

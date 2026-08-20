@@ -262,7 +262,7 @@ def _mne_notch_frequency_outcomes(
 
 
 def _execution_recipe(recipe: List[Dict[str, Any]], source_sfreq: float) -> List[Dict[str, Any]]:
-    """Move a future resample ahead only when it makes a frequency step admissible."""
+    """Defer frequency steps without reversing the configured resample order."""
     pending = deepcopy(recipe)
     execution: List[Dict[str, Any]] = []
     current_sfreq = float(source_sfreq)
@@ -311,9 +311,12 @@ def _execution_recipe(recipe: List[Dict[str, Any]], source_sfreq: float) -> List
                 None,
             )
             if resample_index is not None:
-                resample_step = pending.pop(resample_index)
-                execution.append(resample_step)
-                current_sfreq = float(resample_step["resample"]["sfreq"])
+                prefix = pending[: resample_index + 1]
+                pending = (
+                    [candidate for candidate in prefix if "resample" in candidate]
+                    + [candidate for candidate in prefix if "resample" not in candidate]
+                    + pending[resample_index + 1 :]
+                )
                 continue
         execution.append(pending.pop(0))
         if operation == "resample":
