@@ -515,8 +515,10 @@ configured bad-segment detectors.
      - Enables detailed waveform and overview image sets. The compact artifact
        mask heatmap is generated regardless of this value.
    * - ``artifact_image_n_jobs``
-     - ``8``
-     - Worker limit for detailed image generation.
+     - ``auto``
+     - Worker limit for detailed image generation. ``auto`` uses the
+       ``detect_artifacts`` CPU allocation; explicit values are capped at that
+       same process budget.
    * - ``meg_vendor``
      - ``auto``
      - Plotting scale/vendor assumptions. Automatic inference is recommended

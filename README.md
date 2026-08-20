@@ -586,8 +586,11 @@ process {
 
 Native OMP, MKL, OpenBLAS, and NumExpr threads default to `task.cpus` for each
 task. `score_meg_quality` and `detect_artifacts` use one native thread per
-outer worker. Advanced users can override `beforeScript` globally or in a
-process selector after validating the native library's threading behavior.
+outer worker. Inside `detect_artifacts`, the DeepReject allocator keeps
+`fold_workers * cpu_threads <= task.cpus`; detailed artifact-image workers are
+also capped at `task.cpus`. Advanced users can override `beforeScript` globally
+or in a process selector after validating the native library's threading
+behavior.
 
 The main config includes `local`, `docker`, `slurm`, `singularity`, `lenient`,
 `strict`, and `debug` execution profiles. The `docker` profile containerizes the

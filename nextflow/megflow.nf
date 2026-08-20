@@ -1481,7 +1481,9 @@ process detect_artifacts {
     code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/utils.py", "${megflowCodeDir(effective_config)}/tools/deepreject/preprocessing.py"])
     raw_subject_basename = file(preproc_raw_path).getBaseName()
     raw_subject_parent = file(preproc_raw_path).getParent().getName()
-    artifact_config = moduleConfigJson(effective_config, 'artifacts')
+    artifact_config = new LinkedHashMap(moduleConfig(effective_config, 'artifacts'))
+    artifact_config.runtime_cpus = task.cpus
+    artifact_config_json = configJson(artifact_config)
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_PREPROC_INPUT=${preproc_hash}
@@ -1489,7 +1491,7 @@ process detect_artifacts {
     python ${script_name} \\
         --input "${preproc_raw_path}" \\
         --output "${preproc_dir}/artifact_report/${raw_subject_parent}" \\
-        --config '${artifact_config}'
+        --config '${artifact_config_json}'
     ln -s "${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_channels.txt" bad-channels-output.guard
     ln -s "${preproc_dir}/artifact_report/${raw_subject_parent}/${raw_subject_basename}_bad_segments.txt" bad-segments-output.guard
     """

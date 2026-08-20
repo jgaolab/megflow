@@ -439,6 +439,73 @@ def _optional_int(value):
     return int(value)
 
 
+def _positive_int_preference(value, field_name):
+    if value is None:
+        return None
+    text = str(value).strip().lower()
+    if text in {"", "auto", "none", "null"}:
+        return None
+    parsed = int(value)
+    if parsed < 1:
+        raise ValueError(f"{field_name} must be a positive integer or 'auto'")
+    return parsed
+
+
+def _runtime_cpu_budget(value):
+    parsed = _positive_int_preference(value, "runtime_cpus")
+    return parsed if parsed is not None else max(1, int(os.cpu_count() or 1))
+
+
+def _resolve_deepreject_parallelism(
+    *,
+    runtime_cpus,
+    fold_workers="auto",
+    cpu_threads="auto",
+    folds=None,
+):
+    """Resolve fold workers and Torch threads within one task CPU budget."""
+    budget = _runtime_cpu_budget(runtime_cpus)
+    fold_count = len(folds) if folds else 5
+    fold_count = max(1, int(fold_count))
+    preferred_workers = _positive_int_preference(fold_workers, "fold_workers")
+    preferred_threads = _positive_int_preference(cpu_threads, "cpu_threads")
+
+    if (
+        preferred_workers is not None
+        and preferred_threads is not None
+        and preferred_workers <= fold_count
+        and preferred_workers * preferred_threads <= budget
+    ):
+        return preferred_workers, preferred_threads
+
+    max_workers = min(fold_count, preferred_workers or fold_count, budget)
+    max_threads = min(preferred_threads or budget, budget)
+    target_threads = preferred_threads or 4
+    target_workers = preferred_workers or fold_count
+    candidates = [
+        (workers, threads)
+        for workers in range(1, max_workers + 1)
+        for threads in range(1, max_threads + 1)
+        if workers * threads <= budget
+    ]
+    return max(
+        candidates,
+        key=lambda pair: (
+            pair[0] * pair[1],
+            -abs(pair[1] - target_threads),
+            -abs(pair[0] - target_workers),
+            pair[0],
+        ),
+    )
+
+
+def _resolve_artifact_image_n_jobs(*, requested, runtime_cpus):
+    """Resolve detailed-image workers without exceeding task CPUs."""
+    budget = _runtime_cpu_budget(runtime_cpus)
+    preferred = _positive_int_preference(requested, "artifact_image_n_jobs")
+    return min(preferred or budget, budget)
+
+
 def _config_bool(value, default=False):
     if value is None:
         return default
@@ -649,10 +716,19 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
     folds = _parse_deepreject_folds(deep_config.get("folds"))
     if folds:
         predictor_kwargs["folds"] = folds
+    runtime_cpus = _runtime_cpu_budget(config.get("runtime_cpus"))
+    fold_workers, cpu_threads = _resolve_deepreject_parallelism(
+        runtime_cpus=runtime_cpus,
+        fold_workers=deep_config.get("fold_workers", "auto"),
+        cpu_threads=deep_config.get("cpu_threads", "auto"),
+        folds=folds,
+    )
+    predictor_kwargs.update(
+        fold_workers=fold_workers,
+        cpu_threads=cpu_threads,
+        cpu_interop_threads=1,
+    )
     for key in (
-        "fold_workers",
-        "cpu_threads",
-        "cpu_interop_threads",
         "badsegnet_batch_size",
         "badsegnet_encoder_chunk_size",
         "badsegnet_edge_k",
@@ -732,6 +808,7 @@ def run_deepreject_detection(raw, input_path, config, output_dir):
         "cache_models": getattr(predictor, "cache_models", None),
         "cpu_threads": getattr(predictor, "cpu_threads", None),
         "cpu_interop_threads": getattr(predictor, "cpu_interop_threads", None),
+        "runtime_cpus": runtime_cpus,
         "mode": deepreject_mode,
         "mode_preset_parameters": deepreject_mode_preset,
         "category": category,
@@ -788,8 +865,11 @@ def main(args):
     check_imgs_output_dir = Path(output_bad_channels_file).parent / "check_imgs"
     heatmap_img_out = check_imgs_output_dir / "artifact_mask_heatmap.jpg"
     artifact_images_enabled = _config_bool(config.get('artifact_images_enabled'), False)
-    artifact_image_n_jobs = _optional_int(config.get('artifact_image_n_jobs'))
-    artifact_image_n_jobs = 8 if artifact_image_n_jobs is None else max(1, artifact_image_n_jobs)
+    runtime_cpus = _runtime_cpu_budget(config.get("runtime_cpus"))
+    artifact_image_n_jobs = _resolve_artifact_image_n_jobs(
+        requested=config.get("artifact_image_n_jobs", "auto"),
+        runtime_cpus=runtime_cpus,
+    )
 
     if os.path.exists(output_bad_segments_file) and os.path.exists(output_bad_channels_file):
         logger.info(f"The file {output_bad_segments_file}/{output_bad_channels_file} already exists, and the data will not be overwritten.")

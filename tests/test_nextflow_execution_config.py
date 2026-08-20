@@ -1,5 +1,8 @@
+import os
 import re
+import shutil
 import subprocess
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Optional, Set
@@ -542,6 +545,107 @@ class NextflowExecutionConfigTests(unittest.TestCase):
                 self.assertEqual(
                     {key: assignments.get(key) for key in expected},
                     expected,
+                )
+
+    def test_fixed_additive_overlay_resolves_local_executor_values(self):
+        nextflow = os.environ.get("MEGFLOW_NEXTFLOW") or shutil.which("nextflow")
+        self.assertIsNotNone(
+            nextflow,
+            "Nextflow 24.10.3 is required; set MEGFLOW_NEXTFLOW to its executable",
+        )
+        version = subprocess.run(
+            [nextflow, "-version"],
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        self.assertEqual(version.returncode, 0, version.stderr)
+        self.assertIn("version 24.10.3", version.stdout + version.stderr)
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            overlay = Path(tmpdir) / "fixed-local.config"
+            overlay.write_text(
+                """
+params {
+    megflow {
+        execution {
+            local_cpus = 16
+            local_memory = "48 GB"
+            local_max_tasks = 3
+        }
+    }
+}
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+            expected = (
+                "executor.$local.cpus = '16'",
+                "executor.$local.memory = '48 GB'",
+                "executor.$local.queueSize = '3'",
+            )
+            for base in (SOURCE_CONFIG, DOCKER_CONFIG):
+                composition = Path(tmpdir) / f"composed-{base.name}"
+                composition.write_text(
+                    f'includeConfig "{base.as_posix()}"\n'
+                    f'includeConfig "{overlay.as_posix()}"\n',
+                    encoding="utf-8",
+                )
+                result = subprocess.run(
+                    [
+                        nextflow,
+                        "-C",
+                        str(composition),
+                        "config",
+                        str(PIPELINE),
+                        "-o",
+                        "flat",
+                    ],
+                    cwd=REPO_ROOT,
+                    env={**os.environ, "NXF_SYNTAX_PARSER": "v1"},
+                    capture_output=True,
+                    text=True,
+                    check=False,
+                    timeout=60,
+                )
+                with self.subTest(base=base.name):
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    for line in expected:
+                        self.assertTrue(
+                            line in result.stdout,
+                            f"{base.name}: missing resolved flat-config line {line}",
+                        )
+
+    def test_detect_artifacts_injects_task_cpu_budget(self):
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+        process_text = pipeline.split("process detect_artifacts {", 1)[1].split(
+            "process run_ica {", 1
+        )[0]
+        self.assertIn(
+            "artifact_config = new LinkedHashMap(moduleConfig(effective_config, 'artifacts'))",
+            process_text,
+        )
+        self.assertIn("artifact_config.runtime_cpus = task.cpus", process_text)
+        self.assertIn("artifact_config_json = configJson(artifact_config)", process_text)
+        self.assertIn("--config '${artifact_config_json}'", process_text)
+
+    def test_public_artifact_defaults_use_runtime_aware_parallelism(self):
+        configs = (
+            SOURCE_CONFIG,
+            DOCKER_CONFIG,
+            FULL_WORKFLOW_CONFIG,
+            CORPUS_EXAMPLE,
+            MULTI_DATASET_DEMO,
+        )
+        for config in configs:
+            text = config.read_text(encoding="utf-8")
+            with self.subTest(config=config.name):
+                self.assertRegex(text, r'(?m)^\s*fold_workers\s*=\s*"auto"\s*$')
+                self.assertRegex(text, r'(?m)^\s*cpu_threads\s*=\s*"auto"\s*$')
+                self.assertRegex(
+                    text,
+                    r'(?m)^\s*artifact_image_n_jobs\s*=\s*"auto"\s*$',
                 )
 
     def test_process_native_thread_caps_follow_outer_parallelism(self):

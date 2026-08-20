@@ -245,21 +245,23 @@ Inference and resource controls
      - ``0,1,2,3,4``
      - Ensemble folds to use.
    * - ``fold_workers``
-     - positive integer
-     - ``5``
-     - Concurrent fold workers within one recording.
+     - positive integer or ``auto``
+     - ``auto``
+     - Concurrent fold workers within one recording. ``auto`` shares the
+       process CPU budget with ``cpu_threads``.
    * - ``cache_models``
      - boolean
      - ``true``
      - Keeps loaded fold models for repeated inference in the same process.
    * - ``cpu_threads``
-     - positive integer or null
-     - ``4``
-     - PyTorch CPU intra-operation threads.
+     - positive integer or ``auto``
+     - ``auto``
+     - PyTorch CPU intra-operation threads per fold worker.
    * - ``cpu_interop_threads``
-     - positive integer or null
+     - positive integer
      - ``1``
-     - PyTorch CPU inter-operation threads.
+     - PyTorch CPU inter-operation threads. MEGFlow fixes this value at one
+       for artifact detection.
    * - ``badsegnet_batch_size``
      - positive integer
      - ``32``
@@ -288,6 +290,16 @@ Inference and resource controls
      - ``mean`` or ``max``
      - ``mean``
      - Combines multiple chunk predictions for one channel within a fold.
+
+The ``detect_artifacts`` process passes its assigned ``task.cpus`` into the
+artifact runtime. Automatic allocation keeps
+``fold_workers * cpu_threads <= task.cpus`` while using the available budget:
+4 CPUs resolve to ``1 x 4``, 8 to ``2 x 4``, 16 to ``4 x 4``, and 20 to
+``5 x 4``. Larger budgets can increase the threads available to each fold.
+Explicit worker and thread values are treated as preferences and are reduced
+when their product would exceed the process budget. This controls PyTorch
+parallelism separately from the single-thread native-library environment used
+by the outer artifact process.
 
 Post-processing controls
 ~~~~~~~~~~~~~~~~~~~~~~~~

@@ -204,7 +204,9 @@ Artifact Image Policy
 review figures; it does not disable the compact artifact-mask heatmap. The
 heatmap gives reports a consistent recording-wide summary without incurring the
 cost of all detailed figures. ``artifact_image_n_jobs`` controls parallel image
-generation only and does not change artifact decisions.
+generation only and does not change artifact decisions. Its automatic value,
+and any explicit upper bound, cannot exceed the ``detect_artifacts`` CPU
+allocation.
 
 Bad-segment sidecars contain annotations, not shortened data. Samples remain in
 the continuous FIF. The normal ICA path carries them into the cleaned raw; the
