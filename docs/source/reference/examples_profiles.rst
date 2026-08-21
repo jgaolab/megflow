@@ -78,11 +78,11 @@ an error.
                  find_events {
                    stim_channel = "STI101"
                  }
-                 epochs {
-                   event_id = 1
-                   tmin = -0.1
-                   tmax = 0.6
-                 }
+                 epochs = [
+                   event_id: 1,
+                   tmin: -0.1,
+                   tmax: 0.6
+                 ]
                }
                covariance {
                  event_time_shift_sec = 0.0395
@@ -103,11 +103,11 @@ an error.
                  event_file {
                    trial_type = [target: 1]
                  }
-                 epochs {
-                   event_id = 1
-                   tmin = -0.2
-                   tmax = 0.8
-                 }
+                 epochs = [
+                   event_id: 1,
+                   tmin: -0.2,
+                   tmax: 0.8
+                 ]
                }
              }
            }
@@ -200,11 +200,11 @@ Example ``corpus.config``:
              find_events {
                stim_channel = "UPPT001"
              }
-             epochs {
-               event_id = 1
-               tmin = -0.2
-               tmax = 1.0
-             }
+             epochs = [
+               event_id: 1,
+               tmin: -0.2,
+               tmax: 1.0
+             ]
            }
          }
          SMN4Lang {
@@ -222,11 +222,11 @@ Example ``corpus.config``:
              event_file {
                trial_type = ["char": 1]
              }
-             epochs {
-               event_id = 1
-               tmin = -0.2
-               tmax = 0.8
-             }
+             epochs = [
+               event_id: 1,
+               tmin: -0.2,
+               tmax: 0.8
+             ]
            }
          }
          MEG_MASC {

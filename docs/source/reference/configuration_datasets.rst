@@ -180,10 +180,10 @@ also errors.
                }
                epochs {
                  event_time_shift_sec = 0.04858
-                 epochs {
-                   tmin = -0.1
-                   tmax = 0.5
-                 }
+                 epochs = [
+                   tmin: -0.1,
+                   tmax: 0.5
+                 ]
                }
                artifacts {
                  deepreject {
@@ -196,10 +196,10 @@ also errors.
                  task = "vef"
                }
                epochs {
-                 epochs {
-                   tmin = -0.2
-                   tmax = 0.6
-                 }
+                 epochs = [
+                   tmin: -0.2,
+                   tmax: 0.6
+                 ]
                }
              }
              kit_rest_meg {

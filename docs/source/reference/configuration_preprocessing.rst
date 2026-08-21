@@ -765,6 +765,10 @@ supplies ``raw`` and ``events``. This supports other MNE arguments such as
 ``flat``, ``proj``, ``decim``, ``reject_tmin``, ``reject_tmax``, ``on_missing``,
 and ``event_repeated`` without a MEGFlow-specific rename. Do not place ``raw``
 or ``events`` in the configuration because they are routed by the workflow.
+Because the outer MEGFlow module has the same name, write the inner argument
+map as ``epochs = [event_id: ..., tmin: ..., tmax: ...]``. Do not nest a second
+``epochs { ... }`` closure: Nextflow's configuration DSL can merge fields from
+the outer scope into that inner block.
 
 The default task epoch block is only a template. Event source, event ids,
 timing, baseline, and rejection thresholds must be validated for each dataset
@@ -801,11 +805,11 @@ rate.
              [resample: [sfreq: 250]]
            ]
            event_source = "event_file"
-           epochs {
-             event_id = 1
-             tmin = -0.2
-             tmax = 0.8
-           }
+           epochs = [
+             event_id: 1,
+             tmin: -0.2,
+             tmax: 0.8
+           ]
          }
        }
      }
@@ -835,11 +839,11 @@ should be removed before adding any MEG stimulus-delivery delay.
          epochs {
            event_source = "event_file"
            event_time_shift_sec = 0.0395
-           epochs {
-             event_id = 1
-             tmin = -0.2
-             tmax = 0.8
-           }
+           epochs = [
+             event_id: 1,
+             tmin: -0.2,
+             tmax: 0.8
+           ]
          }
          covariance {
            event_source = "event_file"

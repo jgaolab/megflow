@@ -65,8 +65,18 @@ def _normalize_exclude_event_ids(exclude_event_id):
 def _get_epoch_kwargs(config):
     """Return MNE Epochs kwargs and keep MEGFlow-only keys out of MNE."""
     epoch_kwargs = dict(config.get('epochs') or {})
-    epoch_kwargs.pop('exclude_event_id', None)
     for key in (
+        'preproc',
+        'task_type',
+        'resting',
+        'event_source',
+        'autoreject',
+        'interpolate_bads',
+        'drop_bad_channels',
+        'event_file',
+        'find_events',
+        'annotations',
+        'exclude_event_id',
         'event_time_shift_sec',
         'event_time_shift_ms',
         'event_time_shift',

@@ -1,4 +1,5 @@
 import os
+import json
 import re
 import shutil
 import subprocess
@@ -146,6 +147,23 @@ def top_level_config_blocks(text: str) -> list[str]:
     return blocks
 
 
+def directly_nested_same_name_blocks(text: str) -> list[tuple[int, str]]:
+    stack = []
+    repeated = []
+    block_pattern = re.compile(r"^\s*([A-Za-z_]\w*)\s*\{\s*$")
+    for lineno, line in enumerate(active_groovy_code(text).splitlines(), start=1):
+        structural = strip_groovy_strings_and_comments(line).strip()
+        block_match = block_pattern.match(structural)
+        if block_match:
+            name = block_match.group(1)
+            if stack and stack[-1] == name:
+                repeated.append((lineno, name))
+            stack.append(name)
+        elif structural == "}" and stack:
+            stack.pop()
+    return repeated
+
+
 def available_configs() -> tuple[Path, ...]:
     return (SOURCE_CONFIG, DOCKER_CONFIG) if DOCKER_CONFIG.is_file() else (SOURCE_CONFIG,)
 
@@ -167,6 +185,182 @@ def workflow_job(workflow: str, job_name: str) -> str:
 
 
 class NextflowExecutionConfigTests(unittest.TestCase):
+    def test_shipped_configs_avoid_same_name_nested_dsl_blocks(self):
+        for config in sorted((REPO_ROOT / "nextflow").glob("*.config")):
+            with self.subTest(config=config.name):
+                self.assertEqual(
+                    [
+                        item
+                        for item in directly_nested_same_name_blocks(
+                            config.read_text(encoding="utf-8")
+                        )
+                        if item[1] in {"epochs", "covariance"}
+                    ],
+                    [],
+                )
+
+    def test_documented_configs_avoid_same_name_nested_dsl_blocks(self):
+        documents = (
+            REPO_ROOT / "docs" / "source" / "reference" / "configuration_datasets.rst",
+            REPO_ROOT
+            / "docs"
+            / "source"
+            / "reference"
+            / "configuration_preprocessing.rst",
+            REPO_ROOT / "docs" / "source" / "reference" / "examples_profiles.rst",
+        )
+        for document in documents:
+            with self.subTest(document=document.name):
+                self.assertEqual(
+                    [
+                        item
+                        for item in directly_nested_same_name_blocks(
+                            document.read_text(encoding="utf-8")
+                        )
+                        if item[1] in {"epochs", "covariance"}
+                    ],
+                    [],
+                )
+
+    def _nextflow(self):
+        nextflow = os.environ.get("MEGFLOW_NEXTFLOW") or shutil.which("nextflow")
+        self.assertIsNotNone(
+            nextflow,
+            "Nextflow 24.10.3 is required; set MEGFLOW_NEXTFLOW to its executable",
+        )
+        return nextflow
+
+    def _resolved_config(self, config, *, profile=None):
+        command = [
+            self._nextflow(),
+            "-C",
+            str(config),
+            "config",
+        ]
+        if profile:
+            command.extend(["-profile", profile])
+        command.extend(["-o", "json", str(PIPELINE)])
+        result = subprocess.run(
+            command,
+            cwd=REPO_ROOT,
+            capture_output=True,
+            text=True,
+            check=False,
+            timeout=60,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_strict_and_lenient_profiles_preserve_local_execution_budget(self):
+        expected_execution = {
+            "local_cpus": "auto",
+            "local_memory": "auto",
+            "local_max_tasks": "auto",
+        }
+        for config in (SOURCE_CONFIG, DOCKER_CONFIG):
+            for profile in ("strict", "lenient"):
+                with self.subTest(config=config.name, profile=profile):
+                    resolved = self._resolved_config(config, profile=profile)
+                    self.assertEqual(
+                        resolved["params"]["megflow"].get("execution"),
+                        expected_execution,
+                    )
+                    local = resolved["executor"]["$local"]
+                    self.assertNotIn("[:]", local.values())
+                    self.assertGreater(int(local["cpus"]), 0)
+                    self.assertGreater(int(local["memory"]), 0)
+                    self.assertGreater(int(local["queueSize"]), 0)
+
+    def test_strict_profile_can_start_a_real_local_process(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            probe = root / "probe.nf"
+            config = root / "probe.config"
+            probe.write_text(
+                '''
+nextflow.enable.dsl = 2
+
+process probe_runtime_config {
+    input:
+    val value
+    output:
+    path "probe.txt"
+    script:
+    """
+    printf '%s\\n' '${value}' > probe.txt
+    """
+}
+
+workflow {
+    probe_runtime_config(Channel.of('ok'))
+}
+'''.strip()
+                + "\n",
+                encoding="utf-8",
+            )
+            config.write_text(
+                f"""
+includeConfig "{SOURCE_CONFIG.as_posix()}"
+params.megflow.output_dir = "{(root / 'output').as_posix()}"
+workDir = "{(root / 'work').as_posix()}"
+report.enabled = false
+timeline.enabled = false
+trace.enabled = false
+""".strip()
+                + "\n",
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [
+                    self._nextflow(),
+                    "-C",
+                    str(config),
+                    "run",
+                    str(probe),
+                    "-profile",
+                    "strict",
+                    "-ansi-log",
+                    "false",
+                ],
+                cwd=root,
+                capture_output=True,
+                text=True,
+                check=False,
+                timeout=90,
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            self.assertTrue(any((root / "work").glob("*/*/probe.txt")))
+
+    def test_public_configs_do_not_pollute_nested_mne_argument_maps(self):
+        forbidden_epoch_keys = {
+            "preproc",
+            "task_type",
+            "resting",
+            "event_source",
+            "event_time_shift_sec",
+            "autoreject",
+            "interpolate_bads",
+            "drop_bad_channels",
+            "event_file",
+            "find_events",
+        }
+        forbidden_covariance_keys = {
+            "visualize",
+            "type",
+            "raw_covariance_task_id",
+            "event_time_shift_sec",
+            "compute_raw_covariance",
+            "events",
+            "epochs",
+        }
+        for config in (SOURCE_CONFIG, DOCKER_CONFIG, MULTI_DATASET_DEMO, CORPUS_EXAMPLE):
+            with self.subTest(config=config.name):
+                defaults = self._resolved_config(config)["params"]["megflow"]["defaults"]
+                epoch_kwargs = defaults["epochs"]["epochs"]
+                covariance_kwargs = defaults["covariance"]["covariance"]
+                self.assertTrue(forbidden_epoch_keys.isdisjoint(epoch_kwargs))
+                self.assertTrue(forbidden_covariance_keys.isdisjoint(covariance_kwargs))
+
     def test_source_and_docker_public_defaults_are_consistent(self):
         source_defaults = normalized_config_block(
             SOURCE_CONFIG.read_text(encoding="utf-8"),

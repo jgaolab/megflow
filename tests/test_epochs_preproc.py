@@ -38,6 +38,44 @@ def _make_raw(sfreq=1000.0, duration=4.0, first_samp=0):
 
 
 class ContinuousEpochPreprocTests(unittest.TestCase):
+    def test_scope_pollution_does_not_block_secondary_preprocessing(self):
+        preproc = [{"resample": {"sfreq": 250.0}}]
+        config = {
+            "preproc": preproc,
+            "task_type": "task",
+            "event_source": "find_events",
+            "find_events": {"stim_channel": "STI 014", "shortest_event": 1},
+            "epochs": {
+                "preproc": preproc,
+                "task_type": "task",
+                "event_source": "find_events",
+                "find_events": {"stim_channel": "STI 014", "shortest_event": 1},
+                "event_id": None,
+                "tmin": -0.1,
+                "tmax": 0.2,
+                "baseline": None,
+                "preload": True,
+                "picks": "meg",
+                "reject_by_annotation": False,
+            },
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            input_file = tmpdir / "input_raw.fif"
+            analysis_file = tmpdir / "input_analysis-raw.fif"
+            _make_raw().save(input_file, overwrite=True, verbose=False)
+            with mock.patch.object(epochs_module, "plot_epochs"):
+                result = epochs_module.epochs(
+                    input_file,
+                    "output-epo.fif",
+                    tmpdir,
+                    "",
+                    config,
+                    output_analysis_raw_file=analysis_file,
+                )
+
+        self.assertEqual(result.info["sfreq"], 250.0)
+
     def test_epoch_artifact_sidecars_require_a_complete_pair(self):
         with self.assertRaisesRegex(
             ValueError,

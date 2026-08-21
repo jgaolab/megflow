@@ -177,6 +177,21 @@ def _noise_covariance_kwargs(covar_type, covariance_config, resolved_rank):
     else:
         config_name = "covariance.covariance"
         kwargs = _mapping(covariance_config.get("covariance"), config_name)
+        for key in (
+            "visualize",
+            "type",
+            "raw_covariance_task_id",
+            "event_time_shift_sec",
+            "compute_raw_covariance",
+            "events",
+            "epochs",
+            "event_source",
+            "event_file",
+            "find_events",
+            "analysis_preproc",
+            "rank_policy",
+        ):
+            kwargs.pop(key, None)
     return ranked_mne_kwargs(kwargs, resolved_rank, config_name)
 
 

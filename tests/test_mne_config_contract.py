@@ -160,6 +160,35 @@ class OslPreprocessingConfigContractTests(unittest.TestCase):
 
 
 class EpochConfigContractTests(unittest.TestCase):
+    def test_megflow_scope_keys_never_reach_mne_epochs(self):
+        epoch_kwargs = {
+            "preproc": [{"resample": {"sfreq": 100.0}}],
+            "task_type": "task",
+            "event_source": "event_file",
+            "event_time_shift_sec": 0.0,
+            "event_file": {"trial_type": None},
+            "find_events": {"stim_channel": None},
+            "autoreject": False,
+            "interpolate_bads": False,
+            "drop_bad_channels": False,
+            "event_id": 1,
+            "tmin": -0.2,
+            "tmax": 0.8,
+            "baseline": [None, 0.0],
+            "preload": True,
+        }
+        filtered = epochs_module._get_epoch_kwargs({"epochs": epoch_kwargs})
+        self.assertEqual(
+            filtered,
+            {
+                "event_id": 1,
+                "tmin": -0.2,
+                "tmax": 0.8,
+                "baseline": [None, 0.0],
+                "preload": True,
+            },
+        )
+
     def test_all_nested_epoch_kwargs_reach_mne_epochs_unchanged(self):
         epoch_kwargs = {
             "event_id": 7,
@@ -252,6 +281,29 @@ class EpochConfigContractTests(unittest.TestCase):
 
 
 class CovarianceConfigContractTests(unittest.TestCase):
+    def test_megflow_scope_keys_never_reach_mne_covariance(self):
+        covariance_kwargs = {
+            "visualize": True,
+            "type": "epochs",
+            "raw_covariance_task_id": "emptyroom",
+            "event_time_shift_sec": 0.0,
+            "compute_raw_covariance": {"method": "auto"},
+            "events": {"stim_channel": None},
+            "epochs": {"tmin": -0.2, "tmax": 0.0},
+            "tmin": None,
+            "tmax": 0.0,
+            "method": "empirical",
+        }
+        filtered = compute_covariance._noise_covariance_kwargs(
+            "epochs",
+            {"covariance": covariance_kwargs},
+            {"mag": 2},
+        )
+        self.assertEqual(
+            filtered,
+            {"tmin": None, "tmax": 0.0, "method": "empirical", "rank": {"mag": 2}},
+        )
+
     def test_raw_covariance_kwargs_reach_real_mne_call(self):
         raw_kwargs = {
             "tmin": 0.2,
