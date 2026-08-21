@@ -798,11 +798,11 @@ found from a stimulation channel are detected before resampling and remapped by
 MNE; BIDS event onsets and annotations are converted using the final sampling
 rate.
 
-**Example: change the epoch analysis range to 1–40 Hz and 250 Hz**
+**Example: change the epoch analysis range to 1–40 Hz and 100 Hz**
 
 Replace the default empty list with the following configuration. This filters
 the ICA-cleaned continuous recording to 1–40 Hz and then resamples it to
-250 Hz before constructing epochs:
+100 Hz before constructing epochs:
 
 .. code-block:: groovy
 
@@ -813,7 +813,7 @@ the ICA-cleaned continuous recording to 1–40 Hz and then resamples it to
            preproc = [
              [filter: [l_freq: 1.0, h_freq: 40.0, method: "iir",
                        iir_params: [order: 5, ftype: "butter"]]],
-             [resample: [sfreq: 250]]
+             [resample: [sfreq: 100]]
            ]
            event_source = "event_file"
            epochs = [

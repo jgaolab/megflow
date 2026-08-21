@@ -224,8 +224,9 @@ class NextflowExecutionConfigTests(unittest.TestCase):
 
         self.assertIn("Example: change the epoch analysis range", document)
         self.assertIn("1–40 Hz", document)
-        self.assertIn("250 Hz", document)
+        self.assertIn("100 Hz", document)
         self.assertIn("[filter: [l_freq: 1.0, h_freq: 40.0", document)
+        self.assertIn("[resample: [sfreq: 100]]", document)
         self.assertIn("Operations run from top to bottom", document)
 
     def test_shipped_configs_avoid_same_name_nested_dsl_blocks(self):
