@@ -1,5 +1,7 @@
 import tempfile
 import unittest
+import os
+import subprocess
 import sys
 import types
 from copy import deepcopy
@@ -54,6 +56,32 @@ DEFAULT_DEEPREJECT_PREPROC = [
     {"notch_filter": {"freqs": 50}},
     {"resample": {"sfreq": 250}},
 ]
+
+
+class DeepRejectOptionalDependencyImportTests(unittest.TestCase):
+    def test_preprocessing_import_does_not_require_torch(self):
+        env = os.environ.copy()
+        env["PYTHONPATH"] = os.pathsep.join(
+            [
+                str(MEGFLOW_DIR),
+                env.get("PYTHONPATH", ""),
+            ]
+        ).rstrip(os.pathsep)
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-c",
+                (
+                    "import sys\n"
+                    "sys.modules['torch'] = None\n"
+                    "import tools.deepreject.preprocessing\n"
+                ),
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.returncode, 0, result.stderr)
 
 
 class DeepRejectModelInputPreprocessingTests(unittest.TestCase):

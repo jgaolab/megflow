@@ -39,11 +39,14 @@ from tools.pyprep.find_noisy_channels import NoisyChannels
 from utils import infer_artifact_vendor, set_random_seed, plot_snippets
 
 try:
-    from tools.deepreject import DeepRejectPredictor
     from tools.deepreject.preprocessing import apply_deepreject_preproc
 except ImportError:  # pragma: no cover - optional dependency path
-    DeepRejectPredictor = None
     apply_deepreject_preproc = None
+
+try:
+    from tools.deepreject.runtime import DeepRejectPredictor
+except ImportError:  # pragma: no cover - optional dependency path
+    DeepRejectPredictor = None
 
 set_random_seed(2025)
 
