@@ -164,8 +164,36 @@ def directly_nested_same_name_blocks(text: str) -> list[tuple[int, str]]:
     return repeated
 
 
+def directly_nested_block_pairs(text: str) -> list[tuple[int, str, str]]:
+    stack = []
+    nested = []
+    block_pattern = re.compile(r"^\s*([A-Za-z_]\w*)\s*\{\s*$")
+    for lineno, line in enumerate(active_groovy_code(text).splitlines(), start=1):
+        structural = strip_groovy_strings_and_comments(line).strip()
+        block_match = block_pattern.match(structural)
+        if block_match:
+            name = block_match.group(1)
+            if stack:
+                nested.append((lineno, stack[-1], name))
+            stack.append(name)
+        elif structural == "}" and stack:
+            stack.pop()
+    return nested
+
+
 def available_configs() -> tuple[Path, ...]:
     return (SOURCE_CONFIG, DOCKER_CONFIG) if DOCKER_CONFIG.is_file() else (SOURCE_CONFIG,)
+
+
+def tracked_nextflow_configs() -> tuple[Path, ...]:
+    result = subprocess.run(
+        ["git", "ls-files", "nextflow/*.config"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+    return tuple(REPO_ROOT / item for item in result.stdout.splitlines())
 
 
 def packaged_docker_config() -> Path:
@@ -201,7 +229,7 @@ class NextflowExecutionConfigTests(unittest.TestCase):
         self.assertIn("Operations run from top to bottom", document)
 
     def test_shipped_configs_avoid_same_name_nested_dsl_blocks(self):
-        for config in sorted((REPO_ROOT / "nextflow").glob("*.config")):
+        for config in tracked_nextflow_configs():
             with self.subTest(config=config.name):
                 self.assertEqual(
                     [
@@ -210,6 +238,20 @@ class NextflowExecutionConfigTests(unittest.TestCase):
                             config.read_text(encoding="utf-8")
                         )
                         if item[1] in {"epochs", "covariance"}
+                    ],
+                    [],
+                )
+
+    def test_shipped_configs_avoid_covariance_epoch_dsl_blocks(self):
+        for config in tracked_nextflow_configs():
+            with self.subTest(config=config.name):
+                self.assertEqual(
+                    [
+                        item
+                        for item in directly_nested_block_pairs(
+                            config.read_text(encoding="utf-8")
+                        )
+                        if item[1:] == ("covariance", "epochs")
                     ],
                     [],
                 )
@@ -233,6 +275,20 @@ class NextflowExecutionConfigTests(unittest.TestCase):
                             document.read_text(encoding="utf-8")
                         )
                         if item[1] in {"epochs", "covariance"}
+                    ],
+                    [],
+                )
+
+    def test_documented_configs_avoid_covariance_epoch_dsl_blocks(self):
+        for document in (REPO_ROOT / "docs" / "source").rglob("*.rst"):
+            with self.subTest(document=document.name):
+                self.assertEqual(
+                    [
+                        item
+                        for item in directly_nested_block_pairs(
+                            document.read_text(encoding="utf-8")
+                        )
+                        if item[1:] == ("covariance", "epochs")
                     ],
                     [],
                 )
@@ -372,8 +428,12 @@ trace.enabled = false
             with self.subTest(config=config.name):
                 defaults = self._resolved_config(config)["params"]["megflow"]["defaults"]
                 epoch_kwargs = defaults["epochs"]["epochs"]
+                covariance_epoch_kwargs = defaults["covariance"]["epochs"]
                 covariance_kwargs = defaults["covariance"]["covariance"]
                 self.assertTrue(forbidden_epoch_keys.isdisjoint(epoch_kwargs))
+                self.assertTrue(
+                    forbidden_epoch_keys.isdisjoint(covariance_epoch_kwargs)
+                )
                 self.assertTrue(forbidden_covariance_keys.isdisjoint(covariance_kwargs))
 
     def test_source_and_docker_public_defaults_are_consistent(self):
@@ -1241,7 +1301,10 @@ params {
         self.assertIn('includeConfig "nextflow.config"', text)
         self.assertRegex(text, r"(?s)params\s*\{.*megflow\s*\{.*defaults\s*\{")
         self.assertRegex(text, r"(?s)defaults\s*\{.*steps\s*=\s*\"meg_all\"")
-        self.assertRegex(text, r"(?s)epochs\s*\{.*epochs\s*\{.*tmin\s*=\s*-0\.2")
+        self.assertRegex(
+            text,
+            r"(?s)epochs\s*\{.*epochs\s*=\s*\[.*tmin\s*:\s*-0\.2",
+        )
         self.assertRegex(text, r"(?s)datasets\s*\{.*OPM_COG\s*\{.*recordings\s*\{")
         for task in ("aef", "vef", "tap", "ssvef"):
             self.assertRegex(text, rf'(?s)match\s*\{{\s*task\s*=\s*"{task}"\s*\}}')

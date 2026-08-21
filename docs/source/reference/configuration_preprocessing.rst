@@ -859,11 +859,11 @@ should be removed before adding any MEG stimulus-delivery delay.
          covariance {
            event_source = "event_file"
            event_time_shift_sec = 0.0395
-           epochs {
-             event_id = 1
-             tmin = -0.2
-             tmax = 0.0
-           }
+           epochs = [
+             event_id: 1,
+             tmin: -0.2,
+             tmax: 0.0
+           ]
          }
        }
      }

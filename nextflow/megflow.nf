@@ -419,6 +419,15 @@ Map normalizeModuleConfig(String moduleName, Map moduleConfig) {
     }
     if (moduleName == 'covariance') {
         def out = new LinkedHashMap(cfg)
+        def epochKwargs = asMap(out.epochs)
+        [
+            'preproc', 'task_type', 'resting', 'event_source', 'autoreject',
+            'interpolate_bads', 'drop_bad_channels', 'event_file', 'find_events',
+            'annotations', 'exclude_event_id', 'event_time_shift_sec',
+            'event_time_shift_ms', 'event_time_shift', 'stimulus_delay_sec',
+            'stimulus_delay_ms', 'event_timing'
+        ].each { key -> epochKwargs.remove(key) }
+        out.epochs = epochKwargs
         def covarianceKwargs = asMap(out.covariance)
         [
             'visualize', 'type', 'raw_covariance_task_id',
