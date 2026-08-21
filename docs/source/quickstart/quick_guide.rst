@@ -280,6 +280,68 @@ What Do I Need to Change?
 
 Choose the goal below and add only that change to ``quickstart.config``.
 
+Limit CPU, Memory, and Parallel Tasks
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+MEGFlow uses the resources visible to the Nextflow driver or outer Docker
+container by default. On a shared or resource-limited workstation, add an
+explicit **whole-run budget** to ``quickstart.config``:
+
+.. code-block:: groovy
+
+   params {
+     megflow {
+       execution {
+         local_cpus = 16
+         local_memory = "48 GB"
+         local_max_tasks = 3
+       }
+     }
+   }
+
+The values above are examples, not hardware recommendations. Choose limits
+that leave enough resources for the operating system and other applications.
+
+.. list-table:: Which setting controls what?
+   :header-rows: 1
+   :widths: 34 32 34
+
+   * - What you want to limit
+     - Setting
+     - Scope
+   * - Total CPUs or memory used for scheduling
+     - ``local_cpus`` / ``local_memory``
+     - All tasks using the local executor.
+   * - Total simultaneous local tasks
+     - ``local_max_tasks`` (Nextflow ``queueSize``)
+     - The complete local MEGFlow run.
+   * - Simultaneous tasks from one stage
+     - ``maxForks`` in a ``withName`` block
+     - Only the selected process, such as ``detect_artifacts``.
+   * - CPUs or memory requested by one task
+     - ``cpus`` / ``memory`` in a ``withName`` block
+     - One task instance of the selected process.
+
+For example, this additional block permits only one artifact-detection task at
+a time while other ready process types may still run within the whole-run
+budget:
+
+.. code-block:: groovy
+
+   process {
+     withName: detect_artifacts {
+       cpus = 4
+       memory = "16 GB"
+       maxForks = 1
+     }
+   }
+
+The effective concurrency is the lowest limit imposed by ``queueSize``, the
+CPU and memory budgets, the workflow dependencies, and the matching
+``maxForks``. See the :doc:`execution configuration
+<../reference/configuration_execution>` for the native Nextflow equivalents,
+local-versus-Slurm behavior, and official Nextflow references.
+
 Select Subjects, Sessions, Tasks, or Runs
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 

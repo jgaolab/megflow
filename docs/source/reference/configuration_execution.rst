@@ -116,11 +116,44 @@ Local Resource Budgets
 ----------------------
 
 By default, ``params.megflow.execution.local_cpus``, ``local_memory``, and
-``local_max_tasks`` are all ``"auto"``. Auto mode leaves local-executor
-resource detection to Nextflow, so it uses all CPUs visible to the driver or
-outer container, the visible/default memory budget, and its default local task
-capacity. The existing per-process ``cpus`` and ``memory`` requests are then
-accounted against those budgets.
+``local_max_tasks`` are all ``"auto"``. MEGFlow resolves auto mode from the
+CPU and memory resources visible to the Nextflow JVM or outer container. It
+then gives those values to the local executor, which accounts each task's
+``cpus`` and ``memory`` requests against the shared budgets.
+
+The controls operate at three different levels. ``params.megflow.execution``
+provides convenient MEGFlow aliases for the whole local run; ``process``
+directives describe one task; and ``maxForks`` adds a cap for one process
+definition.
+
+.. list-table:: MEGFlow and native Nextflow resource controls
+   :header-rows: 1
+   :widths: 24 25 25 26
+
+   * - User question
+     - MEGFlow setting
+     - Native Nextflow setting
+     - Scope
+   * - How many CPUs may local tasks share?
+     - ``local_cpus``
+     - ``executor.$local.cpus``
+     - Total local-executor CPU budget.
+   * - How much memory may local tasks share?
+     - ``local_memory``
+     - ``executor.$local.memory``
+     - Total local-executor memory budget.
+   * - How many local tasks may run at once?
+     - ``local_max_tasks``
+     - ``executor.$local.queueSize``
+     - Global local-executor task ceiling.
+   * - What may one task request?
+     - A ``withName`` override
+     - ``process.cpus`` / ``process.memory``
+     - One task instance of the matching process.
+   * - How many instances of one stage may overlap?
+     - A ``withName`` override
+     - ``process.maxForks``
+     - One process definition, not the whole workflow.
 
 Set any limit independently in an additive overlay. For example, this
 workstation configuration budgets 16 CPUs and 48 GB across at most three
@@ -138,19 +171,51 @@ running local tasks:
      }
    }
 
-``local_max_tasks = N`` maps to the local executor's ``queueSize``. It is a
-global ceiling, not a promise that N tasks will run: actual concurrency can be
-lower because the local CPU budget, local memory budget, workflow DAG, and any
-per-process ``maxForks`` constraint apply cumulatively. A per-process cap is
-still useful for an I/O-heavy or otherwise sensitive stage:
+The equivalent native Nextflow local-executor configuration is shown below.
+Use either the MEGFlow aliases above or the native form in one overlay; there
+is no benefit in defining both.
+
+.. code-block:: groovy
+
+   executor {
+     $local {
+       cpus = 16
+       memory = "48 GB"
+       queueSize = 3
+     }
+   }
+
+``queueSize`` is a global ceiling, not a promise that this many tasks will
+always run. Actual concurrency can be lower because all of these constraints
+must be satisfied simultaneously:
+
+* the executor's ``queueSize``;
+* the sum of ready tasks' ``cpus`` and ``memory`` requests;
+* the workflow DAG and available inputs; and
+* the matching process's ``maxForks``.
+
+A per-process override is useful for an I/O-heavy or otherwise sensitive
+stage:
 
 .. code-block:: groovy
 
    process {
      withName: detect_artifacts {
+       cpus = 4
+       memory = "16 GB"
        maxForks = 2
      }
    }
+
+With the 16-CPU, three-task whole-run budget above, this selector allows at
+most two ``detect_artifacts`` tasks at once. Other process types may still use
+the remaining task capacity and resources when their inputs are ready.
+
+The ``cpus`` and ``memory`` values in a process selector are **per task**, not
+machine-wide limits. Ensure a fixed whole-run budget can accommodate the
+largest task request, including any memory increase on retry. MEGFlow passes
+``task.cpus`` into its known parallel worker pools so their effective
+parallelism stays inside the declared task budget.
 
 MEGFlow also sets ``OMP_NUM_THREADS``, ``MKL_NUM_THREADS``,
 ``OPENBLAS_NUM_THREADS``, and ``NUMEXPR_MAX_THREADS`` per task from
@@ -160,9 +225,35 @@ thread per worker; in particular, ``score_meg_quality`` keeps
 in a process selector when a native library has a tested, different threading
 requirement.
 
-Slurm ``queueSize`` limits how many tasks Nextflow keeps submitted to the
-scheduler; it is not a per-process concurrency limit. Use ``maxForks`` in a
-project-specific process selector when one stage needs its own cap.
+Local and Slurm ``queueSize``
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The distributed Docker command runs Nextflow's **local executor** inside the
+outer container. For that path, ``local_max_tasks`` / ``executor.$local.queueSize``
+limits the number of local tasks handled concurrently. ``local_cpus`` and
+``local_memory`` are scheduling budgets; a bare local operating-system process
+can still exceed a declared request. Container runtime ``--cpus`` and
+``--memory`` options can additionally enforce an outer Docker limit.
+
+For Slurm, ``executor.$slurm.queueSize`` limits Nextflow's task submission and
+management capacity. It does not set the Slurm partition's CPU capacity and it
+does not limit a single process type. MEGFlow exposes this setting as
+``MEGFLOW_SLURM_QUEUE_SIZE``. A ``maxForks`` selector remains the appropriate
+way to cap one process under either executor.
+
+Official Nextflow references
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+* `Local executor behavior
+  <https://docs.seqera.io/nextflow/executor/local>`__
+* `Executor configuration: cpus, memory, and queueSize
+  <https://docs.seqera.io/nextflow/reference/config/executor>`__
+* `Process cpus directive
+  <https://docs.seqera.io/nextflow/reference/process/directives/cpus>`__
+* `Process memory directive
+  <https://docs.seqera.io/nextflow/reference/process/directives/memory>`__
+* `Process maxForks directive
+  <https://docs.seqera.io/nextflow/reference/process/directives/max-forks>`__
 
 Two failure policies are available:
 

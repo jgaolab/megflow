@@ -785,6 +785,50 @@ params {
                 for concept in ("CPU", "memory", "DAG", "maxForks"):
                     self.assertIn(concept, text)
 
+    def test_docs_explain_native_nextflow_concurrency_controls(self):
+        reference = (
+            REPO_ROOT
+            / "docs"
+            / "source"
+            / "reference"
+            / "configuration_execution.rst"
+        ).read_text(encoding="utf-8")
+        quickstart = QUICKSTART_DOC.read_text(encoding="utf-8")
+
+        for setting in (
+            "local_cpus",
+            "local_memory",
+            "local_max_tasks",
+            "executor.$local.cpus",
+            "executor.$local.memory",
+            "executor.$local.queueSize",
+            "process.cpus",
+            "process.memory",
+            "process.maxForks",
+        ):
+            with self.subTest(setting=setting):
+                self.assertIn(setting, reference)
+
+        for official_url in (
+            "https://docs.seqera.io/nextflow/executor/local",
+            "https://docs.seqera.io/nextflow/reference/config/executor",
+            "https://docs.seqera.io/nextflow/reference/process/directives/cpus",
+            "https://docs.seqera.io/nextflow/reference/process/directives/memory",
+            "https://docs.seqera.io/nextflow/reference/process/directives/max-forks",
+        ):
+            with self.subTest(official_url=official_url):
+                self.assertIn(official_url, reference)
+
+        self.assertIn("queueSize = 3", reference)
+        self.assertIn("local executor", reference)
+        self.assertIn("Slurm", reference)
+        self.assertIn("submission", reference)
+
+        self.assertIn("Limit CPU, Memory, and Parallel Tasks", quickstart)
+        self.assertIn("local_max_tasks", quickstart)
+        self.assertIn("maxForks", quickstart)
+        self.assertIn(":doc:`execution configuration", quickstart)
+
     def test_docker_runner_generates_declarative_runtime_overrides(self):
         text = packaged_docker_runner().read_text(encoding="utf-8")
         self.assertNotIn("def megflowRuntime", text)
@@ -1103,7 +1147,7 @@ params {
                     if line.strip() and not line.strip().startswith("//")
                 ]
                 first_line = significant[0] if significant else ""
-                if first_line not in {"params {", "process {"}:
+                if first_line not in {"params {", "process {", "executor {"}:
                     offenders.append(
                         f"{path.relative_to(REPO_ROOT)} block {block_index}: {first_line}"
                     )
