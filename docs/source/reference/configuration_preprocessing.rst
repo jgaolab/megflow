@@ -786,12 +786,23 @@ default, so existing configurations keep their original data and do not create
 an additional continuous file. Supported operations are ``filter``,
 ``notch_filter``, and ``resample``.
 
+Operations run from top to bottom. ``l_freq`` and ``h_freq`` set the analysis
+band in Hz, while ``sfreq`` sets the final sampling rate in Hz. A configured
+list replaces the inherited list at that dataset or recording scope, so include
+every operation that the override still needs.
+
 When configured, MEGFlow writes an ``*_analysis-raw.fif`` file beside the epoch
 output and uses that same continuous recording for epoch-based covariance. This
 keeps the epochs and noise covariance in the same analysis band. Trigger events
 found from a stimulation channel are detected before resampling and remapped by
 MNE; BIDS event onsets and annotations are converted using the final sampling
 rate.
+
+**Example: change the epoch analysis range to 1–40 Hz and 250 Hz**
+
+Replace the default empty list with the following configuration. This filters
+the ICA-cleaned continuous recording to 1–40 Hz and then resamples it to
+250 Hz before constructing epochs:
 
 .. code-block:: groovy
 
@@ -800,7 +811,7 @@ rate.
        defaults {
          epochs {
            preproc = [
-             [filter: [l_freq: 1.0, h_freq: 30.0, method: "iir",
+             [filter: [l_freq: 1.0, h_freq: 40.0, method: "iir",
                        iir_params: [order: 5, ftype: "butter"]]],
              [resample: [sfreq: 250]]
            ]
@@ -815,7 +826,7 @@ rate.
      }
    }
 
-Use ``preproc: []`` or omit the key to preserve the cleaned Raw without any
+Use ``preproc = []`` or omit the key to preserve the cleaned Raw without any
 analysis-specific preprocessing.
 
 Event Timing Correction
