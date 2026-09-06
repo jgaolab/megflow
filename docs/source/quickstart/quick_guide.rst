@@ -431,7 +431,14 @@ For fixed-length resting-state epochs:
            steps = "meg_epochs"
            epochs = [
                task_type: "resting",
-               resting: [fixed_length_duration: 2.0],
+               resting: [
+                   fixed_length_id: 1,
+                   fixed_length_start: 0.0,
+                   fixed_length_stop: null,
+                   fixed_length_duration: 2.0,
+                   fixed_length_first_samp: true,
+                   fixed_length_overlap: 0.0
+               ],
                epochs: [
                    event_id: null,
                    tmin: 0.0,
@@ -444,6 +451,17 @@ For fixed-length resting-state epochs:
        }
      }
    }
+
+With these defaults, MEGFlow creates event id ``1`` from the beginning to the
+end of the recording every 2 seconds, without overlap. Keep
+``fixed_length_first_samp: true`` for normal FIF input so event sample numbers
+retain the recording's original sample offset. ``fixed_length_start`` and
+``fixed_length_stop`` select the usable time range, while
+``fixed_length_overlap`` controls overlap between consecutive windows. The
+inner ``epochs`` map still controls the extracted window through ``tmin`` and
+``tmax``; set its ``event_id`` to the fixed-length id or leave it ``null``.
+See the epoch section of :doc:`preprocessing configuration
+<../reference/configuration_preprocessing>` for the complete rules.
 
 For task events stored in BIDS ``events.tsv``:
 

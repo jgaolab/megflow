@@ -270,6 +270,51 @@ class ContinuousEpochPreprocTests(unittest.TestCase):
         self.assertEqual(raw.info["sfreq"], 250.0)
         np.testing.assert_array_equal(events[:, 0], [0, 250, 500, 750])
 
+    def test_resting_fixed_length_options_are_forwarded(self):
+        raw = _make_raw(sfreq=100.0, duration=8.0, first_samp=500)
+        resting = {
+            "fixed_length_id": 7,
+            "fixed_length_start": 1.0,
+            "fixed_length_stop": 6.0,
+            "fixed_length_duration": 2.0,
+            "fixed_length_first_samp": True,
+            "fixed_length_overlap": 0.5,
+        }
+        expected = mne.make_fixed_length_events(
+            raw,
+            id=7,
+            start=1.0,
+            stop=6.0,
+            duration=2.0,
+            first_samp=True,
+            overlap=0.5,
+        )
+
+        _, actual, applied = epochs_module.prepare_epoching_raw_and_events(
+            raw.copy(),
+            {
+                "preproc": [],
+                "task_type": "resting",
+                "resting": resting,
+            },
+        )
+
+        self.assertFalse(applied)
+        np.testing.assert_array_equal(actual, expected)
+
+    def test_resting_fixed_length_defaults_match_public_config(self):
+        self.assertEqual(
+            epochs_module._get_fixed_length_event_kwargs({}),
+            {
+                "id": 1,
+                "start": 0.0,
+                "stop": None,
+                "duration": 2.0,
+                "first_samp": True,
+                "overlap": 0.0,
+            },
+        )
+
     def test_epoch_process_saves_analysis_raw_with_remapped_events(self):
         config = {
             "preproc": [{"resample": {"sfreq": 250.0}}],

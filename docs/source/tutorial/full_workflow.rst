@@ -151,8 +151,12 @@ This stage is where dataset assumptions usually matter most.
 For resting-state data, confirm:
 
 * ``epochs.task_type = "resting"``
-* ``resting.fixed_length_duration``
-* epoch length, rejection by annotation, and optional rejection thresholds
+* ``resting.fixed_length_start`` / ``fixed_length_stop`` and
+  ``fixed_length_duration`` / ``fixed_length_overlap``
+* ``resting.fixed_length_id`` and ``fixed_length_first_samp`` (normally ``1``
+  and ``true``)
+* the inner epoch window (``tmin`` / ``tmax``), rejection by annotation, and
+  optional rejection thresholds
 
 For task data, confirm:
 

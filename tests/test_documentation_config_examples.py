@@ -408,6 +408,42 @@ def write_runtime_config(path, block, profiles, root):
 class DocumentationConfigExamplesTests(unittest.TestCase):
     maxDiff = None
 
+    def test_resting_epoch_docs_cover_all_fixed_length_options(self):
+        documents = (
+            REPO_ROOT / "docs" / "source" / "quickstart" / "quick_guide.rst",
+            REPO_ROOT
+            / "docs"
+            / "source"
+            / "reference"
+            / "configuration_preprocessing.rst",
+            REPO_ROOT
+            / "docs"
+            / "source"
+            / "reference"
+            / "examples_single_dataset.rst",
+        )
+        options = (
+            "fixed_length_id",
+            "fixed_length_start",
+            "fixed_length_stop",
+            "fixed_length_duration",
+            "fixed_length_first_samp",
+            "fixed_length_overlap",
+        )
+
+        for document in documents:
+            text = document.read_text(encoding="utf-8")
+            for option in options:
+                with self.subTest(document=document.name, option=option):
+                    self.assertIn(option, text)
+
+        reference = documents[1].read_text(encoding="utf-8")
+        self.assertIn(
+            "https://mne.tools/1.8/generated/mne.make_fixed_length_events.html",
+            reference,
+        )
+        self.assertIn("duration - overlap", reference)
+
     def test_readme_links_canonical_public_scripts_without_cleanup_helpers(self):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         run_scripts = (

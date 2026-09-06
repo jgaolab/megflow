@@ -466,6 +466,33 @@ trace.enabled = false
                     expected,
                 )
 
+    def test_public_configs_define_all_resting_fixed_length_defaults(self):
+        expected = {
+            "epochs.resting.fixed_length_id": "1",
+            "epochs.resting.fixed_length_start": "0.0",
+            "epochs.resting.fixed_length_stop": "null",
+            "epochs.resting.fixed_length_duration": "2.0",
+            "epochs.resting.fixed_length_first_samp": "true",
+            "epochs.resting.fixed_length_overlap": "0.0",
+        }
+        public_configs = (
+            SOURCE_CONFIG,
+            DOCKER_CONFIG,
+            FULL_WORKFLOW_CONFIG,
+            CORPUS_EXAMPLE,
+            MULTI_DATASET_DEMO,
+        )
+
+        for config in public_configs:
+            assignments = config_assignments(
+                named_config_block(config.read_text(encoding="utf-8"), "defaults")
+            )
+            with self.subTest(config=config.name):
+                self.assertEqual(
+                    {key: assignments.get(key) for key in expected},
+                    expected,
+                )
+
     def test_public_docs_use_the_unified_qc_threshold_defaults(self):
         readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
         qc_metrics = (

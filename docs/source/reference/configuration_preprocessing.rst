@@ -717,10 +717,30 @@ Epochs
      - ``task`` or ``resting``
      - ``task``
      - Event-based or fixed-length epoching.
+   * - ``resting.fixed_length_id``
+     - integer
+     - ``1``
+     - Event code assigned to every generated fixed-length event.
+   * - ``resting.fixed_length_start``
+     - seconds
+     - ``0.0``
+     - Time offset of the first generated event from the recording start.
+   * - ``resting.fixed_length_stop``
+     - seconds or ``null``
+     - ``null``
+     - Latest allowed event onset; ``null`` uses the recording end.
    * - ``resting.fixed_length_duration``
      - positive seconds
      - ``2.0``
-     - Fixed event spacing for resting recordings.
+     - Base separation between event onsets before overlap is subtracted.
+   * - ``resting.fixed_length_first_samp``
+     - boolean
+     - ``true``
+     - Add ``raw.first_samp`` to generated event sample numbers.
+   * - ``resting.fixed_length_overlap``
+     - seconds
+     - ``0.0``
+     - Overlap between consecutive fixed-length events.
    * - ``event_source``
      - ``event_file`` or ``find_events``
      - ``event_file``
@@ -773,6 +793,48 @@ the outer scope into that inner block.
 The default task epoch block is only a template. Event source, event ids,
 timing, baseline, and rejection thresholds must be validated for each dataset
 before ``meg_epochs``, ``meg_all``, or ``all`` is expected to complete.
+
+Resting Fixed-Length Events
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+When ``task_type = "resting"``, MEGFlow calls `MNE 1.8
+make_fixed_length_events
+<https://mne.tools/1.8/generated/mne.make_fixed_length_events.html>`_ with the
+six explicitly prefixed settings below. This path creates events from the
+continuous recording and therefore does not require a trigger channel.
+
+.. code-block:: groovy
+
+   params {
+     megflow {
+       defaults {
+         epochs {
+           task_type = "resting"
+           resting = [
+             fixed_length_id: 1,
+             fixed_length_start: 0.0,
+             fixed_length_stop: null,
+             fixed_length_duration: 2.0,
+             fixed_length_first_samp: true,
+             fixed_length_overlap: 0.0
+           ]
+         }
+       }
+     }
+   }
+
+``fixed_length_start`` and ``fixed_length_stop`` limit event onsets in seconds;
+``null`` lets events continue to the end of the recording. Consecutive event
+onsets are separated by ``duration - overlap``, so overlap must satisfy
+``0 <= fixed_length_overlap < fixed_length_duration``. MNE validates these
+values. Normally leave ``fixed_length_first_samp`` set to ``true`` so sample
+indices include the FIF recording's original ``raw.first_samp`` offset.
+
+``fixed_length_id`` supplies the generated event code. If you replace its
+default, set the inner ``epochs.event_id`` to the same id (or leave it
+``null`` so all generated ids are accepted). The inner ``epochs.tmin`` and
+``epochs.tmax`` select the actual epoch window around each onset; they do not
+change the fixed-event duration or overlap.
 
 **Worked examples:** :ref:`example-resting-epochs`,
 :ref:`example-bids-events`, and :ref:`example-trigger-events`.

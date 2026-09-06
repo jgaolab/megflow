@@ -195,7 +195,14 @@ optional epoch stage creates fixed-length events from the cleaned recording.
          docker_input {
            epochs = [
              task_type: "resting",
-             resting: [fixed_length_duration: 2.0],
+             resting: [
+               fixed_length_id: 1,
+               fixed_length_start: 0.0,
+               fixed_length_stop: null,
+               fixed_length_duration: 2.0,
+               fixed_length_first_samp: true,
+               fixed_length_overlap: 0.0
+             ],
              epochs: [
                event_id: null,
                tmin: 0.0,
@@ -211,6 +218,14 @@ optional epoch stage creates fixed-length events from the cleaned recording.
        }
      }
    }
+
+This default creates non-overlapping events every 2 seconds across the entire
+recording. For example, with ``fixed_length_duration: 2.0``, set
+``fixed_length_overlap: 1.0`` to place a new event every second. The inner
+``epochs.tmin`` and ``epochs.tmax``
+define the data window extracted around each event and are independent of the
+fixed-event spacing. If ``fixed_length_id`` is changed, also admit that id in
+``epochs.event_id`` or keep ``epochs.event_id: null``.
 
 .. _example-bids-events:
 

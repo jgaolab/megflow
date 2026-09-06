@@ -375,7 +375,12 @@ class DockerEntrypointOptionTests(unittest.TestCase):
             self.assertIn(stage, quickstart)
         for beginner_setting in (
             "meg_import.subject_id",
+            "fixed_length_id",
+            "fixed_length_start",
+            "fixed_length_stop",
             "fixed_length_duration",
+            "fixed_length_first_samp",
+            "fixed_length_overlap",
             "event_source",
             "preproc.steps",
             "deepreject.enabled",

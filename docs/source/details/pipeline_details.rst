@@ -280,8 +280,11 @@ Epoching is optional and happens after the continuous core. The effective
 ``epochs`` block
 selects how epochs are built:
 
-* ``task_type: resting`` creates fixed-length events with
-  ``resting.fixed_length_duration``.
+* ``task_type: resting`` creates fixed-length events from the continuous
+  recording without requiring triggers. The ``resting.fixed_length_id``,
+  ``fixed_length_start``, ``fixed_length_stop``, ``fixed_length_duration``,
+  ``fixed_length_first_samp``, and ``fixed_length_overlap`` settings control
+  their code, time range, spacing, sample offset, and overlap.
 * ``task_type: task`` with ``event_source: find_events`` uses MNE
   ``find_events`` and the ``find_events`` config block.
 * ``task_type: task`` with ``event_source: event_file`` reads BIDS

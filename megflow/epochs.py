@@ -88,6 +88,19 @@ def _get_epoch_kwargs(config):
     return epoch_kwargs
 
 
+def _get_fixed_length_event_kwargs(config):
+    """Map resting-epoch settings to ``mne.make_fixed_length_events``."""
+    resting = (config or {}).get('resting') or {}
+    return {
+        'id': resting.get('fixed_length_id', 1),
+        'start': resting.get('fixed_length_start', 0.0),
+        'stop': resting.get('fixed_length_stop'),
+        'duration': resting.get('fixed_length_duration', 2.0),
+        'first_samp': resting.get('fixed_length_first_samp', True),
+        'overlap': resting.get('fixed_length_overlap', 0.0),
+    }
+
+
 def _get_exclude_event_id(config):
     exclude_event_id = config.get('exclude_event_id', None)
     if exclude_event_id is None:
@@ -536,9 +549,12 @@ def prepare_epoching_raw_and_events(
     events = remapped_events if events_are_authoritative else None
 
     if task_type == 'resting':
-        fixed_length_duration = (config.get('resting') or {}).get('fixed_length_duration', 2.0)
-        print(f"Resting Epochs, fixed length duration: {fixed_length_duration}")
-        events = mne.make_fixed_length_events(raw, id=1, duration=fixed_length_duration)
+        fixed_length_event_kwargs = _get_fixed_length_event_kwargs(config)
+        print(
+            "Resting Epochs, fixed-length event parameters: "
+            f"{fixed_length_event_kwargs}"
+        )
+        events = mne.make_fixed_length_events(raw, **fixed_length_event_kwargs)
         return raw, events, preprocessed
 
     if event_source == 'annotations':
@@ -703,7 +719,12 @@ def main():
     #     event_source: 'event_file'  # event_file or 'find_events'
     #     autoreject: true
     #     resting:
+    #         fixed_length_id: 1
+    #         fixed_length_start: 0.0
+    #         fixed_length_stop: null
     #         fixed_length_duration: 2.0
+    #         fixed_length_first_samp: true
+    #         fixed_length_overlap: 0.0
     #
     #     #event_file
     #     event_file:
