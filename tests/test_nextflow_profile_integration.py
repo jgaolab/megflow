@@ -67,7 +67,7 @@ VISIBLE_PROCESS_CANDIDATES = (
     | FREESURFER_ANATOMY_PROCESSES
     | DEEPPREP_ANATOMY_PROCESSES
     | PSEUDOMRI_ANATOMY_PROCESSES
-    | {"generate_corpus_static_html_report"}
+    | {"generate_corpus_static_html_report", "prepare_source_raw"}
 )
 
 
@@ -1182,7 +1182,7 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             config = root / "continuous-lcmv.config"
             write_config(config, output, dataset_block("dataset", dataset, extra=extra))
 
-            self.run_pipeline(config, output)
+            _, combined = self.run_pipeline(config, output, ansi_log=True)
 
             recording = "sub-01_task-sleep_run-01_meg"
             preproc = output / "preprocessed"
@@ -1194,6 +1194,11 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
 
             self.assertNotIn("epochs", processes)
             self.assertIn("prepare_source_raw", processes)
+            self.assertEqual(
+                self.displayed_processes(combined, {"prepare_source_raw"}),
+                {"prepare_source_raw"},
+                combined,
+            )
             self.assertEqual(payload["source_type"], "raw")
             self.assertEqual(payload["noise_covariance_mode"], "none")
             self.assertIsNone(payload["noise_covariance_file"])

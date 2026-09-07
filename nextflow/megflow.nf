@@ -2469,17 +2469,25 @@ Map attachRecordingSteps(Map datasetConfig, Map recordingConfig, def rawPathValu
 Map buildMegProcessPlan(List datasetProfiles) {
     def stepCandidates = []
     def datasetSteps = []
+    def sourceCandidates = []
     datasetProfiles.each { profile ->
         def effective = attachParsedSteps(asMap(asMap(profile).effective_config))
         def resolvedDatasetSteps = asMap(effective._steps)
         datasetSteps << resolvedDatasetSteps
         stepCandidates << resolvedDatasetSteps
+        if (cfgGet(resolvedDatasetSteps, ['megStage'], -1).toString().toInteger() >= 3) {
+            sourceCandidates << effective
+        }
         asMap(effective.recordings).each { profileName, profileValue ->
             def recordingProfile = asMap(profileValue)
+            def recordingOverride = new LinkedHashMap(recordingProfile)
+            recordingOverride.remove('match')
+            def recordingEffective = attachParsedSteps(deepMerge(effective, recordingOverride))
             if (recordingProfile.containsKey('steps')) {
-                stepCandidates << parseMegPipelineSteps(
-                    cfgText(recordingProfile, ['steps'], 'meg_all')
-                )
+                stepCandidates << asMap(recordingEffective._steps)
+            }
+            if (cfgGet(recordingEffective, ['_steps', 'megStage'], -1).toString().toInteger() >= 3) {
+                sourceCandidates << recordingEffective
             }
         }
     }
@@ -2496,6 +2504,9 @@ Map buildMegProcessPlan(List datasetProfiles) {
         },
         runSource: megSteps.any { steps ->
             cfgGet(steps, ['megStage'], -1).toString().toInteger() >= 3
+        },
+        runRawSource: sourceCandidates.any { effective ->
+            sourceDataMode(asMap(effective)) == 'raw'
         },
         runReports: datasetSteps.any { steps ->
             cfgBool(steps, ['runMeg'], false) || cfgText(steps, ['primary'], '') == 'report'
@@ -2579,7 +2590,7 @@ workflow {
     log.info "MEGFlow profile datasets: ${datasetProfiles.collect { it.dataset_name }.join(', ')}"
     log.info "Corpus mode: ${corpusMode}"
     log.info "Anatomy process plan: enabled=${anatomyPlan.enabled}, methods=${anatomyPlan.methods ?: 'none'}, datasets=${anatomyPlan.datasetNames ?: 'none'}"
-    log.info "MEG process plan: enabled=${megPlan.enabled}, max_stage=${megPlan.maxStage}, ica=${megPlan.runIca}, epochs=${megPlan.runEpochs}, source=${megPlan.runSource}, reports=${megPlan.runReports}"
+    log.info "MEG process plan: enabled=${megPlan.enabled}, max_stage=${megPlan.maxStage}, ica=${megPlan.runIca}, epochs=${megPlan.runEpochs}, source=${megPlan.runSource}, source_raw=${megPlan.runRawSource}, reports=${megPlan.runReports}"
 
     native_dataset_ch = Channel
         .fromList(datasetProfiles)
@@ -3018,23 +3029,26 @@ workflow {
             .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                 asMap(effective_config._steps).megStage >= 3
             }
-        native_source_raw_inputs_ch = native_source_clean_ch
-            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-                sourceDataMode(effective_config) == 'raw'
-            }
-            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-                def subjectKey = recordingKey(dataset_name, orig_raw_path)
-                tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, clean_raw_path, clean_hash, orig_raw_path)
-            }
-        native_analysis_raw = prepare_source_raw(native_source_raw_inputs_ch)
-        native_source_raw_target_ch = native_analysis_raw.analysis_raw_subjects
-            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, analysis_raw_path, clean_hash, orig_raw_path ->
-                def sourceHash = fileStatFingerprint(analysis_raw_path)
-                def noiseMode = noiseCovarianceMode(effective_config)
-                def eventsFile = noiseMode == 'epochs' ? orig_raw_path.toString().replaceAll(/_meg\..*/, '_events.tsv') : ''
-                def eventsHash = noiseMode == 'epochs' ? fileSha256(eventsFile) : 'not-used'
-                tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, analysis_raw_path, 'raw', sourceHash, clean_hash, eventsFile, eventsHash, analysis_raw_path, sourceHash)
-            }
+        native_source_raw_target_ch = Channel.empty()
+        if (megPlan.runRawSource) {
+            native_source_raw_inputs_ch = native_source_clean_ch
+                .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                    sourceDataMode(effective_config) == 'raw'
+                }
+                .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                    def subjectKey = recordingKey(dataset_name, orig_raw_path)
+                    tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, clean_raw_path, clean_hash, orig_raw_path)
+                }
+            native_analysis_raw = prepare_source_raw(native_source_raw_inputs_ch)
+            native_source_raw_target_ch = native_analysis_raw.analysis_raw_subjects
+                .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, analysis_raw_path, clean_hash, orig_raw_path ->
+                    def sourceHash = fileStatFingerprint(analysis_raw_path)
+                    def noiseMode = noiseCovarianceMode(effective_config)
+                    def eventsFile = noiseMode == 'epochs' ? orig_raw_path.toString().replaceAll(/_meg\..*/, '_events.tsv') : ''
+                    def eventsHash = noiseMode == 'epochs' ? fileSha256(eventsFile) : 'not-used'
+                    tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, analysis_raw_path, 'raw', sourceHash, clean_hash, eventsFile, eventsHash, analysis_raw_path, sourceHash)
+                }
+        }
         native_source_epoch_target_ch = native_epoch_with_hash_ch
             .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
                 asMap(effective_config._steps).megStage >= 3 &&
