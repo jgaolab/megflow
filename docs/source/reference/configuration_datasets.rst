@@ -77,7 +77,11 @@ not user parameters:
      - Shared by ICA fitting, labeling, application, and reports.
    * - Epochs
      - ``epochs``
-     - Routed to covariance, forward/source processing, and reports.
+     - Saved event- or fixed-length Epochs for epoched analysis and reports.
+   * - Analysis-ready Raw
+     - ``analysis_raw``
+     - Exact continuous target routed to covariance, forward, and source
+       processing when ``source.type = "raw"``.
    * - Coregistration
      - ``trans``
      - Holds transforms and report figures.
@@ -548,7 +552,7 @@ entities; raw datasets are discovered by suffix and optional filename keywords.
        keyword, such as ``phantom`` or ``emptyroom``.
 
 Import filters are dataset-level because they run before recording profiles are
-resolved. For raw covariance, the recording named by
+resolved. For ``covariance.noise_covariance_mode = "raw"``, the recording named by
 ``covariance.raw_covariance_task_id`` must also be imported and processed to an
 ICA-clean continuous file. Do not exclude that task from ``meg_import.task``.
 

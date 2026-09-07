@@ -145,7 +145,7 @@ def write_config(
                         ],
                         bem: [ico: 4, conductivity: [0.3]],
                         coreg: [visualize: false],
-                        covariance: [type: "epochs", visualize: false],
+                        covariance: [noise_covariance_mode: "epochs", visualize: false],
                         forward: [epoch_label: "event", surface: "white", spacing: "ico4"],
                         source: [type: "epochs", visualize: false, source_methods: [], data_type: "meg", spacing: "ico4", epoch_label: "event"],
                         report: [static_task_log_mode: "none"]
@@ -819,14 +819,14 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                     ]
                 ],
                 covariance: [
-                    type: "epochs", visualize: false,
+                    noise_covariance_mode: "epochs", visualize: false,
                     covariance: [
                         keep_sample_mean: true, tmin: null, tmax: 0.0,
                         method: "empirical", cv: 3
                     ]
                 ],
                 source: [
-                    type: "epochs", visualize: false,
+                    noise_covariance_mode: "epochs", visualize: false,
                     source_methods: ["dSPM"], data_type: "meg",
                     spacing: "ico4", epoch_label: "event",
                     dSPM: [
@@ -1022,7 +1022,7 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                     recordings: [
                         epochs_source_with_raw_covariance: [
                             match: [task: "{experiments[0]}"],
-                            covariance: [type: "raw", raw_covariance_task_id: "{noise}", output_dir: "covariance"],
+                            covariance: [noise_covariance_mode: "raw", raw_covariance_task_id: "{noise}", output_dir: "covariance"],
                             source: [
                                 type: "epochs",
                                 source_methods: ["LCMV"],
@@ -1031,7 +1031,7 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
                         ],
                         raw_source_with_raw_covariance: [
                             match: [task: "{experiments[1]}"],
-                            covariance: [type: "raw", raw_covariance_task_id: "{noise}", output_dir: "covariance"],
+                            covariance: [noise_covariance_mode: "raw", raw_covariance_task_id: "{noise}", output_dir: "covariance"],
                             source: [
                                 type: "raw",
                                 source_methods: ["LCMV"],
@@ -1160,6 +1160,251 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             )
             self.assertTrue(raw_route["source_input_file"].endswith("_analysis-raw.fif"))
 
+    def test_continuous_lcmv_without_noise_covariance_needs_no_events_or_epochs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            create_dataset(dataset, ("sleep",))
+            next(dataset.rglob("*_events.tsv")).unlink()
+            extra = """,
+                epochs: [preproc: [[resample: [sfreq: 250]]]],
+                covariance: [noise_covariance_mode: "none"],
+                source: [
+                    type: "raw",
+                    source_methods: ["LCMV"],
+                    data_type: "meg",
+                    LCMV: [
+                        data_covariance: [method: "empirical", reject_by_annotation: true],
+                        make_lcmv: [:]
+                    ]
+                ]"""
+            config = root / "continuous-lcmv.config"
+            write_config(config, output, dataset_block("dataset", dataset, extra=extra))
+
+            self.run_pipeline(config, output)
+
+            recording = "sub-01_task-sleep_run-01_meg"
+            preproc = output / "preprocessed"
+            route_file = preproc / "source_recon" / recording / "routing.json"
+            payload = json.loads(route_file.read_text(encoding="utf-8"))
+            processes = self.trace_processes_for_recording(
+                output, "dataset", recording
+            )
+
+            self.assertNotIn("epochs", processes)
+            self.assertIn("prepare_source_raw", processes)
+            self.assertEqual(payload["source_type"], "raw")
+            self.assertEqual(payload["noise_covariance_mode"], "none")
+            self.assertIsNone(payload["noise_covariance_file"])
+            self.assertTrue(Path(payload["source_input_file"]).is_file())
+            self.assertTrue(Path(payload["data_covariance_file"]).is_file())
+            self.assertTrue(Path(payload["resolved_rank_file"]).is_file())
+            self.assertTrue(Path(payload["covariance_metadata_file"]).is_file())
+            self.assertFalse((preproc / "epochs" / recording).exists())
+            self.assertFalse((preproc / "covariance" / recording / "bl-cov.fif").exists())
+
+    def test_recording_profiles_isolate_all_noise_covariance_modes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            create_dataset(dataset, ("epoch", "adhoc", "none", "rawtarget", "empty"))
+            for task in ("adhoc", "none", "rawtarget"):
+                next(dataset.rglob(f"*_task-{task}_*_events.tsv")).unlink()
+            extra = """,
+                recordings: [
+                    epoch_noise: [
+                        match: [task: "epoch"],
+                        covariance: [noise_covariance_mode: "epochs"],
+                        source: [
+                            type: "epochs", source_methods: ["LCMV"],
+                            LCMV: [data_covariance: [method: "empirical"], make_lcmv: [:]]
+                        ]
+                    ],
+                    ad_hoc_noise: [
+                        match: [task: "adhoc"],
+                        covariance: [noise_covariance_mode: "ad_hoc"],
+                        source: [
+                            type: "raw", source_methods: ["LCMV"],
+                            LCMV: [data_covariance: [method: "empirical"], make_lcmv: [:]]
+                        ]
+                    ],
+                    no_noise: [
+                        match: [task: "none"],
+                        covariance: [noise_covariance_mode: "none"],
+                        source: [
+                            type: "raw", source_methods: ["LCMV"],
+                            LCMV: [data_covariance: [method: "empirical"], make_lcmv: [:]]
+                        ]
+                    ],
+                    empty_room_noise: [
+                        match: [task: "rawtarget"],
+                        covariance: [
+                            noise_covariance_mode: "raw",
+                            raw_covariance_task_id: "empty"
+                        ],
+                        source: [
+                            type: "raw", source_methods: ["LCMV"],
+                            LCMV: [data_covariance: [method: "empirical"], make_lcmv: [:]]
+                        ]
+                    ]
+                ]"""
+            config = root / "all-covariance-modes.config"
+            write_config(config, output, dataset_block("dataset", dataset, extra=extra))
+
+            self.run_pipeline(config, output)
+
+            preproc = output / "preprocessed"
+            expected_files = {
+                "epoch": ("epochs", "bl-cov.fif"),
+                "adhoc": ("ad_hoc", "noise-cov.fif"),
+                "none": ("none", None),
+                "rawtarget": ("raw", "bl-cov.fif"),
+            }
+            for task, (mode, noise_name) in expected_files.items():
+                recording = f"sub-01_task-{task}_run-01_meg"
+                route = json.loads(
+                    (
+                        preproc / "source_recon" / recording / "routing.json"
+                    ).read_text(encoding="utf-8")
+                )
+                self.assertEqual(route["key"], ["dataset", recording])
+                self.assertEqual(route["noise_covariance_mode"], mode)
+                self.assertIn(f"task-{task}", Path(route["data_covariance_file"]).read_text())
+                if noise_name is None:
+                    self.assertIsNone(route["noise_covariance_file"])
+                    self.assertFalse((preproc / "covariance" / recording / "bl-cov.fif").exists())
+                    self.assertFalse((preproc / "covariance" / recording / "noise-cov.fif").exists())
+                else:
+                    self.assertTrue(route["noise_covariance_file"].endswith(noise_name))
+                    noise_text = Path(route["noise_covariance_file"]).read_text()
+                    if mode == "raw":
+                        self.assertIn("task-empty", noise_text)
+                    else:
+                        self.assertIn(f"task-{task}", noise_text)
+
+                if task != "epoch":
+                    self.assertFalse(
+                        (preproc / "epochs" / recording).exists(),
+                        f"Raw source task {task} unexpectedly produced epochs",
+                    )
+
+            self.assertFalse(
+                (preproc / "source_recon" / "sub-01_task-empty_run-01_meg").exists()
+            )
+
+    def test_noise_covariance_configuration_errors_fail_before_processing(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            dataset = root / "dataset"
+            create_dataset(dataset)
+            cases = {
+                "removed_type": (
+                    ', covariance: [type: "epochs"]',
+                    "covariance.type is no longer supported",
+                ),
+                "invalid_mode": (
+                    ', covariance: [noise_covariance_mode: "invalid"]',
+                    "must be one of",
+                ),
+                "none_with_dspm": (
+                    ', covariance: [noise_covariance_mode: "none"], '
+                    'source: [source_methods: ["dSPM"]]',
+                    "requires source.source_methods=['LCMV']",
+                ),
+                "user_noise_cov": (
+                    ', source: [source_methods: ["LCMV"], '
+                    'LCMV: [make_lcmv: [noise_cov: null]]]',
+                    "make_lcmv.noise_cov is workflow-owned",
+                ),
+            }
+            for name, (extra, expected) in cases.items():
+                with self.subTest(case=name):
+                    output = root / f"output-{name}"
+                    config = root / f"{name}.config"
+                    write_config(
+                        config,
+                        output,
+                        dataset_block("dataset", dataset, extra=extra),
+                    )
+                    _, combined = self.run_pipeline(
+                        config,
+                        output,
+                        stub=False,
+                        expect_success=False,
+                    )
+                    self.assertIn(expected, combined)
+                self.assertEqual(self.trace_rows(output), [])
+
+    def test_resume_recomputes_covariance_and_source_when_noise_mode_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            output = root / "output"
+            dataset = root / "dataset"
+            create_dataset(dataset, ("continuous",))
+            config = root / "noise-mode-resume.config"
+
+            def write_mode(mode):
+                defaults_override = textwrap.dedent(
+                    f"""
+                    [
+                        covariance: [
+                            noise_covariance_mode: {groovy_string(mode)},
+                            visualize: false
+                        ],
+                        source: [
+                            type: "raw",
+                            visualize: false,
+                            source_methods: ["LCMV"],
+                            data_type: "mag",
+                            spacing: "ico4",
+                            epoch_label: "continuous",
+                            LCMV: [
+                                data_covariance: [method: "empirical"],
+                                make_lcmv: [:]
+                            ]
+                        ]
+                    ]
+                    """
+                ).strip()
+                write_config(
+                    config,
+                    output,
+                    dataset_block("dataset", dataset),
+                    defaults_override=defaults_override,
+                )
+
+            write_mode("ad_hoc")
+            self.run_pipeline(config, output)
+            route_path = (
+                output
+                / "preprocessed"
+                / "source_recon"
+                / "sub-01_task-continuous_run-01_meg"
+                / "routing.json"
+            )
+            first_route = json.loads(route_path.read_text(encoding="utf-8"))
+            self.assertEqual(first_route["noise_covariance_mode"], "ad_hoc")
+            self.assertTrue(Path(first_route["noise_covariance_file"]).is_file())
+
+            write_mode("none")
+            self.run_pipeline(config, output, resume=True)
+            rows = self.trace_rows(output)
+            for process_name in ("compute_covariance", "source_imaging"):
+                statuses = {
+                    row["status"]
+                    for row in rows
+                    if row["name"].startswith(f"{process_name} (")
+                }
+                self.assertEqual(statuses, {"COMPLETED"}, process_name)
+
+            second_route = json.loads(route_path.read_text(encoding="utf-8"))
+            self.assertEqual(second_route["noise_covariance_mode"], "none")
+            self.assertIsNone(second_route["noise_covariance_file"])
+            covariance_dir = route_path.parents[2] / "covariance" / route_path.parent.name
+            self.assertFalse((covariance_dir / "noise-cov.fif").exists())
+
     def test_missing_raw_covariance_pair_fails_instead_of_silently_skipping_source(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
@@ -1167,7 +1412,7 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             dataset = root / "dataset"
             create_dataset(dataset, ("experiment",))
             extra = """,
-                covariance: [type: "raw", raw_covariance_task_id: "missing_noise"]"""
+                covariance: [noise_covariance_mode: "raw", raw_covariance_task_id: "missing_noise"]"""
             config = root / "missing-noise.config"
             write_config(config, output, dataset_block("dataset", dataset, extra=extra))
 

@@ -66,7 +66,12 @@ EXPECTED_BLOCK_KEYS = {
     block_key("examples_single_dataset.rst", "example-bids-events", "groovy"),
     block_key("examples_single_dataset.rst", "example-trigger-events", "groovy"),
     block_key("examples_single_dataset.rst", "example-lcmv-covariance", "groovy", 1),
-    block_key("examples_single_dataset.rst", "example-lcmv-covariance", "groovy", 2),
+    block_key("examples_single_dataset.rst", "example-lcmv-rank-overrides", "groovy"),
+    block_key(
+        "examples_single_dataset.rst",
+        "example-continuous-lcmv-no-noise",
+        "groovy",
+    ),
     block_key("examples_single_dataset.rst", "example-raw-covariance", "groovy", 1),
     block_key("examples_single_dataset.rst", "example-raw-covariance", "groovy", 2),
     block_key("examples_single_dataset.rst", "example-maxwell-tsss", "groovy"),
@@ -106,9 +111,14 @@ GROOVY_RUNTIME_PROFILES = {
     block_key("examples_single_dataset.rst", "example-lcmv-covariance", "groovy", 1): (
         "docker_input",
     ),
-    block_key("examples_single_dataset.rst", "example-lcmv-covariance", "groovy", 2): (
+    block_key("examples_single_dataset.rst", "example-lcmv-rank-overrides", "groovy"): (
         "docker_input",
     ),
+    block_key(
+        "examples_single_dataset.rst",
+        "example-continuous-lcmv-no-noise",
+        "groovy",
+    ): ("docker_input",),
     block_key("examples_single_dataset.rst", "example-raw-covariance", "groovy", 1): (
         "docker_input",
     ),
@@ -407,6 +417,45 @@ def write_runtime_config(path, block, profiles, root):
 
 class DocumentationConfigExamplesTests(unittest.TestCase):
     maxDiff = None
+
+    def test_public_docs_use_only_the_canonical_noise_covariance_field(self):
+        obsolete = []
+        canonical = []
+        for document in PUBLIC_DOCUMENTS:
+            text = document.read_text(encoding="utf-8")
+            if "covariance.type" in text:
+                obsolete.append(document.relative_to(REPO_ROOT).as_posix())
+            if "noise_covariance_mode" in text:
+                canonical.append(document.relative_to(REPO_ROOT).as_posix())
+
+        self.assertEqual(obsolete, [])
+        self.assertTrue(canonical, "Public docs must explain noise_covariance_mode")
+
+    def test_continuous_lcmv_examples_define_the_raw_covariance_window(self):
+        readme = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
+        examples = (
+            REPO_ROOT
+            / "docs"
+            / "source"
+            / "reference"
+            / "examples_single_dataset.rst"
+        ).read_text(encoding="utf-8")
+
+        readme_section = readme.split(
+            "### Noise covariance and continuous LCMV", 1
+        )[1].split("### Resume and interactive edits", 1)[0]
+        example_section = examples.split(
+            ".. _example-continuous-lcmv-no-noise:", 1
+        )[1].split(".. _example-lcmv-rank-overrides:", 1)[0]
+        for label, section in (
+            ("README", readme_section),
+            ("Sphinx example", example_section),
+        ):
+            with self.subTest(document=label):
+                self.assertIn("tmin", section)
+                self.assertRegex(section, r"tmin\s*[=:]\s*0(?:\.0)?")
+                self.assertRegex(section, r"tmax\s*[=:]\s*null")
+                self.assertIn("reject_by_annotation", section)
 
     def test_resting_epoch_docs_cover_all_fixed_length_options(self):
         documents = (
@@ -708,9 +757,8 @@ class DocumentationConfigExamplesTests(unittest.TestCase):
     def test_explicit_lcmv_rank_example_also_enables_lcmv(self):
         lcmv_rank_key = block_key(
             "examples_single_dataset.rst",
-            "example-lcmv-covariance",
+            "example-lcmv-rank-overrides",
             "groovy",
-            2,
         )
         block = next(block for block in all_blocks() if block.key == lcmv_rank_key)
         methods = re.search(

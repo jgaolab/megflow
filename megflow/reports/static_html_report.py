@@ -82,6 +82,7 @@ PROCESS_TO_STEP = {
     "run_ica": "ica",
     "run_ic_label": "ica",
     "apply_ica": "ica",
+    "prepare_source_raw": "source",
     "coregistration": "coregistration",
     "forward_solution": "headmodel",
     "epochs": "epochs",
@@ -2749,6 +2750,7 @@ def find_subjects(preprocessed_dir: Path) -> list[str]:
         "ica_report",
         "trans",
         "epochs",
+        "analysis_raw",
         "covariance",
         "source_recon",
         "forward_solution",
@@ -3210,7 +3212,13 @@ def expected_steps_for_scope(scope: dict[str, Any] | None) -> dict[str, bool]:
         "basic_preproc": True,
         "artifacts": True,
         "ica": bool(meg_stage >= 1 and not scope.get("skip_ica")),
-        "epochs": bool(meg_stage >= 2),
+        "epochs": bool(
+            meg_stage >= 2
+            and (
+                meg_stage == 2
+                or str(scope.get("source_type", "epochs")).lower() == "epochs"
+            )
+        ),
         "covariance": bool(meg_stage >= 3),
         "coregistration": bool(meg_stage >= 3),
         "headmodel": bool(meg_stage >= 3),
@@ -4247,6 +4255,7 @@ def collect_subject_data(
     ica_dir = preprocessed_dir / "ica_report" / subject
     trans_dir = preprocessed_dir / "trans" / subject
     epochs_dir = preprocessed_dir / "epochs" / subject
+    analysis_raw_dir = preprocessed_dir / "analysis_raw" / subject
     covariance_dir = preprocessed_dir / "covariance" / subject
     source_dir = preprocessed_dir / "source_recon" / subject
     fwd_dir = preprocessed_dir / "forward_solution" / subject
@@ -4596,18 +4605,58 @@ def collect_subject_data(
     summary["headmodel"] = headmodel_data
     summary["steps"]["headmodel"] = headmodel_data["exists"]
 
+    summary["steps"]["analysis_raw"] = bool(
+        list(analysis_raw_dir.glob("*_analysis-raw.fif"))
+    )
+
     # Covariance
-    covariance_data = {"assets": [], "exists": False}
-    for file_name in ["bl_cov.png", "bl_cov_spectra.png"]:
+    covariance_data = {
+        "assets": [],
+        "exists": False,
+        "noise_covariance_mode": "",
+        "error": "",
+    }
+    for file_name in [
+        "bl_cov.png",
+        "bl_cov_spectra.png",
+        "noise_cov.png",
+        "noise_cov_spectra.png",
+        "lcmv_data_cov.png",
+        "lcmv_data_cov_spectra.png",
+    ]:
         file_path = covariance_dir / file_name
         if file_path.exists():
             rel = copy_asset(file_path, output_root, subject_slug, "covariance")
             covariance_data["assets"].append({"title": file_name, "rel_path": rel})
-    noise_covariance_file = covariance_dir / "bl-cov.fif"
-    resolved_rank_file = covariance_dir / "resolved-rank.json"
-    covariance_data["exists"] = (
-        noise_covariance_file.is_file() and resolved_rank_file.is_file()
-    )
+    metadata_file = covariance_dir / "covariance-metadata.json"
+    if metadata_file.is_file():
+        try:
+            metadata = json.loads(metadata_file.read_text(encoding="utf-8"))
+            mode = str(metadata.get("noise_covariance_mode", "")).lower()
+            if mode not in {"epochs", "raw", "ad_hoc", "none"}:
+                raise ValueError(f"Unknown noise covariance mode: {mode!r}")
+            noise_name = metadata.get("noise_covariance_file")
+            data_name = metadata.get("data_covariance_file")
+            rank_name = metadata.get("resolved_rank_file") or "resolved-rank.json"
+            noise_complete = (
+                noise_name is None
+                if mode == "none"
+                else bool(noise_name and (covariance_dir / noise_name).is_file())
+            )
+            data_complete = not data_name or (covariance_dir / data_name).is_file()
+            rank_complete = (covariance_dir / rank_name).is_file()
+            covariance_data["noise_covariance_mode"] = mode
+            covariance_data["exists"] = bool(
+                noise_complete and data_complete and rank_complete
+            )
+        except (OSError, ValueError, TypeError, json.JSONDecodeError) as exc:
+            covariance_data["error"] = str(exc)
+    else:
+        covariance_data["noise_covariance_mode"] = "epochs"
+        covariance_data["exists"] = (
+            (covariance_dir / "bl-cov.fif").is_file()
+            and (covariance_dir / "resolved-rank.json").is_file()
+        )
     summary["covariance"] = covariance_data
     summary["steps"]["covariance"] = covariance_data["exists"]
 

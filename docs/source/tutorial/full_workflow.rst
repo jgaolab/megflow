@@ -2,10 +2,12 @@ Full Workflow
 =============
 
 The Quickstart intentionally stops at ``meg_ica`` because later stages are
-dataset-specific. A full source-level run needs correct event definitions,
-noise covariance choices, anatomy matching, and coregistration settings. This
-page explains when to run each broader workflow mode and what to check before
-using it.
+dataset-specific. A full source-level run needs the correct source input
+definition, noise covariance choice, anatomy matching, and coregistration
+settings. Epoched source analysis also needs validated events; continuous Raw
+analysis instead needs a scientifically appropriate analysis and covariance
+window. This page explains when to run each broader workflow mode and what to
+check before using it.
 
 Docker output ownership is handled by the MEGFlow entrypoint. It prepares
 mounted output permissions as root, then drops to the host UID/GID inferred
@@ -101,7 +103,7 @@ policies.
 Recommended Progression
 -----------------------
 
-For a new dataset, use this order:
+For a new dataset with an epoched source analysis, use this order:
 
 .. code-block:: text
 
@@ -110,6 +112,12 @@ For a new dataset, use this order:
    3. meg_epochs   -> verify events and epoch rejection
    4. meg_all      -> run covariance, coregistration, forward, and source
    5. report       -> regenerate the static report when outputs already exist
+
+For continuous source analysis, first validate ``meg_ica`` and anatomy, then
+configure ``source.type = "raw"`` and the continuous data-covariance window.
+The ``meg_epochs`` check is not required unless
+``covariance.noise_covariance_mode = "epochs"`` or a separate epoched output is
+also wanted.
 
 You can run ``all`` when the anatomy and MEG settings are already known and you
 want structural MRI processing plus full MEG processing in one execution.
@@ -292,15 +300,16 @@ Full Workflow Checklist
      - Number of components, ECG/EOG channel availability, ICLabel/rule-based
        settings, and manual review expectations.
    * - Epochs
-     - Resting fixed-length windows or task events, trigger channel, event ids,
-       BIDS ``events.tsv`` labels, epoch time window, baseline, and rejection
-       thresholds.
+     - Required when ``source.type = "epochs"``: resting fixed-length windows
+       or task events, trigger channel, event ids, BIDS ``events.tsv`` labels,
+       epoch time window, baseline, and rejection thresholds. A continuous Raw
+       source does not run epoching unless separately requested by its stage.
    * - Covariance
-     - Baseline epochs versus paired raw noise/empty-room recordings. For raw
-       covariance, set ``covariance.type = "raw"`` and
-       ``covariance.raw_covariance_task_id``. Confirm ``rank_policy`` and the
-       target/noise common-channel set; LCMV additionally writes a data
-       covariance from the exact source input.
+     - Select ``covariance.noise_covariance_mode`` from ``epochs``, ``raw``,
+       ``ad_hoc``, or ``none``. Raw mode also requires
+       ``covariance.raw_covariance_task_id``. Confirm ``rank_policy`` and, for
+       empirical noise, the target/noise common-channel set. LCMV independently
+       writes a data covariance from the exact source input.
    * - Anatomy matching
      - FreeSurfer/DeepPrep subject ids, ``anatomy.select_tag`` if needed, and
        whether anatomy was generated in this run or reused.

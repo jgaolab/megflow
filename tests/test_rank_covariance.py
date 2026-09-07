@@ -1,6 +1,7 @@
 import json
 import sys
 import tempfile
+import types
 import unittest
 from pathlib import Path
 from unittest import mock
@@ -12,6 +13,11 @@ import numpy as np
 MEGFLOW_DIR = Path(__file__).resolve().parents[1] / "megflow"
 if str(MEGFLOW_DIR) not in sys.path:
     sys.path.insert(0, str(MEGFLOW_DIR))
+
+autoreject = types.ModuleType("autoreject")
+autoreject.AutoReject = object
+autoreject.get_rejection_threshold = lambda epochs: {}
+sys.modules.setdefault("autoreject", autoreject)
 
 import compute_covariance
 import source_localization
@@ -271,6 +277,168 @@ class CovarianceWorkflowTests(unittest.TestCase):
                 visualize=False,
             )
 
+    def test_none_mode_skips_only_noise_covariance(self):
+        output_dir = self.root / "no_noise"
+        source_config = {
+            "source_methods": ["LCMV"],
+            "data_type": "mag",
+            "rank_policy": "auto",
+            "LCMV": {
+                "data_covariance": {
+                    "method": "empirical",
+                    "reject_by_annotation": True,
+                },
+                "make_lcmv": {},
+            },
+        }
+
+        with mock.patch.object(
+            compute_covariance,
+            "_prepare_noise_input",
+        ) as prepare_noise, mock.patch.object(
+            compute_covariance.mne,
+            "make_ad_hoc_cov",
+        ) as make_ad_hoc:
+            noise_path, data_path, resolved_rank = (
+                compute_covariance.compute_covariances(
+                    noise_data_file=None,
+                    source_data_file=self.target_raw_path,
+                    source_data_mode="raw",
+                    events_file="",
+                    output_dir=output_dir,
+                    noise_covariance_mode="none",
+                    covariance_config={"rank_policy": "auto"},
+                    source_config=source_config,
+                    visualize=False,
+                )
+            )
+
+        prepare_noise.assert_not_called()
+        make_ad_hoc.assert_not_called()
+        self.assertIsNone(noise_path)
+        self.assertTrue(data_path.is_file())
+        self.assertEqual(resolved_rank, {"mag": 2})
+        self.assertFalse((output_dir / "bl-cov.fif").exists())
+        self.assertFalse((output_dir / "noise-cov.fif").exists())
+        metadata = json.loads(
+            (output_dir / "covariance-metadata.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(metadata["noise_covariance_mode"], "none")
+        self.assertIsNone(metadata["noise_covariance_file"])
+        self.assertEqual(metadata["data_covariance_file"], "lcmv-data-cov.fif")
+
+    def test_none_mode_rejects_additional_source_methods_before_loading_data(self):
+        with mock.patch.object(
+            compute_covariance, "_read_target_source"
+        ) as read_target:
+            with self.assertRaisesRegex(
+                compute_covariance.CovarianceConfigurationError,
+                "source_methods=\\['LCMV'\\]",
+            ):
+                compute_covariance.compute_covariances(
+                    noise_data_file=None,
+                    source_data_file=self.target_raw_path,
+                    source_data_mode="raw",
+                    events_file="",
+                    output_dir=self.root / "none_with_dspm",
+                    noise_covariance_mode="none",
+                    covariance_config={"rank_policy": "auto"},
+                    source_config={
+                        "source_methods": ["LCMV", "dSPM"],
+                        "data_type": "mag",
+                        "LCMV": {"data_covariance": {"method": "empirical"}},
+                    },
+                    visualize=False,
+                )
+
+        read_target.assert_not_called()
+
+    def test_none_mode_rejects_mixed_sensor_types_before_data_covariance(self):
+        info = mne.create_info(
+            ["MEG0111", "MEG0112"],
+            100.0,
+            ["mag", "grad"],
+        )
+        data = np.random.default_rng(22).standard_normal((2, 600)) * 1e-12
+        mixed_raw = mne.io.RawArray(data, info, verbose=False)
+        mixed_path = self.root / "mixed_none_raw.fif"
+        mixed_raw.save(mixed_path, overwrite=True, verbose=False)
+
+        with mock.patch.object(
+            compute_covariance.mne, "compute_raw_covariance"
+        ) as compute_data_covariance:
+            with self.assertRaisesRegex(
+                compute_covariance.CovarianceConfigurationError,
+                "single sensor type",
+            ):
+                compute_covariance.compute_covariances(
+                    noise_data_file=None,
+                    source_data_file=mixed_path,
+                    source_data_mode="raw",
+                    events_file="",
+                    output_dir=self.root / "mixed_none",
+                    noise_covariance_mode="none",
+                    covariance_config={"rank_policy": "auto"},
+                    source_config={
+                        "source_methods": ["LCMV"],
+                        "data_type": "meg",
+                        "LCMV": {"data_covariance": {"method": "empirical"}},
+                    },
+                    visualize=False,
+                )
+
+        compute_data_covariance.assert_not_called()
+
+    def test_ad_hoc_mode_uses_selected_target_info(self):
+        output_dir = self.root / "ad_hoc"
+        info = mne.create_info(
+            ["MEG0111", "MEG0112"],
+            100.0,
+            ["mag", "grad"],
+        )
+        data = np.random.default_rng(21).standard_normal((2, 600)) * 1e-12
+        mixed_raw = mne.io.RawArray(data, info, verbose=False)
+        mixed_path = self.root / "mixed_raw.fif"
+        mixed_raw.save(mixed_path, overwrite=True, verbose=False)
+        source_config = {
+            "source_methods": ["LCMV"],
+            "data_type": "meg",
+            "rank_policy": "auto",
+            "LCMV": {
+                "data_covariance": {"method": "empirical"},
+                "make_lcmv": {},
+            },
+        }
+
+        with mock.patch.object(
+            compute_covariance.mne,
+            "make_ad_hoc_cov",
+            wraps=mne.make_ad_hoc_cov,
+        ) as make_ad_hoc:
+            noise_path, data_path, _ = compute_covariance.compute_covariances(
+                noise_data_file=None,
+                source_data_file=mixed_path,
+                source_data_mode="raw",
+                events_file="",
+                output_dir=output_dir,
+                noise_covariance_mode="ad_hoc",
+                covariance_config={"make_ad_hoc_cov": {}},
+                source_config=source_config,
+                visualize=False,
+            )
+
+        make_ad_hoc.assert_called_once()
+        selected_info = make_ad_hoc.call_args.args[0]
+        self.assertEqual(selected_info["ch_names"], ["MEG0111", "MEG0112"])
+        self.assertEqual(noise_path.name, "noise-cov.fif")
+        self.assertTrue(noise_path.is_file())
+        self.assertTrue(data_path.is_file())
+        metadata = json.loads(
+            (output_dir / "covariance-metadata.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(metadata["noise_covariance_mode"], "ad_hoc")
+        self.assertEqual(metadata["noise_covariance_file"], "noise-cov.fif")
+
 
 class SourceContractTests(unittest.TestCase):
     def test_lcmv_requires_precomputed_data_covariance(self):
@@ -358,6 +526,90 @@ class SourceContractTests(unittest.TestCase):
                     raw, forward, noise_cov, data_cov
                 )
 
+    def test_source_alignment_uses_resolved_rank_channel_contract(self):
+        raw = low_rank_raw(("MEG001", "MEG002", "MEG003"))
+        noise_cov = mne.Covariance(
+            np.eye(2), ["MEG003", "MEG001"], [], [], nfree=10
+        )
+        data_cov = mne.Covariance(
+            np.eye(2), ["MEG003", "MEG001"], [], [], nfree=10
+        )
+        forward = {"info": {"ch_names": ["MEG001", "MEG002", "MEG003"]}}
+
+        with mock.patch.object(
+            source_localization.mne,
+            "pick_channels_forward",
+            return_value=forward,
+        ) as pick_forward, mock.patch.object(
+            source_localization.mne,
+            "pick_channels_cov",
+            side_effect=lambda covariance, **kwargs: covariance,
+        ) as pick_cov:
+            aligned_raw, _, _, _ = source_localization._align_source_inputs(
+                raw,
+                forward,
+                noise_cov,
+                data_cov,
+                expected_channels=["MEG003", "MEG001"],
+            )
+
+        self.assertEqual(aligned_raw.ch_names, ["MEG003", "MEG001"])
+        self.assertEqual(
+            pick_forward.call_args.kwargs["include"], ["MEG003", "MEG001"]
+        )
+        self.assertEqual(pick_cov.call_count, 2)
+
+    def test_lcmv_none_mode_defaults_to_nai_without_overriding_explicit_weight_norm(self):
+        default_kwargs, _ = source_localization._lcmv_mne_kwargs(
+            {"LCMV": {"make_lcmv": {}}},
+            {"mag": 2},
+            "raw",
+            noise_covariance_mode="none",
+        )
+        explicit_kwargs, _ = source_localization._lcmv_mne_kwargs(
+            {
+                "LCMV": {
+                    "make_lcmv": {
+                        "weight_norm": "unit-noise-gain-invariant"
+                    }
+                }
+            },
+            {"mag": 2},
+            "raw",
+            noise_covariance_mode="none",
+        )
+
+        self.assertEqual(default_kwargs["weight_norm"], "nai")
+        self.assertEqual(
+            explicit_kwargs["weight_norm"], "unit-noise-gain-invariant"
+        )
+
+    def test_lcmv_noise_modes_keep_the_existing_default_normalization(self):
+        for mode in ("epochs", "raw", "ad_hoc"):
+            with self.subTest(mode=mode):
+                make_kwargs, _ = source_localization._lcmv_mne_kwargs(
+                    {"LCMV": {"make_lcmv": {}}},
+                    {"mag": 2},
+                    "raw",
+                    noise_covariance_mode=mode,
+                )
+                self.assertEqual(
+                    make_kwargs["weight_norm"],
+                    "unit-noise-gain-invariant",
+                )
+
+    def test_lcmv_make_config_cannot_override_routed_noise_covariance(self):
+        with self.assertRaisesRegex(
+            source_localization.SourceConfigurationError,
+            "noise_cov",
+        ):
+            source_localization._lcmv_mne_kwargs(
+                {"LCMV": {"make_lcmv": {"noise_cov": None}}},
+                {"mag": 2},
+                "raw",
+                noise_covariance_mode="none",
+            )
+
     def test_epochs_lcmv_consumes_routed_data_covariance(self):
         epochs = mne.EpochsArray(
             low_rank_raw().get_data()[None, :, :100],
@@ -395,8 +647,8 @@ class SourceContractTests(unittest.TestCase):
             return_value=(epochs, forward, noise_cov, data_cov),
         ), mock.patch.object(
             source_localization,
-            "load_resolved_rank",
-            return_value={"mag": 2},
+            "load_resolved_rank_contract",
+            return_value=({"mag": 2}, epochs.ch_names),
         ) as load_rank, mock.patch.object(
             source_localization,
             "resolve_rank_policy",
@@ -419,12 +671,11 @@ class SourceContractTests(unittest.TestCase):
             )
 
         self.assertEqual(read_cov.call_count, 2)
-        load_rank.assert_called_once_with(
-            "/cov/resolved-rank.json", epochs.ch_names, "epochs"
-        )
+        load_rank.assert_called_once_with("/cov/resolved-rank.json", "epochs")
         resolve_rank.assert_not_called()
         self.assertIs(compute_lcmv.call_args.args[2], data_cov)
-        self.assertEqual(compute_lcmv.call_args.args[-1], {"mag": 2})
+        self.assertEqual(compute_lcmv.call_args.args[-2], {"mag": 2})
+        self.assertEqual(compute_lcmv.call_args.args[-1], "epochs")
 
     def test_raw_lcmv_consumes_routed_data_covariance(self):
         raw = low_rank_raw(("MEG001", "MEG002"))
@@ -489,6 +740,107 @@ class SourceContractTests(unittest.TestCase):
         self.assertIs(make_lcmv.call_args.kwargs["noise_cov"], noise_cov)
         self.assertEqual(make_lcmv.call_args.kwargs["rank"], {"mag": 2})
         stc.save.assert_called_once()
+
+    def test_raw_lcmv_none_mode_reads_only_data_covariance(self):
+        raw = low_rank_raw(("MEG001", "MEG002"))
+        data_cov = object()
+        forward = object()
+        filters = object()
+        stc = mock.Mock()
+        config = {
+            "spacing": "ico4",
+            "epoch_label": "continuous",
+            "source_methods": ["LCMV"],
+            "data_type": "meg",
+            "rank_policy": "auto",
+            "LCMV": {"make_lcmv": {}},
+        }
+
+        with mock.patch.object(
+            source_localization.mne,
+            "read_cov",
+            return_value=data_cov,
+        ) as read_cov, mock.patch.object(
+            source_localization.mne.io,
+            "read_raw_fif",
+            return_value=raw,
+        ), mock.patch.object(
+            source_localization.mne,
+            "read_forward_solution",
+            return_value=forward,
+        ), mock.patch.object(
+            source_localization,
+            "_align_source_inputs",
+            return_value=(raw, forward, None, data_cov),
+        ), mock.patch.object(
+            source_localization,
+            "resolve_rank_policy",
+            return_value={"mag": 2},
+        ), mock.patch.object(
+            source_localization,
+            "make_lcmv",
+            return_value=filters,
+        ) as make_lcmv, mock.patch.object(
+            source_localization,
+            "apply_lcmv_raw",
+            return_value=stc,
+        ):
+            source_localization.process_raw(
+                "/raw/sub-01/sub-01_raw.fif",
+                "/subjects",
+                None,
+                None,
+                "/output",
+                config,
+                False,
+                noise_covariance_mode="none",
+                data_covariance_file="/cov/lcmv-data-cov.fif",
+                forward_file="/fwd/continuous_ico4-fwd.fif",
+            )
+
+        read_cov.assert_called_once_with("/cov/lcmv-data-cov.fif")
+        self.assertIsNone(make_lcmv.call_args.kwargs["noise_cov"])
+        self.assertEqual(make_lcmv.call_args.kwargs["weight_norm"], "nai")
+
+    def test_raw_lcmv_none_mode_rejects_mixed_meg_sensor_types(self):
+        info = mne.create_info(
+            ["MEG0111", "MEG0112"], 200.0, ["mag", "grad"]
+        )
+        raw = mne.io.RawArray(np.zeros((2, 100)), info, verbose=False)
+        config = {
+            "spacing": "ico4",
+            "epoch_label": "continuous",
+            "source_methods": ["LCMV"],
+            "data_type": "meg",
+            "LCMV": {"make_lcmv": {}},
+        }
+
+        with mock.patch.object(
+            source_localization.mne.io,
+            "read_raw_fif",
+            return_value=raw,
+        ), mock.patch.object(
+            source_localization.mne,
+            "read_cov",
+        ) as read_cov:
+            with self.assertRaisesRegex(
+                source_localization.SourceConfigurationError,
+                "single sensor type",
+            ):
+                source_localization.process_raw(
+                    "/raw/sub-01/sub-01_raw.fif",
+                    "/subjects",
+                    None,
+                    None,
+                    "/output",
+                    config,
+                    False,
+                    noise_covariance_mode="none",
+                    data_covariance_file="/cov/lcmv-data-cov.fif",
+                    forward_file="/fwd/continuous_ico4-fwd.fif",
+                )
+
+        read_cov.assert_not_called()
 
     def test_dspm_does_not_read_lcmv_data_covariance(self):
         epochs = mne.EpochsArray(

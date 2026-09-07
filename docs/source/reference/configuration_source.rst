@@ -11,7 +11,8 @@ Rank Policy
 
 ``rank_policy`` is a processing-level field and defaults to ``"auto"``. It is
 resolved on the exact final experimental Raw or saved Epochs after bad-channel
-exclusion and restriction to channels shared with the noise input. The resolved
+exclusion. For empirical ``epochs`` or ``raw`` noise covariance, the target is
+first restricted to channels shared with the routed noise input. The resolved
 rank dictionary is then the default for covariance estimation and source
 reconstruction. It is written to ``resolved-rank.json`` and routed to source
 imaging so all default consumers use the same explicit dictionary rather than
@@ -38,13 +39,15 @@ Covariance
    * - ``visualize``
      - ``true``
      - Writes covariance matrix and spectrum figures.
-   * - ``type``
+   * - ``noise_covariance_mode``
      - ``epochs``
-     - ``epochs`` computes baseline-epoch covariance; ``raw`` uses a paired
-       continuous noise recording.
+     - Selects how noise covariance is supplied: ``epochs``, ``raw``,
+       ``ad_hoc``, or ``none``. This field does not control LCMV data
+       covariance.
    * - ``raw_covariance_task_id``
      - ``emptr``
-     - Task entity used to locate the paired ICA-clean noise recording.
+     - Task entity used to locate the paired ICA-clean noise recording in
+       ``raw`` mode. It is not consulted by other modes.
    * - ``event_time_shift_sec``
      - ``0.0``
      - Event correction for epoch-based covariance; normally matches epochs.
@@ -62,26 +65,78 @@ Covariance
    * - ``covariance``
      - tmin null, tmax null
      - MNE keyword arguments passed to ``mne.compute_covariance``.
+   * - ``make_ad_hoc_cov``
+     - empty
+     - MNE keyword arguments passed to ``mne.make_ad_hoc_cov`` in ``ad_hoc``
+       mode. MEGFlow supplies ``info`` from the exact source target.
+
+The four noise covariance modes have distinct input requirements:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 16 31 25 28
+
+   * - Mode
+     - Noise model
+     - Event requirement
+     - Noise output
+   * - ``epochs``
+     - Empirical baseline epochs made from the experimental analysis-ready Raw.
+     - Uses the configured task events or resting fixed-length events.
+     - ``bl-cov.fif``
+   * - ``raw``
+     - Empirical continuous recording paired through
+       ``raw_covariance_task_id``.
+     - None for covariance.
+     - ``bl-cov.fif``
+   * - ``ad_hoc``
+     - MNE ad hoc sensor variances created from the selected target ``Info``.
+     - None.
+     - ``noise-cov.fif``
+   * - ``none``
+     - No external or empirical noise covariance is computed; MEGFlow passes
+       Python ``None`` and MNE applies its internal unit-noise assumption.
+     - None.
+     - No noise covariance FIF
 
 The ``compute_raw_covariance`` and ``covariance`` maps are passed as kwargs to
 their namesake MNE functions. MEGFlow adds the resolved ``rank`` from
 ``rank_policy`` unless that function-level map explicitly supplies ``rank``.
-For epoch covariance, ``covariance.epochs`` follows the same direct
-``mne.Epochs`` contract as ``epochs.epochs``.
+For epoch noise covariance, ``covariance.epochs`` follows the same direct
+``mne.Epochs`` contract as ``epochs.epochs``. ``make_ad_hoc_cov.info`` and
+``source.LCMV.make_lcmv.noise_cov`` are workflow-owned inputs and must not be
+set in a project config.
 
-``bl-cov.fif`` is always produced for a full source run. The same covariance
-process also writes ``lcmv-data-cov.fif`` only when the effective
-``source.source_methods`` contains ``LCMV``. That data covariance is computed
-from the exact final source Raw or saved Epochs, not from newly reconstructed
-epochs. Minimum-norm-only runs do not compute it. ``resolved-rank.json`` is
-always written and records the target rank and ordered common channels consumed
-by source imaging.
+Noise covariance and LCMV data covariance are independent roles. The
+``noise_covariance_mode`` field controls only the former. The same covariance
+process writes ``lcmv-data-cov.fif`` whenever the effective
+``source.source_methods`` contains ``LCMV``, including in ``none`` mode. That
+data covariance is computed from the exact final source Raw or saved Epochs.
+Minimum-norm-only runs do not compute it. ``resolved-rank.json`` and
+``covariance-metadata.json`` are written in every source run.
 
-For ``type: raw``, MEGFlow replaces ``task-<experimental>`` in the ICA-clean
-continuous filename with ``task-<raw_covariance_task_id>``. The paired task must
-have been imported and processed through ICA. The task id may contain letters,
-numbers, and hyphens. Pairing retains all other filename entities, so subject,
-session, run, acquisition, and suffix must already describe the intended pair.
+``none`` is intentionally narrow: it requires
+``source.source_methods = ["LCMV"]`` and one selected sensor type. For a system
+that contains both magnetometers and gradiometers, set ``source.data_type`` to
+``"mag"`` or ``"grad"``. If both types must be analyzed together, use
+``ad_hoc`` or an empirical noise covariance. With ``none``, omitted
+``source.LCMV.make_lcmv.weight_norm`` defaults to ``"nai"``; an explicit value
+such as ``"unit-noise-gain-invariant"`` is preserved. With all other noise
+modes, the omitted default remains ``"unit-noise-gain-invariant"``.
+
+Thus, ``none`` means that MEGFlow does not estimate, create, save, or route a
+noise-covariance object. It does not mean that MNE performs beamformer
+preparation without any noise scale: MNE 1.8 substitutes a unit covariance
+internally after receiving ``noise_cov=None``. This is distinct from ``ad_hoc``,
+where MEGFlow explicitly calls ``mne.make_ad_hoc_cov`` and saves the resulting
+sensor-type-aware covariance.
+
+For ``noise_covariance_mode: raw``, MEGFlow replaces
+``task-<experimental>`` in the ICA-clean continuous filename with
+``task-<raw_covariance_task_id>``. The paired task must have been imported and
+processed through ICA. The task id may contain letters, numbers, and hyphens.
+Pairing retains all other filename entities, so subject, session, run,
+acquisition, and suffix must already describe the intended pair.
 
 The paired clean file is a channel dependency, not a path guessed from an
 output directory. Covariance therefore waits for the current run's noise record
@@ -100,7 +155,8 @@ input. For raw noise, MEGFlow also checks that the empirical noise-input rank
 can support that target rank. See :doc:`rank_covariance` for the complete
 contract and the limitation of independently applied ICA projections.
 
-**Worked examples:** :ref:`example-lcmv-covariance` and
+**Worked examples:** :ref:`example-lcmv-covariance`,
+:ref:`example-continuous-lcmv-no-noise`, and
 :ref:`example-raw-covariance`.
 
 BEM, Coregistration, Forward, and Source
@@ -145,7 +201,8 @@ BEM, Coregistration, Forward, and Source
      - Cortical surface and source-space spacing.
    * - ``source.type``
      - ``epochs``
-     - Source input mode: ``epochs`` or ``raw``.
+     - Source input mode: saved ``epochs`` or continuous analysis-ready
+       ``raw``. Raw mode does not run epoching merely to obtain ``Info``.
    * - ``source.visualize``
      - ``true``
      - Generates source figures.
@@ -174,9 +231,13 @@ BEM, Coregistration, Forward, and Source
      - tmin 0.01, tmax 0.4, method auto
      - Passed to ``mne.compute_covariance`` for Epochs or
        ``mne.compute_raw_covariance`` for Raw. Used only when LCMV is selected.
+       The shipped time limits are epoch-oriented; set ``tmin`` and ``tmax``
+       explicitly for a continuous Raw analysis.
    * - ``source.LCMV.make_lcmv``
-     - reg 0.05, pick_ori null, unit-noise-gain-invariant normalization
-     - Passed to ``mne.beamformer.make_lcmv``.
+     - reg 0.05, pick_ori null; mode-dependent normalization
+     - Passed to ``mne.beamformer.make_lcmv``. If ``weight_norm`` is omitted,
+       the default is ``nai`` for no-noise mode and
+       ``unit-noise-gain-invariant`` otherwise.
    * - ``source.LCMV.apply_lcmv`` / ``apply_lcmv_raw``
      - empty
      - Passed to the matching epoched or continuous MNE LCMV application
@@ -228,7 +289,7 @@ a recording profile. Maps are recursively merged across those levels.
          ]
 
          covariance = [
-           type: "epochs",
+           noise_covariance_mode: "epochs",
            epochs: [event_id: 1, tmin: -0.2, tmax: 0.0,
                     baseline: null, picks: "meg", preload: true],
            covariance: [

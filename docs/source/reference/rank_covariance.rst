@@ -2,9 +2,9 @@ Rank, Covariance, and Source Imaging
 ====================================
 
 MEGFlow resolves one default rank from the final experimental recording and
-uses it consistently for noise covariance, optional LCMV data covariance, and
-source reconstruction. This page describes that default contract and the
-advanced function-level overrides that remain available.
+uses it consistently for optional noise covariance, conditional LCMV data
+covariance, and source reconstruction. This page describes that contract and
+the advanced function-level overrides that remain available.
 
 Processing Contract
 -------------------
@@ -13,13 +13,14 @@ The source branch uses the following order:
 
 .. code-block:: text
 
-   final experimental Raw or saved Epochs
-       -> select data_type and exclude bad channels
-       -> intersect with the noise input in target-channel order
+   exact analysis-ready Raw or saved Epochs selected by source.type
+       -> select source.data_type and exclude bad channels
+       -> for empirical noise: intersect target and noise channels in target order
        -> resolve the target rank
-       -> write resolved-rank.json
-       -> compute bl-cov.fif
+       -> write resolved-rank.json and covariance-metadata.json
+       -> compute, synthesize, or omit noise covariance according to its mode
        -> compute lcmv-data-cov.fif only when LCMV is requested
+       -> build the forward model from the same target Info
        -> validate covariance, forward, rank, and source channel contracts
        -> run minimum norm and/or LCMV
 
@@ -27,7 +28,10 @@ For ``source.type = "epochs"``, the target is the exact ``*-epo.fif`` written
 by the epoch process. Rejection, interpolation, and optional analysis
 preprocessing are therefore retained. MEGFlow does not recreate source epochs
 inside the covariance or source process. For ``source.type = "raw"``, the
-target is the exact analysis-ready Raw associated with those epochs.
+workflow writes a separate analysis-ready Raw after applying ``epochs.preproc``
+when configured. Covariance, forward modeling, and source reconstruction all
+consume that same file; the epoch process and event extraction are not run just
+to obtain its ``Info``.
 
 Default Rank Policy
 -------------------
@@ -97,8 +101,39 @@ covariance matrix.
 Covariance Roles
 ----------------
 
-``compute_covariance.py`` owns both covariance roles. They are generated in
-one keyed Nextflow task for each experimental recording:
+``compute_covariance.py`` owns both covariance roles. Noise covariance models
+background sensor noise; LCMV data covariance models the analyzed signal
+window. They are different matrices and are controlled independently.
+
+``covariance.noise_covariance_mode`` selects the noise model:
+
+.. list-table::
+   :header-rows: 1
+   :widths: 15 39 24 22
+
+   * - Mode
+     - Behavior
+     - External dependency
+     - Noise output
+   * - ``epochs``
+     - Computes empirical covariance from configured baseline epochs.
+     - Events or resting fixed-length event settings.
+     - ``bl-cov.fif``
+   * - ``raw``
+     - Computes empirical covariance from a paired continuous noise recording.
+     - ``raw_covariance_task_id`` clean Raw.
+     - ``bl-cov.fif``
+   * - ``ad_hoc``
+     - Calls ``mne.make_ad_hoc_cov`` with the exact target ``Info``.
+     - None.
+     - ``noise-cov.fif``
+   * - ``none``
+     - Passes Python ``None`` as ``noise_cov`` to LCMV.
+     - None.
+     - None
+
+The covariance task emits the following artifacts for each experimental
+recording:
 
 .. list-table::
    :header-rows: 1
@@ -108,10 +143,11 @@ one keyed Nextflow task for each experimental recording:
      - Required for
      - Input
    * - ``bl-cov.fif``
-     - All minimum-norm and LCMV methods
-     - Baseline epochs when ``covariance.type = "epochs"``; otherwise the
-       paired continuous noise recording selected by
-       ``raw_covariance_task_id``.
+     - ``epochs`` or ``raw`` noise modes
+     - Baseline epochs or the paired continuous noise recording.
+   * - ``noise-cov.fif``
+     - ``ad_hoc`` noise mode
+     - The exact selected target ``Info``.
    * - ``lcmv-data-cov.fif``
      - LCMV only
      - The exact final experimental Raw or saved Epochs selected by
@@ -120,6 +156,10 @@ one keyed Nextflow task for each experimental recording:
      - All source methods
      - The explicit target-rank dictionary, ordered common-channel list, and
        source mode resolved by the covariance task.
+   * - ``covariance-metadata.json``
+     - All source methods
+     - Selected mode and the exact covariance/rank outputs expected by routing
+       and static reports.
 
 A dSPM/MNE/sLORETA/eLORETA-only run does not compute or route an LCMV data
 covariance. If ``LCMV`` is included in ``source_methods``, a missing or empty
@@ -128,6 +168,36 @@ Every source run consumes ``resolved-rank.json``; it does not estimate a second
 default rank. The source task verifies that its aligned channels exactly match
 the ordered channel list in that file before passing the stored dictionary to
 MNE. The Nextflow workflow always routes this artifact.
+
+The shipped LCMV data-covariance time limits (0.01 to 0.4 seconds) target the
+default epoched analysis. A continuous Raw configuration should always state
+its intended ``tmin`` and ``tmax``. Use ``0.0`` and ``null`` to estimate one
+covariance over the full usable recording, or select validated windows when the
+recording is nonstationary.
+
+Minimum-norm methods require a noise covariance, so ``none`` is valid only
+when ``source.source_methods`` is exactly ``["LCMV"]``. The LCMV data
+covariance remains required in this mode. Because MNE cannot combine sensor
+types without a noise covariance for whitening, the selected source input must
+contain one sensor type. On MEGIN data, set ``source.data_type`` to ``"mag"``
+or ``"grad"``; use ``ad_hoc`` when both should remain selected.
+
+If ``source.LCMV.make_lcmv.weight_norm`` is omitted, MEGFlow uses ``"nai"``
+with ``none`` and preserves the existing ``"unit-noise-gain-invariant"``
+default with the other modes. Explicit MNE values are never replaced, so
+``weight_norm = "unit-noise-gain-invariant"`` remains available in ``none``
+mode for a single selected sensor type.
+
+Here ``none`` means no external covariance object or noise-covariance output.
+MEGFlow passes ``noise_cov=None`` exactly as configured; MNE 1.8 then constructs
+an internal unit covariance for beamformer preparation. This unit-noise
+assumption is why the mode is restricted to one sensor type and why its output
+must not be interpreted as empirically noise calibrated. In contrast,
+``ad_hoc`` creates and saves an explicit sensor-type-aware covariance before
+the source task.
+
+See :ref:`example-continuous-lcmv-no-noise` for a complete trigger-free Raw
+configuration and :ref:`example-raw-covariance` for empty-room pairing.
 
 ``resolved-rank.json`` is a generated internal derivative, not another user
 setting. Do not edit or route it manually in a normal workflow; change
@@ -207,7 +277,7 @@ construction.
 Raw and Empty-Room Noise
 ------------------------
 
-For ``covariance.type = "raw"``, pairing still uses
+For ``covariance.noise_covariance_mode = "raw"``, pairing uses
 ``covariance.raw_covariance_task_id``. MEGFlow replaces only the experimental
 file's ``task-...`` entity and requires all other recording entities to match.
 The current-run noise output is a channel dependency, so scheduling cannot
@@ -237,7 +307,8 @@ Before source reconstruction, MEGFlow verifies all of the following:
   ``source.type``;
 * the routed rank artifact hash is part of source cache lineage, and its
   channel order matches the aligned source input;
-* noise and LCMV data covariance channel names and order match;
+* any routed noise covariance and the LCMV data covariance match the target
+  channel names and order;
 * every covariance channel exists in the source data and forward solution;
 * ``lcmv-data-cov.fif`` exists only as a required input when LCMV is enabled.
 
@@ -251,6 +322,8 @@ See the MNE documentation for `compute_rank
 <https://mne.tools/stable/generated/mne.compute_raw_covariance.html>`_,
 `compute_covariance
 <https://mne.tools/stable/generated/mne.compute_covariance.html>`_,
+`make_ad_hoc_cov
+<https://mne.tools/stable/generated/mne.make_ad_hoc_cov.html>`_,
 `make_inverse_operator
 <https://mne.tools/stable/generated/mne.minimum_norm.make_inverse_operator.html>`_,
 and `make_lcmv

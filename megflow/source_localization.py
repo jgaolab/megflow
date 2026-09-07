@@ -20,6 +20,7 @@ from utils import (
     handle_yaml_scientific_notation,
     normalize_mne_rank,
     normalize_source_methods,
+    present_sensor_types,
     ranked_mne_kwargs,
     resolve_rank_policy,
     set_random_seed,
@@ -35,6 +36,9 @@ set_random_seed(2025)
 
 class SourceConfigurationError(MegflowConfigurationError):
     """Raised for deterministic source configuration or routing errors."""
+
+
+NOISE_COVARIANCE_MODES = {"epochs", "raw", "ad_hoc", "none"}
 
 
 def _mapping(value, config_name):
@@ -72,17 +76,46 @@ def _minimum_norm_mne_kwargs(method, config, resolved_rank, data_mode):
     return inverse_kwargs, apply_kwargs
 
 
-def _lcmv_mne_kwargs(config, resolved_rank, data_mode):
+def _normalize_noise_covariance_mode(value):
+    mode = str(value or "epochs").strip().lower()
+    if mode not in NOISE_COVARIANCE_MODES:
+        allowed = ", ".join(sorted(NOISE_COVARIANCE_MODES))
+        raise SourceConfigurationError(
+            f"noise_covariance_mode must be one of: {allowed}; got {value!r}."
+        )
+    return mode
+
+
+def _lcmv_mne_kwargs(
+    config, resolved_rank, data_mode, noise_covariance_mode="epochs"
+):
     """Resolve direct MNE kwargs for LCMV filter construction and application."""
+    noise_covariance_mode = _normalize_noise_covariance_mode(
+        noise_covariance_mode
+    )
     lcmv_config = _mapping(config.get("LCMV"), "source.LCMV")
     legacy_rank = lcmv_config.get("n_rank", RANK_NOT_SET)
+    configured_make_kwargs = _mapping(
+        lcmv_config.get("make_lcmv"), "source.LCMV.make_lcmv"
+    )
+    if "noise_cov" in configured_make_kwargs:
+        raise SourceConfigurationError(
+            "source.LCMV.make_lcmv.noise_cov is managed by covariance."
+            "noise_covariance_mode and must not be configured directly."
+        )
     make_kwargs = ranked_mne_kwargs(
-        _mapping(lcmv_config.get("make_lcmv"), "source.LCMV.make_lcmv"),
+        configured_make_kwargs,
         resolved_rank,
         "source.LCMV.make_lcmv",
         legacy_rank=legacy_rank,
         legacy_config_name="source.LCMV.n_rank",
     )
+    if "weight_norm" not in configured_make_kwargs:
+        make_kwargs["weight_norm"] = (
+            "nai"
+            if noise_covariance_mode == "none"
+            else "unit-noise-gain-invariant"
+        )
     apply_key = "apply_lcmv"
     if data_mode == "raw" and "apply_lcmv_raw" in lcmv_config:
         apply_key = "apply_lcmv_raw"
@@ -112,55 +145,80 @@ def _covariance_channel_names(covariance):
     return list(names)
 
 
-def _align_source_inputs(inst, fwd, noise_cov, data_cov=None):
-    """Restrict source inputs to the ordered noise-covariance channel contract."""
-    noise_channels = _covariance_channel_names(noise_cov)
-    if not noise_channels:
-        raise SourceConfigurationError("Noise covariance contains no channels.")
+def _validate_no_noise_sensor_contract(inst):
+    sensor_types = present_sensor_types(inst)
+    if len(sensor_types) > 1:
+        formatted_types = ", ".join(sorted(sensor_types))
+        raise SourceConfigurationError(
+            "noise_covariance_mode='none' requires a single sensor type, but the "
+            f"selected source input contains: {formatted_types}. Select one type "
+            "or use noise_covariance_mode='ad_hoc'."
+        )
 
-    missing_data = [name for name in noise_channels if name not in inst.ch_names]
+
+def _align_source_inputs(
+    inst, fwd, noise_cov, data_cov=None, *, expected_channels=None
+):
+    """Align all source inputs to the ordered target-rank channel contract."""
+    target_channels = list(expected_channels or inst.ch_names)
+    if not target_channels:
+        raise SourceConfigurationError("The target source channel contract is empty.")
+    if len(target_channels) != len(set(target_channels)):
+        raise SourceConfigurationError(
+            "The target source channel contract contains duplicate channel names."
+        )
+
+    missing_data = [name for name in target_channels if name not in inst.ch_names]
     if missing_data:
         raise SourceConfigurationError(
-            "Noise covariance contains channels absent from the target source input: "
+            "The resolved-rank contract contains channels absent from the target "
+            "source input: "
             + ", ".join(missing_data)
         )
-    inst.pick(noise_channels)
-    if inst.ch_names != noise_channels:
+    inst.pick(target_channels)
+    if inst.ch_names != target_channels:
         raise SourceConfigurationError(
-            "Target source input could not be ordered like the noise covariance."
+            "Target source input could not be ordered like the resolved-rank contract."
         )
 
     forward_channels = set(fwd["info"]["ch_names"])
-    missing_forward = [name for name in noise_channels if name not in forward_channels]
+    missing_forward = [name for name in target_channels if name not in forward_channels]
     if missing_forward:
         raise SourceConfigurationError(
-            "Noise covariance contains channels absent from the forward solution: "
+            "The target channel contract contains channels absent from the forward "
+            "solution: "
             + ", ".join(missing_forward)
         )
     fwd = mne.pick_channels_forward(
-        fwd, include=noise_channels, ordered=True, copy=True
+        fwd, include=target_channels, ordered=True, copy=True
     )
-    noise_cov = mne.pick_channels_cov(
-        noise_cov, include=noise_channels, ordered=True, copy=True
-    )
+
+    if noise_cov is not None:
+        noise_channels = _covariance_channel_names(noise_cov)
+        if noise_channels != target_channels:
+            raise SourceConfigurationError(
+                "Noise covariance channels/order do not match the resolved-rank "
+                f"contract. target={target_channels}, noise={noise_channels}"
+            )
+        noise_cov = mne.pick_channels_cov(
+            noise_cov, include=target_channels, ordered=True, copy=True
+        )
 
     if data_cov is not None:
         data_channels = _covariance_channel_names(data_cov)
-        if data_channels != noise_channels:
+        if data_channels != target_channels:
             raise SourceConfigurationError(
-                "LCMV data covariance channels/order do not match the noise covariance. "
-                f"noise={noise_channels}, data={data_channels}"
+                "LCMV data covariance channels/order do not match the resolved-rank "
+                f"contract. target={target_channels}, data={data_channels}"
             )
         data_cov = mne.pick_channels_cov(
-            data_cov, include=noise_channels, ordered=True, copy=True
+            data_cov, include=target_channels, ordered=True, copy=True
         )
     return inst, fwd, noise_cov, data_cov
 
 
-def load_resolved_rank(
-    resolved_rank_file, expected_channels, expected_source_data_mode=None
-):
-    """Load and validate the rank artifact produced by compute_covariance.py."""
+def load_resolved_rank_contract(resolved_rank_file, expected_source_data_mode=None):
+    """Load the resolved rank and ordered target channels as one contract."""
     try:
         payload = json.loads(Path(resolved_rank_file).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as error:
@@ -171,10 +229,14 @@ def load_resolved_rank(
         raise SourceConfigurationError("resolved-rank.json must contain a JSON object.")
 
     channels = payload.get("channels")
-    if channels != list(expected_channels):
+    if (
+        not isinstance(channels, list)
+        or not channels
+        or any(not isinstance(name, str) or not name for name in channels)
+        or len(channels) != len(set(channels))
+    ):
         raise SourceConfigurationError(
-            "Resolved-rank channels/order do not match the aligned source inputs. "
-            f"rank={channels}, source={list(expected_channels)}"
+            "resolved-rank.json.channels must be a non-empty list of unique names."
         )
     source_data_mode = payload.get("source_data_mode")
     if (
@@ -191,6 +253,21 @@ def load_resolved_rank(
     if not isinstance(resolved_rank, dict):
         raise SourceConfigurationError(
             "resolved-rank.json.rank must be an explicit rank dictionary."
+        )
+    return resolved_rank, channels
+
+
+def load_resolved_rank(
+    resolved_rank_file, expected_channels, expected_source_data_mode=None
+):
+    """Load and validate the rank artifact produced by compute_covariance.py."""
+    resolved_rank, channels = load_resolved_rank_contract(
+        resolved_rank_file, expected_source_data_mode
+    )
+    if channels != list(expected_channels):
+        raise SourceConfigurationError(
+            "Resolved-rank channels/order do not match the aligned source inputs. "
+            f"rank={channels}, source={list(expected_channels)}"
         )
     return resolved_rank
 
@@ -269,6 +346,7 @@ def compute_LCMV(
     config,
     visualize,
     resolved_rank,
+    noise_covariance_mode="epochs",
 ):
     """
     Compute the LCMV beamformer solution and save the results.
@@ -303,7 +381,7 @@ def compute_LCMV(
     """
     stc_file = os.path.join(subj_src_path, f"{epoch_label}_evoked_LCMV-{spacing}")
     make_lcmv_kwargs, apply_lcmv_kwargs = _lcmv_mne_kwargs(
-        config, resolved_rank, "epochs"
+        config, resolved_rank, "epochs", noise_covariance_mode
     )
     logger.info("LCMV beamformer rank argument: %s", make_lcmv_kwargs.get("rank"))
     filters = make_lcmv(
@@ -328,14 +406,28 @@ def resolve_source_input_files(
     forward_file=None,
     noise_covariance_dir=None,
     forward_dir=None,
+    noise_covariance_mode="epochs",
 ):
     """Resolve exact routed files, retaining directory lookup for old callers."""
     recording_id = Path(data_file).parent.name
+    noise_covariance_mode = _normalize_noise_covariance_mode(
+        noise_covariance_mode
+    )
 
-    if noise_covariance_file:
+    if noise_covariance_mode == "none":
+        if noise_covariance_file or noise_covariance_dir:
+            raise SourceConfigurationError(
+                "A noise covariance file or directory must not be provided when "
+                "noise_covariance_mode='none'."
+            )
+        resolved_covariance = None
+    elif noise_covariance_file:
         resolved_covariance = Path(noise_covariance_file)
     elif noise_covariance_dir:
-        resolved_covariance = Path(noise_covariance_dir) / recording_id / "bl-cov.fif"
+        covariance_name = (
+            "noise-cov.fif" if noise_covariance_mode == "ad_hoc" else "bl-cov.fif"
+        )
+        resolved_covariance = Path(noise_covariance_dir) / recording_id / covariance_name
     else:
         raise SourceConfigurationError(
             "Provide --noise_covariance_file (preferred) or --noise_covariance_dir."
@@ -367,8 +459,12 @@ def process_subject(
     forward_file=None,
     data_covariance_file=None,
     resolved_rank_file=None,
+    noise_covariance_mode="epochs",
 ):
     """Process one epoched recording for source localization."""
+    noise_covariance_mode = _normalize_noise_covariance_mode(
+        noise_covariance_mode
+    )
     subject_id = Path(epoch_file).stem.split('_')[0]
     epoch_label = config.get("epoch_label", "")
     spacing = config.get('spacing')
@@ -380,6 +476,7 @@ def process_subject(
         forward_file=forward_file,
         noise_covariance_dir=noise_cov_path,
         forward_dir=fwd_dir,
+        noise_covariance_mode=noise_covariance_mode,
     )
 
     methods = normalize_source_methods(config.get("source_methods"))
@@ -388,23 +485,39 @@ def process_subject(
         raise SourceConfigurationError(
             "LCMV requires --data_covariance_file from compute_covariance.py."
         )
+    if noise_covariance_mode == "none" and methods != ["LCMV"]:
+        raise SourceConfigurationError(
+            "noise_covariance_mode='none' supports source_methods=['LCMV'] only."
+        )
 
-    noise_cov = mne.read_cov(noise_cov_file)
-    data_cov = mne.read_cov(data_covariance_file) if needs_lcmv else None
     epochs = _pick_source_data(
         mne.read_epochs(epoch_file, preload=True), config.get("data_type", "meg")
     )
+    if noise_covariance_mode == "none":
+        _validate_no_noise_sensor_contract(epochs)
+    if resolved_rank_file:
+        resolved_rank, rank_channels = load_resolved_rank_contract(
+            resolved_rank_file, "epochs"
+        )
+    else:
+        resolved_rank = None
+        rank_channels = None
+    noise_cov = (
+        None if noise_cov_file is None else mne.read_cov(noise_cov_file)
+    )
+    data_cov = mne.read_cov(data_covariance_file) if needs_lcmv else None
     fwd = mne.read_forward_solution(resolved_forward_file)
     epochs, fwd, noise_cov, data_cov = _align_source_inputs(
-        epochs, fwd, noise_cov, data_cov
+        epochs,
+        fwd,
+        noise_cov,
+        data_cov,
+        expected_channels=rank_channels,
     )
-    resolved_rank = (
-        load_resolved_rank(resolved_rank_file, epochs.ch_names, "epochs")
-        if resolved_rank_file
-        else resolve_rank_policy(
+    if resolved_rank is None:
+        resolved_rank = resolve_rank_policy(
             epochs, config.get("rank_policy", "auto"), config_name="rank_policy"
         )
-    )
     logger.info("Resolved target rank for source imaging: %s", resolved_rank)
     evoked = epochs.average()
 
@@ -420,7 +533,7 @@ def process_subject(
         compute_LCMV(
             evoked, fwd, data_cov, noise_cov, output_dir, subject_id,
             fs_subjects_dir, epoch_label, spacing, config, visualize,
-            resolved_rank,
+            resolved_rank, noise_covariance_mode,
         )
 
 
@@ -436,8 +549,12 @@ def process_raw(
     forward_file=None,
     data_covariance_file=None,
     resolved_rank_file=None,
+    noise_covariance_mode="epochs",
 ):
     """Process one continuous recording for source localization."""
+    noise_covariance_mode = _normalize_noise_covariance_mode(
+        noise_covariance_mode
+    )
     subject_id = Path(raw_file).stem.split('_')[0]
     spacing = config.get('spacing')
     epoch_label = config.get("epoch_label", "")
@@ -449,6 +566,7 @@ def process_raw(
         forward_file=forward_file,
         noise_covariance_dir=noise_cov_path,
         forward_dir=fwd_dir,
+        noise_covariance_mode=noise_covariance_mode,
     )
 
     methods = normalize_source_methods(config.get("source_methods"))
@@ -457,23 +575,39 @@ def process_raw(
         raise SourceConfigurationError(
             "LCMV requires --data_covariance_file from compute_covariance.py."
         )
+    if noise_covariance_mode == "none" and methods != ["LCMV"]:
+        raise SourceConfigurationError(
+            "noise_covariance_mode='none' supports source_methods=['LCMV'] only."
+        )
 
-    noise_cov = mne.read_cov(noise_cov_file)
-    data_cov = mne.read_cov(data_covariance_file) if needs_lcmv else None
     raw = _pick_source_data(
         mne.io.read_raw_fif(raw_file, preload=True), config.get("data_type", "meg")
     )
+    if noise_covariance_mode == "none":
+        _validate_no_noise_sensor_contract(raw)
+    if resolved_rank_file:
+        resolved_rank, rank_channels = load_resolved_rank_contract(
+            resolved_rank_file, "raw"
+        )
+    else:
+        resolved_rank = None
+        rank_channels = None
+    noise_cov = (
+        None if noise_cov_file is None else mne.read_cov(noise_cov_file)
+    )
+    data_cov = mne.read_cov(data_covariance_file) if needs_lcmv else None
     fwd = mne.read_forward_solution(resolved_forward_file)
     raw, fwd, noise_cov, data_cov = _align_source_inputs(
-        raw, fwd, noise_cov, data_cov
+        raw,
+        fwd,
+        noise_cov,
+        data_cov,
+        expected_channels=rank_channels,
     )
-    resolved_rank = (
-        load_resolved_rank(resolved_rank_file, raw.ch_names, "raw")
-        if resolved_rank_file
-        else resolve_rank_policy(
+    if resolved_rank is None:
+        resolved_rank = resolve_rank_policy(
             raw, config.get("rank_policy", "auto"), config_name="rank_policy"
         )
-    )
     logger.info("Resolved target rank for source imaging: %s", resolved_rank)
 
     for method in methods:
@@ -501,7 +635,7 @@ def process_raw(
 
     if needs_lcmv:
         make_lcmv_kwargs, apply_lcmv_kwargs = _lcmv_mne_kwargs(
-            config, resolved_rank, "raw"
+            config, resolved_rank, "raw", noise_covariance_mode
         )
         logger.info("LCMV beamformer rank argument: %s", make_lcmv_kwargs.get("rank"))
         filters = make_lcmv(
@@ -537,6 +671,13 @@ def parse_arguments():
                         help="Path to the MRI subject directory (Freesurfer subjects dir).")
     parser.add_argument('--noise_covariance_file', type=str,
                         help="Exact routed noise covariance file (preferred).")
+    parser.add_argument(
+        '--noise_covariance_mode',
+        type=str,
+        default="epochs",
+        choices=sorted(NOISE_COVARIANCE_MODES),
+        help="Noise covariance mode: epochs, raw, ad_hoc, or none.",
+    )
     parser.add_argument('--data_covariance_file', type=str,
                         help="Exact LCMV data covariance file; required only for LCMV.")
     parser.add_argument('--resolved_rank_file', type=str,
@@ -577,7 +718,8 @@ def main():
                     noise_covariance_file=args.noise_covariance_file,
                     forward_file=args.forward_file,
                     data_covariance_file=args.data_covariance_file,
-                    resolved_rank_file=args.resolved_rank_file)
+                    resolved_rank_file=args.resolved_rank_file,
+                    noise_covariance_mode=args.noise_covariance_mode)
     elif args.data_mode == "epochs":
         process_subject(args.data_file,
                         args.fs_subjects_dir,
@@ -589,7 +731,8 @@ def main():
                         noise_covariance_file=args.noise_covariance_file,
                         forward_file=args.forward_file,
                         data_covariance_file=args.data_covariance_file,
-                        resolved_rank_file=args.resolved_rank_file)
+                        resolved_rank_file=args.resolved_rank_file,
+                        noise_covariance_mode=args.noise_covariance_mode)
     else:
         raise ValueError("Unspported data mode: {}".format(args.data_mode))
     print("Finished source recon processing...")

@@ -284,7 +284,7 @@ class CovarianceConfigContractTests(unittest.TestCase):
     def test_megflow_scope_keys_never_reach_mne_covariance(self):
         covariance_kwargs = {
             "visualize": True,
-            "type": "epochs",
+            "noise_covariance_mode": "epochs",
             "raw_covariance_task_id": "emptyroom",
             "event_time_shift_sec": 0.0,
             "compute_raw_covariance": {"method": "auto"},

@@ -61,29 +61,33 @@ The complete ``meg_all`` or ``all`` dependency graph is:
      -> NormMEG-QC scoring (when enabled)
      -> NMDQ min_score gate
      -> continuous preprocessing
-     -> artifact detection
-     -> ICA fit
-     -> ICA labeling
-     -> ICA application
-     -> epoching
-          |-> noise covariance -------------------------|
-          |-> LCMV data covariance (only for LCMV) -----|-> source reconstruction
-          |-> forward solution <- coregistration -------|
-     -> static HTML report
+   -> artifact detection
+   -> ICA fit
+   -> ICA labeling
+   -> ICA application
+    -> select source target
+         |-> saved Epochs when source.type = "epochs"
+         |-> analysis-ready Raw when source.type = "raw"
+              |-> optional noise covariance ------------|
+              |-> target rank ---------------------------|
+              |-> LCMV data covariance (LCMV only) ------|-> source reconstruction
+              |-> forward solution <- coregistration ----|
+    -> static HTML report
 
 When ``megqc.enabled`` is false, imported recordings bypass both the scoring
 process and its gate. When enabled, an unscored recording or one below
 ``megqc.min_score`` does not enter continuous preprocessing.
 
 Covariance and coregistration may execute concurrently after their own inputs
-are ready. Forward modeling waits for both the recording's epoch file and its
-coregistration transform. Source reconstruction is a strict keyed join of that
-recording's exact forward file, noise covariance, and conditional LCMV data
-covariance. The covariance branch also carries the hash of the exact source
-Raw/Epochs used to compute it; an unmatched, duplicate, or inconsistent key is
-an error rather than a silently skipped source result.
+are ready. Forward modeling waits for both the recording's selected source
+target and its coregistration transform. Source reconstruction is a strict
+keyed join of that exact forward file, the optional noise covariance, the
+conditional LCMV data covariance, and the resolved-rank metadata. The
+covariance branch also carries the hash of the exact source Raw/Epochs used to
+compute it; an unmatched, duplicate, or inconsistent key is an error rather
+than a silently skipped source result.
 
-With ``covariance.type = "raw"``, the recording selected by
+With ``covariance.noise_covariance_mode = "raw"``, the recording selected by
 ``raw_covariance_task_id`` follows the same continuous preprocessing and ICA
 path, then feeds the experimental recording's noise-covariance branch. It does
 not create its own epochs, forward model, or source estimate.
@@ -186,9 +190,12 @@ tasks:
   task branches.
 * Changing one raw recording invalidates QC and all processing for that
   recording without invalidating other recordings.
-* Changing a BIDS ``events.tsv`` sidecar invalidates epoching, epoch-based
-  covariance, forward modeling, and source reconstruction for that recording;
-  continuous preprocessing and ICA remain cacheable.
+* Changing a BIDS ``events.tsv`` sidecar invalidates epoching and epoch-based
+  covariance. It also invalidates forward modeling and source reconstruction
+  when ``source.type = "epochs"``. A Raw source using ``raw``, ``ad_hoc``, or
+  ``none`` noise mode has no event lineage, so its downstream source tasks
+  remain cacheable; continuous preprocessing and ICA remain cacheable in both
+  cases.
 * Editing ``artifact_report/*/*_bad_channels.txt`` or
   ``artifact_report/*/*_bad_segments.txt`` invalidates ICA fitting and later
   steps for that recording.
@@ -311,19 +318,33 @@ uses this exact analysis-ready continuous recording.
 Covariance and Empty-Room Style Records
 ---------------------------------------
 
-Covariance is computed only in the full MEG stage. Two modes are available:
+Covariance is computed only in the full MEG stage.
+``covariance.noise_covariance_mode`` has four values:
 
-* ``covariance.type = "epochs"`` estimates noise covariance from baseline epochs
-  created from each cleaned experimental recording.
-* ``covariance.type = "raw"`` estimates noise covariance from a continuous raw
-  recording selected by ``covariance.raw_covariance_task_id``.
+* ``epochs`` estimates empirical noise covariance from baseline epochs created
+  from the experimental analysis-ready Raw and writes ``bl-cov.fif``.
+* ``raw`` estimates empirical noise covariance from the continuous recording
+  selected by ``covariance.raw_covariance_task_id`` and writes ``bl-cov.fif``.
+* ``ad_hoc`` calls ``mne.make_ad_hoc_cov`` with the selected experimental
+  target ``Info`` and writes ``noise-cov.fif``.
+* ``none`` skips noise covariance and passes ``None`` to LCMV. It is valid only
+  for LCMV-only source runs with one selected sensor type. MNE uses its internal
+  unit-noise assumption during beamformer preparation; MEGFlow does not write
+  or route a noise-covariance FIF.
 
-Both modes write ``bl-cov.fif``. The same ``compute_covariance`` task writes
-``lcmv-data-cov.fif`` only when the effective ``source.source_methods`` contains
-LCMV. That matrix is computed from the exact ``*-epo.fif`` when
-``source.type = "epochs"`` or the exact analysis-ready Raw when
-``source.type = "raw"``. dSPM and other minimum-norm-only runs do not perform
-this extra calculation.
+This setting controls noise covariance only. The same ``compute_covariance``
+task writes ``lcmv-data-cov.fif`` whenever the effective
+``source.source_methods`` contains LCMV, including in ``none`` mode. That matrix
+is computed from the exact ``*-epo.fif`` when ``source.type = "epochs"`` or the
+exact analysis-ready Raw when ``source.type = "raw"``. dSPM and other
+minimum-norm-only runs do not perform this extra calculation and cannot use
+``none`` because they require a noise covariance.
+
+The shipped ``source.LCMV.data_covariance`` time limits are designed for the
+default epoched source path. For continuous Raw LCMV, configure ``tmin`` and
+``tmax`` explicitly (for example, ``0.0`` and ``null`` for the full usable
+recording) so the data covariance is not unintentionally estimated from only a
+short initial window.
 
 When analysis preprocessing is configured for epochs, raw covariance applies
 the same operations in memory to the paired baseline recording. Empty
@@ -349,21 +370,22 @@ Reference recordings complete continuous preprocessing and ICA, then skip their
 own epoch/source branches. If a requested pair is absent, the strict downstream
 join fails the run instead of producing an incomplete source set.
 
-Before covariance estimation, target and noise inputs are restricted to common
-good channels in target-channel order. ``rank_policy`` is resolved from the
-final experimental target and provides the default rank for noise covariance,
-LCMV data covariance, and source reconstruction. For raw noise, MEGFlow also
-requires its empirical rank to be at least the target rank. This detects an
-insufficient empty-room input, but equal ranks do not prove that independently
-fitted ICA operators describe the same linear subspace. See
+For empirical ``epochs`` and ``raw`` noise, target and noise inputs are
+restricted to common good channels in target-channel order. ``rank_policy`` is
+resolved from the final experimental target and provides the default rank for
+noise covariance, LCMV data covariance, and source reconstruction. For raw
+noise, MEGFlow also requires its empirical rank to be at least the target rank.
+This detects an insufficient empty-room input, but equal ranks do not prove
+that independently fitted ICA operators describe the same linear subspace. See
 :doc:`../reference/rank_covariance` for configuration precedence and this
 compatibility boundary.
 
-The covariance task writes the resolved dictionary and its ordered target
-channels to ``resolved-rank.json``. Source reconstruction consumes that file,
-verifies the channel order after alignment with covariance and forward inputs,
-and passes the stored dictionary to the configured MNE functions. It does not
-derive a second default rank.
+The covariance task always writes the resolved dictionary and its ordered
+target channels to ``resolved-rank.json``, plus the selected mode and expected
+files to ``covariance-metadata.json``. Source reconstruction consumes these
+files, verifies channel order after alignment with any covariance and forward
+inputs, and passes the stored dictionary to the configured MNE functions. It
+does not derive a second default rank.
 
 Coregistration, Forward Model, and Source Reconstruction
 --------------------------------------------------------
@@ -373,20 +395,21 @@ subject anatomy. The process uses fiducial fitting, ICP, and a fine-tuned ICP
 stage controlled by the effective ``coreg`` block. It writes ``coreg-trans.fif``,
 coregistration figures, and distance summaries.
 
-``forward_solution`` builds the forward model using the keyed epoch file,
-transform, anatomy fingerprint, FreeSurfer subject directory, and the effective
-``forward`` block. The emitted tuple carries the exact generated forward FIF
-path rather than reconstructing that path later from directory names.
+``forward_solution`` builds the forward model using ``Info`` read from the
+exact selected Raw or Epochs target, together with the transform, anatomy
+fingerprint, FreeSurfer subject directory, and effective ``forward`` block. The
+emitted tuple carries the exact generated forward FIF path rather than
+reconstructing that path later from directory names.
 
 ``source_imaging`` consumes either epochs or raw data according to
-``source.type``.
-It receives and loads the exact forward model, noise covariance, and optional
-LCMV data covariance selected by the workflow. It verifies that covariance
-channel names and order match the source data and forward model, consumes the
-routed default-rank artifact, and then applies the configured source methods.
-LCMV never recomputes a covariance inside ``source_localization.py``. Deterministic
-rank, routing, channel-contract, or missing-output errors terminate rather than
-being retried and ignored as a successful partial run.
+``source.type``. It receives and loads the exact forward model, an optional
+noise covariance, and the LCMV data covariance when required. It verifies that
+the available covariance channel names and order match the source data and
+forward model, consumes the routed default-rank artifact, and then applies the
+configured source methods. LCMV never recomputes a covariance inside
+``source_localization.py``. Deterministic rank, routing, channel-contract, or
+missing-output errors terminate rather than being retried and ignored as a
+successful partial run.
 
 Static Processing and QC Report
 -------------------------------
@@ -441,11 +464,14 @@ Primary Outputs by Step
    * - Epochs
      - ``preprocessed/epochs/<recording>/``
      - ``*-epo.fif``, rejection log, sensor/PSD/topomap figures.
+   * - Analysis-ready Raw
+     - ``preprocessed/analysis_raw/<recording>/``
+     - Exact continuous source target when ``source.type = "raw"``.
    * - Covariance
      - ``preprocessed/covariance/<recording>/``
-     - ``bl-cov.fif`` and its diagnostic figures; conditional
-       ``lcmv-data-cov.fif`` and diagnostics when LCMV is requested; and
-       ``resolved-rank.json`` for every full source branch.
+     - Mode-dependent ``bl-cov.fif``, ``noise-cov.fif``, or no noise FIF;
+       conditional ``lcmv-data-cov.fif`` and diagnostics; plus
+       ``resolved-rank.json`` and ``covariance-metadata.json``.
    * - Coregistration
      - ``preprocessed/trans/<recording>/``
      - ``coreg-trans.fif``, distance CSV, alignment figures.

@@ -383,6 +383,15 @@ def normalize_source_methods(value, config_name="source.source_methods"):
     return methods
 
 
+def present_sensor_types(inst, supported=("mag", "grad", "eeg")):
+    """Return supported sensor types present in an MNE Raw or Epochs object."""
+    allowed = set(supported)
+    channel_types = {
+        mne.channel_type(inst.info, index) for index in range(len(inst.ch_names))
+    }
+    return channel_types & allowed
+
+
 def set_random_seed(seed=None):
     """Set all random seeds.
 

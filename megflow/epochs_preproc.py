@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""Continuous MEG preprocessing for epoch-based secondary analysis."""
+"""Continuous MEG preprocessing for Raw- or Epochs-based secondary analysis."""
 
+import argparse
 from pathlib import Path
 
 import mne
 import numpy as np
+import yaml
+
+from utils import handle_yaml_scientific_notation
 
 
 _SUPPORTED_OPERATIONS = {"filter", "notch", "notch_filter", "resample"}
@@ -147,6 +151,46 @@ def prepare_analysis_raw(
     return raw, current_events, True
 
 
+def materialize_analysis_raw(input_file, output_file, config=None):
+    """Create the exact continuous Raw artifact consumed by source imaging."""
+    input_path = Path(input_file)
+    output_path = Path(output_file)
+    if input_path.resolve() == output_path.resolve():
+        raise ValueError("Analysis Raw output must differ from its input file.")
+
+    raw = mne.io.read_raw_fif(input_path, preload=True)
+    raw, _, _ = prepare_analysis_raw(raw, config)
+    output_path.parent.mkdir(parents=True, exist_ok=True)
+    raw.save(output_path, overwrite=True)
+    print(f"Analysis-ready continuous MEG data saved to {output_path}")
+    return output_path
+
+
 def apply_continuous_preproc(raw, config=None, events=None):
     """Backward-compatible alias for older callers."""
     return prepare_analysis_raw(raw, config, events=events)
+
+
+def parse_arguments():
+    parser = argparse.ArgumentParser(
+        description="Materialize analysis-ready continuous MEG data."
+    )
+    parser.add_argument("--input_file", required=True)
+    parser.add_argument("--output_file", required=True)
+    parser.add_argument("--config", default="{}")
+    return parser.parse_args()
+
+
+def main():
+    args = parse_arguments()
+    handle_yaml_scientific_notation()
+    config = yaml.safe_load(args.config)
+    if config is None:
+        config = {}
+    if not isinstance(config, dict):
+        raise ValueError("--config must decode to a mapping.")
+    materialize_analysis_raw(args.input_file, args.output_file, config)
+
+
+if __name__ == "__main__":
+    main()

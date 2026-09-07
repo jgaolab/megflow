@@ -362,6 +362,72 @@ boolean sourceUsesLcmv(Map effectiveConfig) {
         .any { method -> method != null && method.toString().equalsIgnoreCase('LCMV') }
 }
 
+String sourceDataMode(Map effectiveConfig) {
+    def mode = cfgText(effectiveConfig, ['source', 'type'], 'epochs')
+        .trim()
+        .toLowerCase()
+    if (!(mode in ['epochs', 'raw'])) {
+        throw new IllegalArgumentException(
+            "source.type must be 'epochs' or 'raw'; received '${mode}'."
+        )
+    }
+    return mode
+}
+
+String noiseCovarianceMode(Map effectiveConfig) {
+    def covarianceConfig = asMap(effectiveConfig.covariance)
+    if (covarianceConfig.containsKey('type')) {
+        throw new IllegalArgumentException(
+            "covariance.type is no longer supported; use " +
+            "covariance.noise_covariance_mode instead."
+        )
+    }
+    def mode = cfgText(
+        effectiveConfig,
+        ['covariance', 'noise_covariance_mode'],
+        'epochs'
+    ).trim().toLowerCase()
+    def allowed = ['epochs', 'raw', 'ad_hoc', 'none'] as Set
+    if (!allowed.contains(mode)) {
+        throw new IllegalArgumentException(
+            "covariance.noise_covariance_mode must be one of ${allowed.sort()}; " +
+            "received '${mode}'."
+        )
+    }
+    return mode
+}
+
+void validateSourceCovarianceConfig(Map effectiveConfig, String context) {
+    def mode = noiseCovarianceMode(effectiveConfig)
+    sourceDataMode(effectiveConfig)
+    def sourceConfig = asMap(effectiveConfig.source)
+    def lcmvConfig = asMap(sourceConfig.LCMV)
+    def makeLcmvConfig = asMap(lcmvConfig.make_lcmv)
+    if (makeLcmvConfig.containsKey('noise_cov')) {
+        throw new IllegalArgumentException(
+            "${context}.source.LCMV.make_lcmv.noise_cov is workflow-owned; " +
+            "select covariance.noise_covariance_mode instead."
+        )
+    }
+    def makeAdHocConfig = asMap(asMap(effectiveConfig.covariance).make_ad_hoc_cov)
+    if (makeAdHocConfig.containsKey('info')) {
+        throw new IllegalArgumentException(
+            "${context}.covariance.make_ad_hoc_cov.info is workflow-owned."
+        )
+    }
+    if (mode == 'none') {
+        def methods = asList(sourceConfig.source_methods)
+            .collect { method -> method == null ? '' : method.toString().trim().toUpperCase() }
+            .findAll { method -> method }
+        if (methods != ['LCMV']) {
+            throw new IllegalArgumentException(
+                "${context}.covariance.noise_covariance_mode='none' requires " +
+                "source.source_methods=['LCMV']; received ${methods}."
+            )
+        }
+    }
+}
+
 String configJson(def value) {
     return JsonOutput.toJson(value == null ? [:] : value)
 }
@@ -430,7 +496,7 @@ Map normalizeModuleConfig(String moduleName, Map moduleConfig) {
         out.epochs = epochKwargs
         def covarianceKwargs = asMap(out.covariance)
         [
-            'visualize', 'type', 'raw_covariance_task_id',
+            'visualize', 'noise_covariance_mode', 'raw_covariance_task_id',
             'event_time_shift_sec', 'compute_raw_covariance', 'events', 'epochs',
             'event_source', 'event_file', 'find_events', 'analysis_preproc',
             'rank_policy'
@@ -457,6 +523,7 @@ Map fixedProcessOutputDirs() {
     return [
         ica: 'ica_report',
         epochs: 'epochs',
+        analysis_raw: 'analysis_raw',
         coreg: 'trans',
         covariance: 'covariance',
         forward: 'forward_solution',
@@ -686,6 +753,7 @@ boolean hasMeaningfulMatchValue(def value) {
 
 void validateRecordingProfiles(Map effectiveConfig, String context) {
     validateFixedProcessOutputDirs(effectiveConfig, context)
+    validateSourceCovarianceConfig(effectiveConfig, context)
     if (!effectiveConfig.containsKey('recordings')) {
         return
     }
@@ -707,6 +775,14 @@ void validateRecordingProfiles(Map effectiveConfig, String context) {
         def profile = asMap(profileValue)
         validateFixedProcessOutputDirs(
             profile,
+            "${context}.recordings.${profileName}"
+        )
+        def recordingOverride = new LinkedHashMap(profile)
+        recordingOverride.remove('match')
+        def recordingEffective = deepMerge(effectiveConfig, recordingOverride)
+        recordingEffective.remove('recordings')
+        validateSourceCovarianceConfig(
+            recordingEffective,
             "${context}.recordings.${profileName}"
         )
         if (!(profile.match instanceof Map) || asMap(profile.match).isEmpty()) {
@@ -1771,6 +1847,55 @@ process epochs {
     """
 }
 
+process prepare_source_raw {
+    tag "${subject_key[0]}:${subject_key[1]}"
+
+    input:
+    tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val(clean_raw_path), val(clean_hash), val(orig_raw_path)
+
+    output:
+    tuple val(subject_key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val("${preproc_dir}/${analysis_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_analysis-raw.fif"), val(clean_hash), val(orig_raw_path), emit: analysis_raw_subjects
+    path "analysis-raw-output.guard", emit: analysis_raw_cache_guard
+
+    script:
+    script_name = "${megflowCodeDir(effective_config)}/epochs_preproc.py"
+    code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/utils.py"])
+    raw_subject_basename = file(clean_raw_path).getBaseName()
+    raw_subject_dir_basename = file(clean_raw_path).getParent().getName()
+    analysis_output_dir = processOutputDir('analysis_raw')
+    epoch_config = moduleConfigJson(effective_config, 'epochs')
+    analysis_raw_path = "${preproc_dir}/${analysis_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_analysis-raw.fif"
+    """
+    # MEGFLOW_CODE_SHA256=${code_hash}
+    # MEGFLOW_CLEAN_INPUT=${clean_hash}
+    set -euo pipefail
+    mkdir -p "${preproc_dir}/${analysis_output_dir}/${raw_subject_dir_basename}"
+    python ${script_name} \
+        --input_file "${clean_raw_path}" \
+        --output_file "${analysis_raw_path}" \
+        --config '${epoch_config}'
+    test -s "${analysis_raw_path}"
+    ln -s "${analysis_raw_path}" analysis-raw-output.guard
+    """
+
+    stub:
+    script_name = "${megflowCodeDir(effective_config)}/epochs_preproc.py"
+    code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/utils.py"])
+    raw_subject_basename = file(clean_raw_path).getBaseName()
+    raw_subject_dir_basename = file(clean_raw_path).getParent().getName()
+    analysis_output_dir = processOutputDir('analysis_raw')
+    analysis_raw_path = "${preproc_dir}/${analysis_output_dir}/${raw_subject_dir_basename}/${raw_subject_basename}_analysis-raw.fif"
+    """
+    # MEGFLOW_CODE_SHA256=${code_hash}
+    # MEGFLOW_CLEAN_INPUT=${clean_hash}
+    set -euo pipefail
+    ${stubFailureCommand(effective_config, 'prepare_source_raw')}
+    mkdir -p "${preproc_dir}/${analysis_output_dir}/${raw_subject_dir_basename}"
+    printf 'stub analysis raw %s\n' "${clean_raw_path}" > "${analysis_raw_path}"
+    ln -s "${analysis_raw_path}" analysis-raw-output.guard
+    """
+}
+
 process compute_covariance {
     tag "${subject_key[0]}:${subject_key[1]}"
 
@@ -1778,8 +1903,9 @@ process compute_covariance {
     tuple val(subject_key), val(dataset_name), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val(source_data_file), val(source_data_mode), val(source_data_hash), val(noise_key), val(noise_data_file), val(noise_input_hash), val(events_file), val(events_hash), val(clean_hash), val(needs_lcmv)
 
     output:
-    tuple val(subject_key), val(output_dir), val(preproc_dir), val(effective_config), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif"), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json"), val(needs_lcmv), val(clean_hash), val(source_data_hash), val(noise_key), val(covariance_input_hash), emit: cov_subjects
+    tuple val(subject_key), val(output_dir), val(preproc_dir), val(effective_config), val(noise_covariance_file), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif"), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json"), val("${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json"), val(noise_covariance_mode), val(needs_lcmv), val(clean_hash), val(source_data_hash), val(noise_key), val(covariance_input_hash), emit: cov_subjects
     path "noise-covariance-output.guard", emit: noise_covariance_cache_guard
+    path "covariance-metadata-output.guard", emit: covariance_metadata_cache_guard
     path "data-covariance-output.guard", emit: data_covariance_cache_guard
     path "resolved-rank-output.guard", emit: resolved_rank_cache_guard
 
@@ -1793,13 +1919,18 @@ process compute_covariance {
     source_config.rank_policy = cfgGet(effective_config, ['rank_policy'], 'auto')
     covar_output_dir = processOutputDir('covariance')
     covar_visualize = cfgBool(covariance_config, ['visualize'], true)
-    covar_type = cfgText(covariance_config, ['type'], 'epochs')
-    if (covar_type == 'raw' && modulePreprocConfigured(effective_config, 'epochs')) {
+    noise_covariance_mode = noiseCovarianceMode(effective_config)
+    if (noise_covariance_mode == 'raw' && modulePreprocConfigured(effective_config, 'epochs')) {
         covariance_config.analysis_preproc = cfgGet(effective_config, ['epochs', 'preproc'], [])
     }
     covar_config = configJson(covariance_config)
     src_config = configJson(source_config)
-    covariance_input_hash = "noise:${noise_input_hash}|events:${events_hash}|source:${source_data_hash}"
+    noise_covariance_file = noise_covariance_mode == 'none' ? '' :
+        "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/${noise_covariance_mode == 'ad_hoc' ? 'noise-cov.fif' : 'bl-cov.fif'}"
+    noise_data_arg = noise_covariance_mode in ['epochs', 'raw'] ?
+        "--noise_data_file \"${noise_data_file}\" --noise_recording_id \"${noise_key[0]}:${noise_key[1]}\"" : ''
+    events_arg = noise_covariance_mode == 'epochs' ? "--events_file \"${events_file}\"" : ''
+    covariance_input_hash = "mode:${noise_covariance_mode}|noise:${noise_input_hash}|events:${events_hash}|source:${source_data_hash}"
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_EVENTS_INPUT=${events_hash}
@@ -1807,17 +1938,16 @@ process compute_covariance {
     set -euo pipefail
     mkdir -p "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}"
     python ${script_name} \\
-        --noise_data_file "${noise_data_file}" \\
-        --noise_recording_id "${noise_key[0]}:${noise_key[1]}" \\
+        ${noise_data_arg} \\
         --source_data_file "${source_data_file}" \\
         --source_data_mode ${source_data_mode} \\
-        --events_file "${events_file}" \\
+        ${events_arg} \\
         --output_dir "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}" \\
         --visualize ${covar_visualize} \\
-        --covar_type ${covar_type} \\
+        --noise_covariance_mode ${noise_covariance_mode} \\
         --config '${covar_config}' \\
         --source_config '${src_config}'
-    if [[ ! -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" ]]; then
+    if [[ -n "${noise_covariance_file}" && ! -s "${noise_covariance_file}" ]]; then
         echo "Noise covariance output is missing or empty" >&2
         exit 2
     fi
@@ -1825,16 +1955,25 @@ process compute_covariance {
         echo "Resolved-rank output is missing or empty" >&2
         exit 2
     fi
+    if [[ ! -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json" ]]; then
+        echo "Covariance metadata output is missing or empty" >&2
+        exit 2
+    fi
     if [[ "${needs_lcmv}" == "true" && ! -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif" ]]; then
         echo "LCMV data covariance output is missing or empty" >&2
         exit 2
     fi
-    ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" noise-covariance-output.guard
+    if [[ -n "${noise_covariance_file}" ]]; then
+        ln -s "${noise_covariance_file}" noise-covariance-output.guard
+    else
+        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json" noise-covariance-output.guard
+    fi
+    ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json" covariance-metadata-output.guard
     ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json" resolved-rank-output.guard
     if [[ "${needs_lcmv}" == "true" ]]; then
         ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif" data-covariance-output.guard
     else
-        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" data-covariance-output.guard
+        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json" data-covariance-output.guard
     fi
     """
 
@@ -1843,7 +1982,21 @@ process compute_covariance {
     code_hash = filesSha256([script_name, "${megflowCodeDir(effective_config)}/epochs.py", "${megflowCodeDir(effective_config)}/epochs_preproc.py", "${megflowCodeDir(effective_config)}/utils.py"])
     raw_subject_dir_basename = subject_key[1]
     covar_output_dir = processOutputDir('covariance')
-    covariance_input_hash = "noise:${noise_input_hash}|events:${events_hash}|source:${source_data_hash}"
+    noise_covariance_mode = noiseCovarianceMode(effective_config)
+    noise_covariance_name = noise_covariance_mode == 'none' ? null :
+        (noise_covariance_mode == 'ad_hoc' ? 'noise-cov.fif' : 'bl-cov.fif')
+    noise_covariance_file = noise_covariance_name == null ? '' :
+        "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/${noise_covariance_name}"
+    covariance_metadata_json = JsonOutput.prettyPrint(JsonOutput.toJson([
+        channels: [],
+        data_covariance_file: needs_lcmv ? 'lcmv-data-cov.fif' : null,
+        noise_covariance_file: noise_covariance_name,
+        noise_covariance_mode: noise_covariance_mode,
+        rank: [meg: 1],
+        resolved_rank_file: 'resolved-rank.json',
+        source_data_mode: source_data_mode
+    ]))
+    covariance_input_hash = "mode:${noise_covariance_mode}|noise:${noise_input_hash}|events:${events_hash}|source:${source_data_hash}"
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_EVENTS_INPUT=${events_hash}
@@ -1851,19 +2004,36 @@ process compute_covariance {
     set -euo pipefail
     ${stubFailureCommand(effective_config, 'compute_covariance')}
     mkdir -p "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}"
-    printf 'stub noise covariance %s\n' "${noise_data_file}" > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"
+    if [[ "${noise_covariance_mode}" == "epochs" || "${noise_covariance_mode}" == "raw" ]]; then
+        printf 'stub noise covariance %s\n' "${noise_data_file}" > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"
+        rm -f "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/noise-cov.fif"
+    elif [[ "${noise_covariance_mode}" == "ad_hoc" ]]; then
+        printf 'stub ad hoc noise covariance %s\n' "${source_data_file}" > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/noise-cov.fif"
+        rm -f "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"
+    else
+        rm -f "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif"
+        rm -f "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/noise-cov.fif"
+    fi
     printf '{"rank":{"meg":1},"channels":[],"source_data_mode":"%s"}\n' "${source_data_mode}" > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json"
+    cat > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json" <<'EOF_COVARIANCE_METADATA'
+${covariance_metadata_json}
+EOF_COVARIANCE_METADATA
     if [[ "${needs_lcmv}" == "true" ]]; then
         printf 'stub LCMV data covariance %s\n' "${source_data_file}" > "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif"
     else
         rm -f "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif"
     fi
-    ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" noise-covariance-output.guard
+    if [[ -n "${noise_covariance_file}" ]]; then
+        ln -s "${noise_covariance_file}" noise-covariance-output.guard
+    else
+        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json" noise-covariance-output.guard
+    fi
+    ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json" covariance-metadata-output.guard
     ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/resolved-rank.json" resolved-rank-output.guard
     if [[ "${needs_lcmv}" == "true" ]]; then
         ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/lcmv-data-cov.fif" data-covariance-output.guard
     else
-        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/bl-cov.fif" data-covariance-output.guard
+        ln -s "${preproc_dir}/${covar_output_dir}/${raw_subject_dir_basename}/covariance-metadata.json" data-covariance-output.guard
     fi
     """
 }
@@ -1922,10 +2092,10 @@ process forward_solution {
     tag "${key[0]}:${key[1]}"
 
     input:
-    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val(target_mri_subject_id), val(trans_path), val(coreg_clean_hash), val(trans_hash), val(anatomy_hash), val(epoch_output_dir), val(epoch_preproc_dir), val(epoch_fs_subjects_dir), val(epoch_effective_config), val(epoch_path), val(analysis_raw_path), val(epoch_clean_hash), val(epoch_events_hash), val(epoch_hash), val(analysis_hash)
+    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val(target_mri_subject_id), val(trans_path), val(coreg_clean_hash), val(trans_hash), val(anatomy_hash), val(source_output_dir), val(source_preproc_dir), val(source_fs_subjects_dir), val(source_effective_config), val(source_data_file), val(source_data_mode), val(source_data_hash), val(source_clean_hash), val(events_file), val(events_hash), val(covariance_raw_file), val(covariance_raw_hash)
 
     output:
-    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val("${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif"), val(epoch_path), val(analysis_raw_path), val(trans_hash), val(epoch_clean_hash), val(anatomy_hash), val(epoch_events_hash), val(epoch_hash), val(analysis_hash), emit: fwd_subjects
+    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val("${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif"), val(source_data_file), val(source_data_mode), val(source_data_hash), val(source_clean_hash), val(anatomy_hash), val(events_file), val(events_hash), val(covariance_raw_file), val(covariance_raw_hash), val(trans_hash), emit: fwd_subjects
     path "forward-solution-output.guard", emit: forward_solution_cache_guard
 
     script:
@@ -1943,10 +2113,11 @@ process forward_solution {
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_ANATOMY_INPUT=${anatomy_hash}
-    # MEGFLOW_EPOCH_INPUT=${epoch_events_hash}|${epoch_hash}|${analysis_hash}
+    # MEGFLOW_SOURCE_INFO_INPUT=${source_data_mode}|${source_data_hash}
     mkdir -p "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}"
     python ${script_name} \\
-        --epoch_file "${epoch_path}" \\
+        --info_file "${source_data_file}" \\
+        --info_mode "${source_data_mode}" \\
         --epoch_label "${fwd_epoch_label}" \\
         --output_dir "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}" \\
         --trans_file "${trans_path}" \\
@@ -1966,10 +2137,10 @@ process forward_solution {
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_ANATOMY_INPUT=${anatomy_hash}
-    # MEGFLOW_EPOCH_INPUT=${epoch_events_hash}|${epoch_hash}|${analysis_hash}
+    # MEGFLOW_SOURCE_INFO_INPUT=${source_data_mode}|${source_data_hash}
     ${stubFailureCommand(effective_config, 'forward_solution')}
     mkdir -p "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}"
-    printf 'stub forward %s %s\n' "${epoch_path}" "${trans_path}" > "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif"
+    printf 'stub forward %s %s\n' "${source_data_file}" "${trans_path}" > "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif"
     ln -s "${preproc_dir}/${fwd_output_dir}/${raw_subject_dir_basename}/${fwd_epoch_label}_${fwd_spacing}-fwd.fif" forward-solution-output.guard
     """
 }
@@ -1978,7 +2149,7 @@ process source_imaging {
     tag "${key[0]}:${key[1]}"
 
     input:
-    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val(fwd_file), val(epoch_path), val(analysis_raw_path), val(fwd_hash), val(epoch_clean_hash), val(anatomy_hash), val(epoch_events_hash), val(epoch_hash), val(analysis_hash), val(bl_cov_file), val(lcmv_data_cov_file), val(resolved_rank_file), val(needs_lcmv), val(covariance_hash), val(data_covariance_hash), val(resolved_rank_hash), val(covariance_source_hash), val(noise_key), val(covariance_input_hash)
+    tuple val(key), val(output_dir), val(preproc_dir), val(fs_subjects_dir), val(effective_config), val(fwd_file), val(fwd_hash), val(source_data_file), val(source_data_mode), val(source_data_hash), val(source_clean_hash), val(anatomy_hash), val(events_file), val(events_hash), val(covariance_raw_file), val(covariance_raw_hash), val(trans_hash), val(noise_covariance_file), val(lcmv_data_cov_file), val(resolved_rank_file), val(covariance_metadata_file), val(noise_covariance_mode), val(needs_lcmv), val(covariance_hash), val(data_covariance_hash), val(resolved_rank_hash), val(covariance_metadata_hash), val(covariance_source_hash), val(noise_key), val(covariance_input_hash)
 
     output:
     tuple val(key), val(output_dir), val(preproc_dir), val("${preproc_dir}/${src_output_dir}/${raw_subject_dir_basename}"), emit: source_subjects
@@ -1989,11 +2160,10 @@ process source_imaging {
     raw_subject_dir_basename = key[1]
     source_config = new LinkedHashMap(moduleConfig(effective_config, 'source'))
     source_config.rank_policy = cfgGet(effective_config, ['rank_policy'], 'auto')
-    src_type = cfgText(source_config, ['type'], 'epochs').toLowerCase()
+    src_type = source_data_mode
     src_output_dir = processOutputDir('source')
     source_visualize = cfgBool(source_config, ['visualize'], cfgBool(effective_config, ['visualize'], true))
     src_config = configJson(source_config)
-    raw_subject_path = src_type == 'epochs' ? epoch_path : analysis_raw_path
     if (!(src_type in ['epochs', 'raw'])) {
         error "Invalid source.type: ${src_type}. Please specify 'epochs' or 'raw'."
     }
@@ -2004,15 +2174,20 @@ process source_imaging {
         "${megflowCodeDir(effective_config)}/utils.py"
     ])
     data_covariance_arg = needs_lcmv ? "--data_covariance_file \"${lcmv_data_cov_file}\"" : ''
+    noise_covariance_arg = noise_covariance_file ? "--noise_covariance_file \"${noise_covariance_file}\"" : ''
     """
     # MEGFLOW_CODE_SHA256=${code_hash}
     # MEGFLOW_FORWARD_INPUT=${fwd_hash}
     # MEGFLOW_ANATOMY_INPUT=${anatomy_hash}
-    # MEGFLOW_EPOCH_INPUT=${epoch_events_hash}|${epoch_hash}|${analysis_hash}
-    # MEGFLOW_COVARIANCE_INPUT=${covariance_hash}|${data_covariance_hash}|${resolved_rank_hash}|${covariance_input_hash}
+    # MEGFLOW_SOURCE_INPUT=${source_data_mode}|${source_data_hash}
+    # MEGFLOW_COVARIANCE_INPUT=${covariance_hash}|${data_covariance_hash}|${resolved_rank_hash}|${covariance_metadata_hash}|${covariance_input_hash}
     set -euo pipefail
-    if [[ ! -s "${raw_subject_path}" || ! -s "${fwd_file}" || ! -s "${bl_cov_file}" || ! -s "${resolved_rank_file}" ]]; then
-        echo "Source input, forward solution, noise covariance, or resolved rank is missing or empty" >&2
+    if [[ ! -s "${source_data_file}" || ! -s "${fwd_file}" || ! -s "${resolved_rank_file}" || ! -s "${covariance_metadata_file}" ]]; then
+        echo "Source input, forward solution, resolved rank, or covariance metadata is missing or empty" >&2
+        exit 2
+    fi
+    if [[ -n "${noise_covariance_file}" && ! -s "${noise_covariance_file}" ]]; then
+        echo "Noise covariance is missing or empty" >&2
         exit 2
     fi
     if [[ "${needs_lcmv}" == "true" && ! -s "${lcmv_data_cov_file}" ]]; then
@@ -2022,12 +2197,13 @@ process source_imaging {
     mkdir -p "${preproc_dir}/${src_output_dir}/${raw_subject_dir_basename}"
     python ${script_name} \\
         --data_mode ${src_type} \\
-        --data_file "${raw_subject_path}"  \\
+        --data_file "${source_data_file}"  \\
         --fs_subjects_dir "${fs_subjects_dir}" \\
         --output_dir "${preproc_dir}/${src_output_dir}/${raw_subject_dir_basename}" \\
         --forward_file "${fwd_file}" \\
         --visualize ${source_visualize} \\
-        --noise_covariance_file "${bl_cov_file}" \\
+        --noise_covariance_mode "${noise_covariance_mode}" \\
+        ${noise_covariance_arg} \\
         --resolved_rank_file "${resolved_rank_file}" \\
         --config '${src_config}' ${data_covariance_arg}
     ln -s "${preproc_dir}/${src_output_dir}/${raw_subject_dir_basename}" source-imaging-output.guard
@@ -2046,8 +2222,10 @@ process source_imaging {
     epochs_config = moduleConfig(effective_config, 'epochs')
     covariance_config = moduleConfig(effective_config, 'covariance')
     src_output_dir = processOutputDir('source')
-    src_type = cfgText(source_config, ['type'], 'epochs').toLowerCase()
-    source_input_file = src_type == 'epochs' ? epoch_path : analysis_raw_path
+    src_type = source_data_mode
+    epoch_file = src_type == 'epochs' ? source_data_file.toString() : null
+    analysis_raw_file = src_type == 'raw' ? source_data_file.toString() : covariance_raw_file.toString()
+    routed_noise_covariance_file = noise_covariance_file ? noise_covariance_file.toString() : null
     routing_json = JsonOutput.prettyPrint(JsonOutput.toJson([
         key: key,
         recording_profile: cfgText(effective_config, ['_recording', 'profile_name'], ''),
@@ -2057,30 +2235,33 @@ process source_imaging {
         covariance_config: covariance_config,
         source_config: source_config,
         epoch_label: cfgText(source_config, ['epoch_label'], ''),
-        covariance_type: cfgText(effective_config, ['covariance', 'type'], 'epochs'),
+        noise_covariance_mode: noiseCovarianceMode(effective_config),
         epochs_output_dir: processOutputDir('epochs'),
         covariance_output_dir: processOutputDir('covariance'),
         forward_output_dir: processOutputDir('forward'),
         source_output_dir: src_output_dir,
         source_type: src_type,
-        source_input_file: source_input_file.toString(),
-        epoch_file: epoch_path.toString(),
-        analysis_raw_file: analysis_raw_path.toString(),
-        clean_file: analysis_raw_path.toString(),
+        source_input_file: source_data_file.toString(),
+        epoch_file: epoch_file,
+        analysis_raw_file: analysis_raw_file,
+        clean_file: analysis_raw_file,
         forward_file: fwd_file.toString(),
-        covariance_file: bl_cov_file.toString(),
+        covariance_file: routed_noise_covariance_file,
+        noise_covariance_file: routed_noise_covariance_file,
         data_covariance_file: needs_lcmv ? lcmv_data_cov_file.toString() : '',
         resolved_rank_file: resolved_rank_file.toString(),
+        covariance_metadata_file: covariance_metadata_file.toString(),
         lcmv_required: needs_lcmv,
         noise_recording_key: noise_key,
         forward_hash: fwd_hash,
         anatomy_hash: anatomy_hash,
-        events_hash: epoch_events_hash,
-        epoch_hash: epoch_hash,
-        analysis_hash: analysis_hash,
+        events_hash: events_hash,
+        epoch_hash: src_type == 'epochs' ? source_data_hash : 'not-used',
+        analysis_hash: src_type == 'raw' ? source_data_hash : covariance_raw_hash,
         covariance_hash: covariance_hash,
         data_covariance_hash: data_covariance_hash,
         resolved_rank_hash: resolved_rank_hash,
+        covariance_metadata_hash: covariance_metadata_hash,
         covariance_source_hash: covariance_source_hash,
         covariance_input_hash: covariance_input_hash
     ]))
@@ -2088,11 +2269,13 @@ process source_imaging {
     # MEGFLOW_CODE_SHA256=${code_hash}
     set -euo pipefail
     ${stubFailureCommand(effective_config, 'source_imaging')}
-    test -f "${epoch_path}"
-    test -f "${source_input_file}"
+    test -f "${source_data_file}"
     test -f "${fwd_file}"
-    test -f "${bl_cov_file}"
     test -f "${resolved_rank_file}"
+    test -f "${covariance_metadata_file}"
+    if [[ -n "${noise_covariance_file}" ]]; then
+        test -f "${noise_covariance_file}"
+    fi
     if [[ "${needs_lcmv}" == "true" ]]; then
         test -f "${lcmv_data_cov_file}"
     fi
@@ -2514,7 +2697,7 @@ workflow {
         .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, raw_subject_path ->
             def steps = asMap(effective_config._steps)
             if (!(steps.runMeg && steps.megStage >= 3 &&
-                cfgText(effective_config, ['covariance', 'type'], 'epochs').equalsIgnoreCase('raw'))) {
+                noiseCovarianceMode(effective_config).equalsIgnoreCase('raw'))) {
                 return [recording_key: null]
             }
             def rawCovTask = cfgText(effective_config, ['covariance', 'raw_covariance_task_id'], 'emptr')
@@ -2774,7 +2957,14 @@ workflow {
             }
     }
 
-    native_non_reference_clean_subject_ch = Channel.empty()
+    native_non_reference_clean_subject_ch = native_clean_subject_ch
+        .combine(native_raw_cov_reference_keys_v)
+        .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, reference_keys ->
+            !isRawCovarianceReferenceKey(reference_keys, dataset_name, orig_raw_path)
+        }
+        .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, reference_keys ->
+            tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
+        }
     native_epoch_with_hash_ch = Channel.empty()
     if (megPlan.runEpochs) {
         native_non_reference_artifacts_with_hash_ch = native_artifacts_with_hash
@@ -2785,18 +2975,11 @@ workflow {
             .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash, reference_keys ->
                 tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash)
             }
-        native_non_reference_clean_subject_ch = native_clean_subject_ch
-            .combine(native_raw_cov_reference_keys_v)
-            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, reference_keys ->
-                !isRawCovarianceReferenceKey(reference_keys, dataset_name, orig_raw_path)
-            }
-            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash, reference_keys ->
-                tuple(dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash)
-            }
-
         native_epoch_from_preproc_ch = native_non_reference_artifacts_with_hash_ch
             .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash ->
-                asMap(effective_config._steps).megStage >= 2 && asMap(effective_config._steps).skipIca
+                def steps = asMap(effective_config._steps)
+                steps.megStage >= 2 && steps.skipIca &&
+                    (steps.megStage == 2 || sourceDataMode(effective_config) == 'epochs')
             }
             .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, preproc_raw_path, bad_channels, bad_segments, artifact_hash ->
                 def subjectKey = recordingKey(dataset_name, orig_raw_path)
@@ -2804,7 +2987,9 @@ workflow {
             }
         native_epoch_from_clean_ch = native_non_reference_clean_subject_ch
             .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
-                asMap(effective_config._steps).megStage >= 2
+                def steps = asMap(effective_config._steps)
+                steps.megStage >= 2 &&
+                    (steps.megStage == 2 || sourceDataMode(effective_config) == 'epochs')
             }
             .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                 def subjectKey = recordingKey(dataset_name, orig_raw_path)
@@ -2833,41 +3018,52 @@ workflow {
             .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
                 asMap(effective_config._steps).megStage >= 3
             }
-        native_cov_epochs_inputs_ch = native_epoch_with_hash_ch
+        native_source_raw_inputs_ch = native_source_clean_ch
+            .filter { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                sourceDataMode(effective_config) == 'raw'
+            }
+            .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
+                def subjectKey = recordingKey(dataset_name, orig_raw_path)
+                tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, clean_raw_path, clean_hash, orig_raw_path)
+            }
+        native_analysis_raw = prepare_source_raw(native_source_raw_inputs_ch)
+        native_source_raw_target_ch = native_analysis_raw.analysis_raw_subjects
+            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, analysis_raw_path, clean_hash, orig_raw_path ->
+                def sourceHash = fileStatFingerprint(analysis_raw_path)
+                def noiseMode = noiseCovarianceMode(effective_config)
+                def eventsFile = noiseMode == 'epochs' ? orig_raw_path.toString().replaceAll(/_meg\..*/, '_events.tsv') : ''
+                def eventsHash = noiseMode == 'epochs' ? fileSha256(eventsFile) : 'not-used'
+                tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, analysis_raw_path, 'raw', sourceHash, clean_hash, eventsFile, eventsHash, analysis_raw_path, sourceHash)
+            }
+        native_source_epoch_target_ch = native_epoch_with_hash_ch
             .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
                 asMap(effective_config._steps).megStage >= 3 &&
-                    cfgText(effective_config, ['covariance', 'type'], 'epochs').equalsIgnoreCase('epochs')
+                    sourceDataMode(effective_config) == 'epochs'
             }
             .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-                def datasetName = subjectKey[0]
-                def sourceMode = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
-                if (!(sourceMode in ['epochs', 'raw'])) {
-                    throw new IllegalArgumentException("Invalid source.type for ${subjectKey}: ${sourceMode}")
-                }
-                def sourceDataFile = sourceMode == 'epochs' ? epoch_path : analysis_raw_path
-                def sourceDataHash = sourceMode == 'epochs' ? epoch_hash : analysis_hash
                 def origRawPath = cfgText(effective_config, ['_recording', 'meta', 'path'], '')
                 def eventsFile = origRawPath.replaceAll(/_meg\..*/, '_events.tsv')
-                tuple(subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, subjectKey, analysis_raw_path, analysis_hash, eventsFile, events_hash, clean_hash, sourceUsesLcmv(effective_config))
+                tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, 'epochs', epoch_hash, clean_hash, eventsFile, events_hash, analysis_raw_path, analysis_hash)
             }
-        native_cov_raw_requests_ch = native_epoch_with_hash_ch
-            .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-                asMap(effective_config._steps).megStage >= 3 &&
-                    cfgText(effective_config, ['covariance', 'type'], 'epochs').equalsIgnoreCase('raw')
+        native_source_target_ch = native_source_epoch_target_ch.mix(native_source_raw_target_ch)
+
+        native_cov_epochs_inputs_ch = native_source_target_ch
+            .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash, eventsFile, eventsHash, covarianceRawFile, covarianceRawHash ->
+                noiseCovarianceMode(effective_config) == 'epochs'
             }
-            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-                def datasetName = subjectKey[0]
-                def sourceMode = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
-                if (!(sourceMode in ['epochs', 'raw'])) {
-                    throw new IllegalArgumentException("Invalid source.type for ${subjectKey}: ${sourceMode}")
-                }
-                def sourceDataFile = sourceMode == 'epochs' ? epoch_path : analysis_raw_path
-                def sourceDataHash = sourceMode == 'epochs' ? epoch_hash : analysis_hash
+            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash, eventsFile, eventsHash, covarianceRawFile, covarianceRawHash ->
+                tuple(subjectKey, subjectKey[0], output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, subjectKey, covarianceRawFile, covarianceRawHash, eventsFile, eventsHash, cleanHash, sourceUsesLcmv(effective_config))
+            }
+        native_cov_raw_requests_ch = native_source_target_ch
+            .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash, eventsFile, eventsHash, covarianceRawFile, covarianceRawHash ->
+                noiseCovarianceMode(effective_config) == 'raw'
+            }
+            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash, eventsFile, eventsHash, covarianceRawFile, covarianceRawHash ->
                 def origRawPath = cfgText(effective_config, ['_recording', 'meta', 'path'], '')
                 def rawCovTask = cfgText(effective_config, ['covariance', 'raw_covariance_task_id'], 'emptr')
                 def pairedRawPath = replaceRecordingTaskEntity(origRawPath, rawCovTask)
-                def pairingKey = recordingKey(datasetName, pairedRawPath)
-                tuple(pairingKey, subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, clean_hash)
+                def pairingKey = recordingKey(subjectKey[0], pairedRawPath)
+                tuple(pairingKey, subjectKey, subjectKey[0], output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash)
             }
         native_cov_raw_candidates_ch = native_clean_subject_ch
             .map { dataset_name, dataset_dir, output_dir, preproc_dir, fs_subjects_dir, t1_dir, effective_config, orig_raw_path, clean_raw_path, target_mri_subject_id, clean_hash ->
@@ -2879,7 +3075,17 @@ workflow {
                 log.info "Raw covariance pairing: target=${subjectKey}, noise=${pairingKey}, noise_profile=${noiseProfile ?: '<default>'}"
                 tuple(subjectKey, datasetName, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, pairingKey, noiseDataFile, noiseInputHash, '', 'not-used', cleanHash, sourceUsesLcmv(effective_config))
             }
-        native_cov_inputs_ch = native_cov_epochs_inputs_ch.mix(native_cov_raw_inputs_ch)
+        native_cov_non_empirical_inputs_ch = native_source_target_ch
+            .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash, eventsFile, eventsHash, covarianceRawFile, covarianceRawHash ->
+                noiseCovarianceMode(effective_config) in ['ad_hoc', 'none']
+            }
+            .map { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, cleanHash, eventsFile, eventsHash, covarianceRawFile, covarianceRawHash ->
+                def mode = noiseCovarianceMode(effective_config)
+                tuple(subjectKey, subjectKey[0], output_dir, preproc_dir, fs_subjects_dir, effective_config, sourceDataFile, sourceMode, sourceDataHash, ['', ''], '', "not-required:${mode}", '', 'not-used', cleanHash, sourceUsesLcmv(effective_config))
+            }
+        native_cov_inputs_ch = native_cov_epochs_inputs_ch
+            .mix(native_cov_raw_inputs_ch)
+            .mix(native_cov_non_empirical_inputs_ch)
         native_cov = compute_covariance(native_cov_inputs_ch)
 
         native_coreg_existing_inputs_ch = native_source_clean_ch
@@ -2915,41 +3121,38 @@ workflow {
                 def transHash = fileSha256(trans_path)
                 tuple(subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, clean_hash, transHash, anatomy_hash)
             }
-        native_source_epoch_subject_ch = native_epoch_with_hash_ch
-            .filter { subjectKey, output_dir, preproc_dir, fs_subjects_dir, effective_config, epoch_path, analysis_raw_path, clean_hash, events_hash, epoch_hash, analysis_hash ->
-                asMap(effective_config._steps).megStage >= 3
-            }
         native_fwd_inputs = native_trans_with_hash
             .join(
-                native_source_epoch_subject_ch,
+                native_source_target_ch,
                 by: 0,
                 failOnDuplicate: true,
                 failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')
             )
-            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, epoch_output_dir, epoch_preproc_dir, epoch_fs_subjects_dir, epoch_effective_config, epoch_path, analysis_raw_path, epoch_clean_hash, epoch_events_hash, epoch_hash, analysis_hash ->
-                if (output_dir != epoch_output_dir || preproc_dir != epoch_preproc_dir || fs_subjects_dir != epoch_fs_subjects_dir) {
+            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, source_output_dir, source_preproc_dir, source_fs_subjects_dir, source_effective_config, source_data_file, source_data_mode, source_data_hash, source_clean_hash, events_file, events_hash, covariance_raw_file, covariance_raw_hash ->
+                if (output_dir != source_output_dir || preproc_dir != source_preproc_dir || fs_subjects_dir != source_fs_subjects_dir) {
                     throw new IllegalStateException("Forward routing path mismatch for ${key}")
                 }
-                if (configJson(effective_config) != configJson(epoch_effective_config)) {
+                if (configJson(effective_config) != configJson(source_effective_config)) {
                     throw new IllegalStateException("Forward routing config mismatch for ${key}")
                 }
-                if (coreg_clean_hash != epoch_clean_hash) {
+                if (coreg_clean_hash != source_clean_hash) {
                     throw new IllegalStateException("Forward routing clean lineage mismatch for ${key}")
                 }
-                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, epoch_output_dir, epoch_preproc_dir, epoch_fs_subjects_dir, epoch_effective_config, epoch_path, analysis_raw_path, epoch_clean_hash, epoch_events_hash, epoch_hash, analysis_hash)
+                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, target_mri_subject_id, trans_path, coreg_clean_hash, trans_hash, anatomy_hash, source_output_dir, source_preproc_dir, source_fs_subjects_dir, source_effective_config, source_data_file, source_data_mode, source_data_hash, source_clean_hash, events_file, events_hash, covariance_raw_file, covariance_raw_hash)
             }
         native_fwds = forward_solution(native_fwd_inputs)
         native_fwds_with_hash_ch = native_fwds.fwd_subjects
-            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash ->
+            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, source_data_file, source_data_mode, source_data_hash, source_clean_hash, anatomy_hash, events_file, events_hash, covariance_raw_file, covariance_raw_hash, trans_hash ->
                 def fwdHash = fileStatFingerprint(fwd_file)
-                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, fwdHash)
+                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, fwdHash, source_data_file, source_data_mode, source_data_hash, source_clean_hash, anatomy_hash, events_file, events_hash, covariance_raw_file, covariance_raw_hash, trans_hash)
             }
         native_cov_with_hash_ch = native_cov.cov_subjects
-            .map { key, output_dir, preproc_dir, effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash ->
-                def covarianceHash = fileStatFingerprint(bl_cov_file)
+            .map { key, output_dir, preproc_dir, effective_config, noise_covariance_file, lcmv_data_cov_file, resolved_rank_file, covariance_metadata_file, noise_covariance_mode, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash ->
+                def covarianceHash = noise_covariance_file ? fileStatFingerprint(noise_covariance_file) : "not-required:${noise_covariance_mode}"
                 def dataCovarianceHash = needs_lcmv ? fileStatFingerprint(lcmv_data_cov_file) : 'not-required'
                 def resolvedRankHash = fileSha256(resolved_rank_file)
-                tuple(key, output_dir, preproc_dir, effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash, covarianceHash, dataCovarianceHash, resolvedRankHash)
+                def covarianceMetadataHash = fileSha256(covariance_metadata_file)
+                tuple(key, output_dir, preproc_dir, effective_config, noise_covariance_file, lcmv_data_cov_file, resolved_rank_file, covariance_metadata_file, noise_covariance_mode, needs_lcmv, clean_hash, source_data_hash, noise_key, covariance_input_hash, covarianceHash, dataCovarianceHash, resolvedRankHash, covarianceMetadataHash)
             }
         native_source_inputs = native_fwds_with_hash_ch
             .join(
@@ -2958,19 +3161,23 @@ workflow {
                 failOnDuplicate: true,
                 failOnMismatch: megflowErrorMode().equalsIgnoreCase('strict')
             )
-            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, trans_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, fwd_hash, cov_output_dir, cov_preproc_dir, cov_effective_config, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, cov_clean_hash, covariance_source_hash, noise_key, covariance_input_hash, covariance_hash, data_covariance_hash, resolved_rank_hash ->
+            .map { key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, fwd_hash, source_data_file, source_data_mode, source_data_hash, source_clean_hash, anatomy_hash, events_file, events_hash, covariance_raw_file, covariance_raw_hash, trans_hash, cov_output_dir, cov_preproc_dir, cov_effective_config, noise_covariance_file, lcmv_data_cov_file, resolved_rank_file, covariance_metadata_file, noise_covariance_mode, needs_lcmv, cov_clean_hash, covariance_source_hash, noise_key, covariance_input_hash, covariance_hash, data_covariance_hash, resolved_rank_hash, covariance_metadata_hash ->
                 if (output_dir != cov_output_dir || preproc_dir != cov_preproc_dir) {
                     throw new IllegalStateException("Source routing path mismatch for ${key}")
                 }
                 if (configJson(effective_config) != configJson(cov_effective_config)) {
                     throw new IllegalStateException("Source routing config mismatch for ${key}")
                 }
-                if (epoch_clean_hash != cov_clean_hash) {
+                if (source_clean_hash != cov_clean_hash) {
                     throw new IllegalStateException("Source routing clean lineage mismatch for ${key}")
                 }
-                def sourceType = cfgText(effective_config, ['source', 'type'], 'epochs').toLowerCase()
-                def expectedSourceHash = sourceType == 'epochs' ? epoch_hash : analysis_hash
-                if (covariance_source_hash != expectedSourceHash) {
+                if (sourceDataMode(effective_config) != source_data_mode) {
+                    throw new IllegalStateException("Source data mode mismatch for ${key}")
+                }
+                if (noiseCovarianceMode(effective_config) != noise_covariance_mode) {
+                    throw new IllegalStateException("Noise covariance mode mismatch for ${key}")
+                }
+                if (covariance_source_hash != source_data_hash) {
                     throw new IllegalStateException("Covariance/source input lineage mismatch for ${key}")
                 }
                 def expectedLcmv = sourceUsesLcmv(effective_config)
@@ -2983,7 +3190,13 @@ workflow {
                 if (!resolved_rank_file) {
                     throw new IllegalStateException("Resolved target rank was not routed for ${key}")
                 }
-                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, epoch_path, analysis_raw_path, fwd_hash, epoch_clean_hash, anatomy_hash, epoch_events_hash, epoch_hash, analysis_hash, bl_cov_file, lcmv_data_cov_file, resolved_rank_file, needs_lcmv, covariance_hash, data_covariance_hash, resolved_rank_hash, covariance_source_hash, noise_key, covariance_input_hash)
+                if (!covariance_metadata_file) {
+                    throw new IllegalStateException("Covariance metadata was not routed for ${key}")
+                }
+                if (noise_covariance_mode != 'none' && !noise_covariance_file) {
+                    throw new IllegalStateException("Noise covariance was not routed for ${key}")
+                }
+                tuple(key, output_dir, preproc_dir, fs_subjects_dir, effective_config, fwd_file, fwd_hash, source_data_file, source_data_mode, source_data_hash, source_clean_hash, anatomy_hash, events_file, events_hash, covariance_raw_file, covariance_raw_hash, trans_hash, noise_covariance_file, lcmv_data_cov_file, resolved_rank_file, covariance_metadata_file, noise_covariance_mode, needs_lcmv, covariance_hash, data_covariance_hash, resolved_rank_hash, covariance_metadata_hash, covariance_source_hash, noise_key, covariance_input_hash)
             }
         native_source = source_imaging(native_source_inputs)
         native_source_subject_ch = native_source.source_subjects

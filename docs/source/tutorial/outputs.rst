@@ -102,10 +102,13 @@ Preprocessed Directory
        overlay/PSD plots.
    * - ``preprocessed/epochs/<recording>/``
      - Epoch FIF files, rejection logs, and epoch-level figures.
+   * - ``preprocessed/analysis_raw/<recording>/``
+     - Exact analysis-ready continuous source input when
+       ``source.type = "raw"``.
    * - ``preprocessed/covariance/<recording>/``
-     - ``bl-cov.fif`` and diagnostics; conditional ``lcmv-data-cov.fif`` and
-       diagnostics when LCMV is selected; and the always-present
-       ``resolved-rank.json`` source contract.
+     - Noise covariance according to the selected mode, conditional
+       ``lcmv-data-cov.fif`` and diagnostics when LCMV is selected, and the
+       always-present rank and covariance metadata contracts.
    * - ``preprocessed/trans/<recording>/``
      - MEG-MRI transform, coregistration distance CSV, and staged
        coregistration figures.
@@ -173,18 +176,28 @@ Important Sidecar Files
        while ``written_indices`` exactly matches ``marked_components.txt``.
    * - ``*_clean_raw.fif``
      - Continuous raw file after ICA application.
+   * - ``*_analysis-raw.fif``
+     - Exact continuous source target after optional ``epochs.preproc``. It is
+       written under ``analysis_raw`` for ``source.type = "raw"``.
    * - ``*-epo.fif``
      - Epoch output.
    * - ``*_reject_epoch_log.txt``
      - Rejected epoch indices and estimated remaining epoch count.
    * - ``bl-cov.fif``
-     - Noise covariance estimate.
+     - Empirical noise covariance from ``epochs`` or ``raw`` mode.
+   * - ``noise-cov.fif``
+     - Ad hoc noise covariance from ``mne.make_ad_hoc_cov``. In ``none`` mode,
+       no noise covariance FIF is written.
    * - ``lcmv-data-cov.fif``
      - LCMV data covariance from the exact source Raw/Epochs. This file is not
        generated for minimum-norm-only runs.
    * - ``resolved-rank.json``
      - Resolved target-rank dictionary, ordered common-channel list, and source
        input mode shared by covariance and source reconstruction.
+   * - ``covariance-metadata.json``
+     - Noise covariance mode plus the noise, data-covariance, and rank files
+       expected for that recording. It is present even when the noise mode is
+       ``none``.
    * - ``dists.csv``
      - Coregistration distance summary in mm.
    * - ``coreg-trans.fif``

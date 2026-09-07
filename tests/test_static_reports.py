@@ -307,6 +307,101 @@ class StaticManifestScopeTests(unittest.TestCase):
         for step in ("epochs", "covariance", "headmodel", "source"):
             self.assertTrue(summary["steps"][step], step)
 
+    def test_none_noise_mode_is_complete_without_a_noise_covariance_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            report_root = root / "run"
+            subject = "sub-01_task-sleep_meg"
+            covariance_dir = report_root / "preprocessed" / "covariance" / subject
+            covariance_dir.mkdir(parents=True)
+            (covariance_dir / "resolved-rank.json").write_text(
+                json.dumps({"rank": {"mag": 50}}), encoding="utf-8"
+            )
+            (covariance_dir / "lcmv-data-cov.fif").touch()
+            (covariance_dir / "covariance-metadata.json").write_text(
+                json.dumps(
+                    {
+                        "noise_covariance_mode": "none",
+                        "noise_covariance_file": None,
+                        "data_covariance_file": "lcmv-data-cov.fif",
+                        "resolved_rank_file": "resolved-rank.json",
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            summary = static_report.collect_subject_data(
+                subject,
+                report_root,
+                root / "static",
+                dict(static_report.DEFAULT_THRESHOLDS),
+                qc_scope={
+                    "meg_stage": 3,
+                    "skip_ica": False,
+                    "run_meg": True,
+                    "megqc_enabled": False,
+                    "source_type": "raw",
+                },
+            )
+
+        self.assertTrue(summary["steps"]["covariance"])
+        self.assertFalse(summary["steps"]["epochs"])
+        self.assertEqual(summary["covariance"]["noise_covariance_mode"], "none")
+
+    def test_ad_hoc_noise_mode_requires_its_declared_noise_file(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            report_root = root / "run"
+            subject = "sub-01_task-movie_meg"
+            covariance_dir = report_root / "preprocessed" / "covariance" / subject
+            covariance_dir.mkdir(parents=True)
+            (covariance_dir / "resolved-rank.json").write_text(
+                json.dumps({"rank": {"mag": 50}}), encoding="utf-8"
+            )
+            metadata = {
+                "noise_covariance_mode": "ad_hoc",
+                "noise_covariance_file": "noise-cov.fif",
+                "data_covariance_file": None,
+                "resolved_rank_file": "resolved-rank.json",
+            }
+            (covariance_dir / "covariance-metadata.json").write_text(
+                json.dumps(metadata), encoding="utf-8"
+            )
+
+            missing = static_report.collect_subject_data(
+                subject,
+                report_root,
+                root / "static-missing",
+                dict(static_report.DEFAULT_THRESHOLDS),
+                qc_scope={
+                    "meg_stage": 3,
+                    "skip_ica": False,
+                    "run_meg": True,
+                    "megqc_enabled": False,
+                    "source_type": "raw",
+                },
+            )
+            (covariance_dir / "noise-cov.fif").touch()
+            complete = static_report.collect_subject_data(
+                subject,
+                report_root,
+                root / "static-complete",
+                dict(static_report.DEFAULT_THRESHOLDS),
+                qc_scope={
+                    "meg_stage": 3,
+                    "skip_ica": False,
+                    "run_meg": True,
+                    "megqc_enabled": False,
+                    "source_type": "raw",
+                },
+            )
+
+        self.assertFalse(missing["steps"]["covariance"])
+        self.assertTrue(complete["steps"]["covariance"])
+        self.assertEqual(
+            complete["covariance"]["noise_covariance_mode"], "ad_hoc"
+        )
+
     def test_workflow_details_read_nested_effective_configuration(self):
         manifest = {
             "steps_raw": "all",
@@ -328,7 +423,7 @@ class StaticManifestScopeTests(unittest.TestCase):
                         "min_score": 50.0,
                         "alarm_score": 70.0,
                     },
-                    "covariance": {"type": "raw"},
+                    "covariance": {"noise_covariance_mode": "raw"},
                     "source": {"type": "epochs"},
                 },
             },
@@ -344,7 +439,9 @@ class StaticManifestScopeTests(unittest.TestCase):
         self.assertEqual(groups["Normative QC"]["megqc_enabled"], "no")
         self.assertEqual(groups["Normative QC"]["megqc_min_score"], "50.0")
         self.assertEqual(groups["Anatomy"]["anatomy_preprocess_method"], "deepprep")
-        self.assertEqual(groups["Source model"]["covar_type"], "raw")
+        self.assertEqual(
+            groups["Source model"]["noise_covariance_mode"], "raw"
+        )
         self.assertEqual(groups["Source model"]["src_type"], "epochs")
 
     def test_missing_config_hint_does_not_claim_a_nonexistent_snapshot_copy(self):
@@ -368,7 +465,7 @@ class StaticManifestScopeTests(unittest.TestCase):
             "params_snapshot": {
                 "effective_config": {
                     "megqc": {"enabled": False},
-                    "covariance": {"type": "epochs"},
+                    "covariance": {"noise_covariance_mode": "epochs"},
                     "source": {"type": "epochs"},
                 }
             },
@@ -411,7 +508,7 @@ class StaticManifestScopeTests(unittest.TestCase):
             "params_snapshot": {
                 "effective_config": {
                     "megqc": {"enabled": False},
-                    "covariance": {"type": "raw"},
+                    "covariance": {"noise_covariance_mode": "raw"},
                     "source": {"type": "raw"},
                 }
             },
@@ -422,12 +519,13 @@ class StaticManifestScopeTests(unittest.TestCase):
             node["key"]: set(node.get("depends_on", [])) for node in nodes
         }
 
-        self.assertEqual(dependencies["covariance"], {"ica"})
+        self.assertEqual(dependencies["analysis_raw"], {"ica"})
+        self.assertEqual(dependencies["covariance"], {"analysis_raw"})
         self.assertEqual(dependencies["coregistration"], {"ica"})
         self.assertEqual(dependencies["headmodel"], {"coregistration"})
         self.assertEqual(
             dependencies["source"],
-            {"ica", "covariance", "headmodel"},
+            {"analysis_raw", "covariance", "headmodel"},
         )
 
     def test_skip_ica_connects_artifacts_directly_to_epochs(self):
@@ -466,7 +564,7 @@ class StaticManifestScopeTests(unittest.TestCase):
             "params_snapshot": {
                 "effective_config": {
                     "megqc": {"enabled": False},
-                    "covariance": {"type": "epochs"},
+                    "covariance": {"noise_covariance_mode": "epochs"},
                     "source": {"type": "epochs"},
                 }
             },
@@ -529,7 +627,7 @@ class StaticManifestScopeTests(unittest.TestCase):
             "params_snapshot": {
                 "effective_config": {
                     "megqc": {"enabled": True},
-                    "covariance": {"type": "epochs"},
+                    "covariance": {"noise_covariance_mode": "epochs"},
                     "source": {"type": "epochs"},
                 }
             },

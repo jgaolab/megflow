@@ -418,7 +418,7 @@ trace.enabled = false
         }
         forbidden_covariance_keys = {
             "visualize",
-            "type",
+            "noise_covariance_mode",
             "raw_covariance_task_id",
             "event_time_shift_sec",
             "compute_raw_covariance",
@@ -436,6 +436,65 @@ trace.enabled = false
                     forbidden_epoch_keys.isdisjoint(covariance_epoch_kwargs)
                 )
                 self.assertTrue(forbidden_covariance_keys.isdisjoint(covariance_kwargs))
+
+    def test_noise_covariance_mode_is_the_only_public_mode_field(self):
+        configs = (
+            SOURCE_CONFIG,
+            DOCKER_CONFIG,
+            FULL_WORKFLOW_CONFIG,
+            MULTI_DATASET_DEMO,
+            CORPUS_EXAMPLE,
+        )
+        for config in configs:
+            with self.subTest(config=config.name):
+                text = active_groovy_code(config.read_text(encoding="utf-8"))
+                assignments = config_assignments(named_config_block(text, "megflow"))
+                covariance_mode_keys = {
+                    key
+                    for key in assignments
+                    if key.endswith("covariance.noise_covariance_mode")
+                }
+                removed_keys = {
+                    key for key in assignments if key.endswith("covariance.type")
+                }
+                self.assertTrue(covariance_mode_keys, config.name)
+                self.assertFalse(removed_keys, f"{config.name}: {sorted(removed_keys)}")
+                self.assertNotRegex(
+                    text,
+                    r"covariance\s*:\s*\[\s*type\s*:",
+                )
+
+        pipeline = PIPELINE.read_text(encoding="utf-8")
+        self.assertIn("String noiseCovarianceMode(Map effectiveConfig)", pipeline)
+        self.assertIn("covariance.type is no longer supported", pipeline)
+        self.assertIn(
+            "covariance.noise_covariance_mode must be one of",
+            pipeline,
+        )
+
+    def test_lcmv_weight_normalization_default_is_resolved_by_noise_mode(self):
+        for config in (
+            SOURCE_CONFIG,
+            DOCKER_CONFIG,
+            FULL_WORKFLOW_CONFIG,
+            MULTI_DATASET_DEMO,
+            CORPUS_EXAMPLE,
+        ):
+            assignments = config_assignments(
+                named_config_block(config.read_text(encoding="utf-8"), "defaults")
+            )
+            with self.subTest(config=config.name):
+                self.assertNotIn(
+                    "source.LCMV.make_lcmv.weight_norm",
+                    assignments,
+                )
+
+        source_code = (
+            REPO_ROOT / "megflow" / "source_localization.py"
+        ).read_text(encoding="utf-8")
+        self.assertIn('if "weight_norm" not in configured_make_kwargs:', source_code)
+        self.assertIn('"nai"', source_code)
+        self.assertIn('"unit-noise-gain-invariant"', source_code)
 
     def test_source_and_docker_public_defaults_are_consistent(self):
         source_defaults = normalized_config_block(
@@ -1512,7 +1571,12 @@ params {
         text = PIPELINE.read_text(encoding="utf-8")
         self.assertIn("List recordingKey(String datasetName, def rawPathValue)", text)
         self.assertIn("--forward_file \"${fwd_file}\"", text)
-        self.assertIn("--noise_covariance_file \"${bl_cov_file}\"", text)
+        self.assertIn(
+            'noise_covariance_arg = noise_covariance_file ? '
+            '"--noise_covariance_file \\"${noise_covariance_file}\\"" : \'\'',
+            text,
+        )
+        self.assertIn('--noise_covariance_mode "${noise_covariance_mode}"', text)
         self.assertNotIn("new File(raw_data_file).exists()", text)
         self.assertEqual(
             text.count(
@@ -1652,7 +1716,8 @@ params {
         self.assertIn("val(t1_inventory_hash)", text)
         self.assertIn("raw_input_fingerprint", text)
         self.assertIn("val(events_hash)", text)
-        self.assertIn("val(epoch_hash)", text)
+        self.assertIn("val(source_data_hash)", text)
+        self.assertIn("val(covariance_metadata_file)", text)
         self.assertIn("val(anatomy_hash)", text)
         self.assertIn("_implementation_fingerprint", text)
 
@@ -1680,7 +1745,9 @@ params {
             "clean-raw-output.guard",
             "epoch-output.guard",
             "epoch-analysis-output.guard",
+            "analysis-raw-output.guard",
             "noise-covariance-output.guard",
+            "covariance-metadata-output.guard",
             "data-covariance-output.guard",
             "resolved-rank-output.guard",
             "coregistration-output.guard",
@@ -1704,6 +1771,7 @@ params {
         fixed_dirs = {
             "ica": "ica_report",
             "epochs": "epochs",
+            "analysis_raw": "analysis_raw",
             "coreg": "trans",
             "covariance": "covariance",
             "forward": "forward_solution",

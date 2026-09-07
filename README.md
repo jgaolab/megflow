@@ -432,6 +432,52 @@ params {
 
 Set `params.megflow.defaults.steps` in your `nextflow.config` for a project default. For Docker runs, the entrypoint's `--steps` option writes this override into the runtime config.
 
+### Noise covariance and continuous LCMV
+
+`covariance.noise_covariance_mode` controls only the noise covariance and
+accepts `epochs` (default), `raw`, `ad_hoc`, or `none`. LCMV data covariance is
+configured separately under `source.LCMV.data_covariance` and is still computed
+when the noise mode is `none`. In that mode MEGFlow creates no noise-covariance
+file and passes Python `None` to MNE; MNE then uses its internal unit-noise
+assumption while preparing the single-sensor-type beamformer.
+
+For trigger-free continuous sleep, movie, or music data without empty-room or
+baseline data, use `source.type = "raw"`, LCMV only, and select one sensor type:
+
+```groovy
+params {
+  megflow {
+    defaults {
+      covariance {
+        noise_covariance_mode = "none"
+      }
+      source {
+        type = "raw"
+        source_methods = ["LCMV"]
+        data_type = "mag"  // Or "grad" for a MEGIN recording.
+        LCMV {
+          data_covariance {
+            tmin = 0.0
+            tmax = null
+            method = "empirical"
+            reject_by_annotation = true
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+This route materializes one analysis-ready Raw and uses it for rank, data
+covariance, forward `Info`, and source reconstruction without scheduling the
+epoch process. The explicit `tmin = 0.0` and `tmax = null` replace the
+epoch-oriented default data-covariance window and use the full continuous
+recording. If both magnetometers and gradiometers must remain selected, use
+`ad_hoc` instead of `none`. See the
+[rank and covariance reference](docs/source/reference/rank_covariance.rst) for
+normalization defaults, empty-room pairing, outputs, and constraints.
+
 ### Resume and interactive edits
 
 MEGFlow relies on Nextflow `-resume` for normal task caching. Unchanged tasks

@@ -136,6 +136,8 @@ run_routing_ci() {
         test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_mne_and_osl_kwargs_survive_default_dataset_recording_merges \
         test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_raw_covariance_pairs_with_the_correct_dataset_noise_recording \
         test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_lcmv_data_covariance_is_conditional_and_uses_exact_source_input \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_recording_profiles_isolate_all_noise_covariance_modes \
+        test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_noise_covariance_configuration_errors_fail_before_processing \
         test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_missing_raw_covariance_pair_fails_instead_of_silently_skipping_source \
         test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_resume_invalidates_event_dependent_lineage_and_new_inputs \
         test_nextflow_profile_integration.NextflowProfileIntegrationTests.test_strict_processing_failure_terminates_before_report_submission \

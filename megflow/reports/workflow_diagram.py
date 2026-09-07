@@ -41,7 +41,7 @@ _PARAMS_MEGQC_KEYS: tuple[str, ...] = (
     "megqc_omit_bad_channels",
 )
 _PARAMS_SOURCE_STAGE_KEYS: tuple[str, ...] = (
-    "covar_type",
+    "noise_covariance_mode",
     "src_type",
 )
 _PARAMS_ANATOMY_KEYS: tuple[str, ...] = (
@@ -65,7 +65,7 @@ _RUN_DETAIL_LABELS: dict[str, str] = {
     "fs_subjects_dir": "FreeSurfer subjects",
     "anatomy_preprocess_method": "Anatomy method",
     "dataset_format": "Format",
-    "covar_type": "Covariance",
+    "noise_covariance_mode": "Noise covariance",
     "src_type": "Source localization",
     "is_bids": "BIDS",
     "megqc_enabled": "Normative QC scoring",
@@ -230,7 +230,7 @@ def _snapshot_with_effective_values(snapshot: dict[str, Any]) -> dict[str, Any]:
     add("megqc_preproc_config", "megqc", "preproc")
     add("megqc_keep_bad_annotations", "megqc", "keep_bad_annotations")
     add("megqc_omit_bad_channels", "megqc", "omit_bad_channels")
-    add("covar_type", "covariance", "type")
+    add("noise_covariance_mode", "covariance", "noise_covariance_mode")
     add("src_type", "source", "type")
     return normalized
 
@@ -303,6 +303,7 @@ def qc_completeness_scope_from_manifest(manifest: dict[str, Any] | None) -> dict
         "meg_stage": 3,
         "skip_ica": False,
         "run_meg": True,
+        "source_type": "epochs",
         "megqc_enabled": True,
         "ic_ecg_enabled": True,
         "ic_eog_enabled": True,
@@ -318,16 +319,26 @@ def qc_completeness_scope_from_manifest(manifest: dict[str, Any] | None) -> dict
             "meg_stage": ms,
             "skip_ica": _parsed_bool(parsed, "skip_ica"),
             "run_meg": False,
+            "source_type": "epochs",
             "megqc_enabled": False,
             "ic_ecg_enabled": False,
             "ic_eog_enabled": False,
         }
     ms = _parsed_int(parsed, "meg_stage", 3)
     megqc_enabled = _megqc_enabled_from_manifest(manifest)
+    snapshot = manifest.get("params_snapshot")
+    normalized_snapshot = (
+        _snapshot_with_effective_values(snapshot)
+        if isinstance(snapshot, dict)
+        else {}
+    )
     return {
         "meg_stage": ms,
         "skip_ica": _parsed_bool(parsed, "skip_ica"),
         "run_meg": True,
+        "source_type": str(
+            normalized_snapshot.get("src_type", "epochs")
+        ).strip().lower(),
         "megqc_enabled": megqc_enabled,
         "ic_ecg_enabled": _ica_category_enabled_from_manifest(
             manifest, "ecg"
@@ -416,7 +427,9 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
         if isinstance(snapshot, dict)
         else {}
     )
-    covariance_type = str(normalized_snapshot.get("covar_type", "epochs")).strip().lower()
+    noise_covariance_mode = str(
+        normalized_snapshot.get("noise_covariance_mode", "epochs")
+    ).strip().lower()
     source_type = str(normalized_snapshot.get("src_type", "epochs")).strip().lower()
 
     if run_meg:
@@ -463,7 +476,7 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
                 }
             )
         signal_predecessor = "artifacts" if skip_ica else "ica"
-        if meg_stage >= 2:
+        if meg_stage >= 2 and (meg_stage == 2 or source_type == "epochs"):
             nodes.append(
                 {
                     "key": "epochs",
@@ -475,18 +488,33 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
                 }
             )
         if meg_stage >= 3:
-            covariance_predecessor = (
-                "epochs" if covariance_type == "epochs" else signal_predecessor
+            if source_type == "raw":
+                nodes.append(
+                    {
+                        "key": "analysis_raw",
+                        "label": "Analysis Raw",
+                        "lane": "data",
+                        "stage": 4,
+                        "plan": "run",
+                        "depends_on": [signal_predecessor],
+                    }
+                )
+            source_predecessor = (
+                "epochs" if source_type == "epochs" else "analysis_raw"
             )
+            covariance_label = {
+                "none": "Rank + data covariance",
+                "ad_hoc": "Ad hoc covariance + rank",
+            }.get(noise_covariance_mode, "Covariance + rank")
             anatomy_dependency = ["anatomy_structural"] if run_anatomy else []
             nodes.append(
                 {
                     "key": "covariance",
-                    "label": "Covariance",
+                    "label": covariance_label,
                     "lane": "data",
                     "stage": 5,
                     "plan": "run",
-                    "depends_on": [covariance_predecessor],
+                    "depends_on": [source_predecessor],
                 }
             )
             nodes.append(
@@ -508,9 +536,6 @@ def build_workflow_nodes(manifest: dict[str, Any] | None, source: str) -> tuple[
                     "plan": "run",
                     "depends_on": ["coregistration", *anatomy_dependency],
                 }
-            )
-            source_predecessor = (
-                "epochs" if source_type == "epochs" else signal_predecessor
             )
             nodes.append(
                 {

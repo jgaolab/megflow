@@ -20,6 +20,7 @@ sys.modules.setdefault("autoreject", autoreject)
 import epochs_preproc
 import compute_covariance
 import epochs as epochs_module
+import forward_solution
 
 
 def _make_raw(sfreq=1000.0, duration=4.0, first_samp=0):
@@ -38,6 +39,79 @@ def _make_raw(sfreq=1000.0, duration=4.0, first_samp=0):
 
 
 class ContinuousEpochPreprocTests(unittest.TestCase):
+    def test_materialized_raw_preserves_bads_and_bad_annotations_without_steps(self):
+        raw = _make_raw(sfreq=200.0, duration=2.0)
+        raw.info["bads"] = ["MEG 001"]
+        raw.set_annotations(
+            mne.Annotations(
+                onset=[0.5],
+                duration=[0.1],
+                description=["BAD_muscle"],
+            )
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            input_file = tmpdir / "clean_raw.fif"
+            output_file = tmpdir / "clean_analysis-raw.fif"
+            raw.save(input_file, overwrite=True, verbose=False)
+
+            result = epochs_preproc.materialize_analysis_raw(
+                input_file,
+                output_file,
+                {"preproc": []},
+            )
+            reloaded = mne.io.read_raw_fif(output_file, preload=False, verbose=False)
+
+        self.assertEqual(result, output_file)
+        self.assertEqual(reloaded.info["bads"], ["MEG 001"])
+        self.assertEqual(list(reloaded.annotations.description), ["BAD_muscle"])
+
+    def test_forward_info_reader_accepts_raw_and_epochs(self):
+        raw = _make_raw(sfreq=200.0, duration=2.0).copy().pick("meg")
+        epochs = mne.EpochsArray(
+            raw.get_data()[None, :, :100],
+            raw.info,
+            tmin=0.0,
+            verbose=False,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            tmpdir = Path(tmpdir)
+            raw_file = tmpdir / "analysis-raw.fif"
+            epoch_file = tmpdir / "analysis-epo.fif"
+            raw.save(raw_file, overwrite=True, verbose=False)
+            epochs.save(epoch_file, overwrite=True, verbose=False)
+
+            raw_info = forward_solution.read_measurement_info(raw_file, "raw")
+            epoch_info = forward_solution.read_measurement_info(epoch_file, "epochs")
+
+        self.assertEqual(raw_info.ch_names, ["MEG 001"])
+        self.assertEqual(epoch_info.ch_names, ["MEG 001"])
+
+    def test_forward_solver_consumes_info_instead_of_an_epoch_path(self):
+        info = _make_raw().copy().pick("meg").info
+        forward = mock.sentinel.forward
+        with mock.patch.object(
+            forward_solution.mne,
+            "make_forward_solution",
+            return_value=forward,
+        ) as make_forward, mock.patch.object(
+            forward_solution.mne,
+            "write_forward_solution",
+        ) as write_forward:
+            result = forward_solution.compute_forward_solution(
+                info,
+                mock.sentinel.trans,
+                mock.sentinel.src,
+                mock.sentinel.bem,
+                "/output/test-fwd.fif",
+            )
+
+        self.assertIs(result, forward)
+        self.assertIs(make_forward.call_args.args[0], info)
+        write_forward.assert_called_once_with(
+            "/output/test-fwd.fif", forward, overwrite=True
+        )
+
     def test_scope_pollution_does_not_block_secondary_preprocessing(self):
         preproc = [{"resample": {"sfreq": 250.0}}]
         config = {

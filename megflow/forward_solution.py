@@ -10,14 +10,26 @@ from pathlib import Path
 
 set_random_seed(2025)
 
-def compute_forward_solution(subj_epoch_file, trans, src, bem, fwd_file):
+def read_measurement_info(info_file, info_mode):
+    """Read Info from the exact Raw or Epochs artifact selected for source use."""
+    mode = str(info_mode).strip().lower()
+    if mode == "raw":
+        return mne.io.read_raw_fif(info_file, preload=False).info.copy()
+    if mode == "epochs":
+        return mne.read_epochs(info_file, preload=False).info.copy()
+    raise ValueError(
+        f"info_mode must be 'raw' or 'epochs'; received {info_mode!r}."
+    )
+
+
+def compute_forward_solution(info, trans, src, bem, fwd_file):
     """
     Compute the forward solution and save it if not already saved.
 
     Parameters
     ----------
-    subj_epoch_file : str or Path
-        The path to the subject's epoch file.
+    info : instance of mne.Info
+        Measurement information from the exact source-analysis input.
     trans : str or instance of mne.transforms.Transform
         The MRI to head coordinate transformation.
     src : instance of mne.SourceSpaces
@@ -33,7 +45,7 @@ def compute_forward_solution(subj_epoch_file, trans, src, bem, fwd_file):
         The computed forward solution.
     """
     fwd = mne.make_forward_solution(
-        subj_epoch_file, trans=trans, src=src, bem=bem, meg=True, eeg=False, mindist=5.0, n_jobs=None
+        info, trans=trans, src=src, bem=bem, meg=True, eeg=False, mindist=5.0, n_jobs=None
     )
     mne.write_forward_solution(fwd_file, fwd, overwrite=True)
 
@@ -68,7 +80,19 @@ def parse_arguments():
     Parse command line arguments.
     """
     parser = argparse.ArgumentParser(description="Compute and save forward solution for MEG data.")
-    parser.add_argument('--epoch_file', type=str, required=True, help="Epoch file")
+    parser.add_argument(
+        '--info_file',
+        type=str,
+        required=True,
+        help="Raw or Epochs file that defines the source-analysis sensor space.",
+    )
+    parser.add_argument(
+        '--info_mode',
+        type=str,
+        required=True,
+        choices=['raw', 'epochs'],
+        help="Type of --info_file.",
+    )
     parser.add_argument('--trans_file', type=str, required=True, help="Trans file")
     parser.add_argument('--epoch_label', type=str, default='epochs',help="Epoch label (e.g., 'wdonset')")
     parser.add_argument('--mri_subject_dir', type=str, required=True, help="BEM solution file path")
@@ -125,8 +149,9 @@ def main():
     # Define the forward solution output path
     subj_fwd_file = os.path.join(args.output_dir, f"{args.epoch_label}_{spacing}-fwd.fif")
 
-    # Compute forward solution
-    compute_forward_solution(args.epoch_file, trans, src, bem, subj_fwd_file)
+    # Compute forward solution from the exact source-analysis input.
+    info = read_measurement_info(args.info_file, args.info_mode)
+    compute_forward_solution(info, trans, src, bem, subj_fwd_file)
 
     try:
         # Call the plot function to plot all slices

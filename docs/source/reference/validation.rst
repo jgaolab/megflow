@@ -27,7 +27,8 @@ every tracked config under ``nextflow/``. The smoke matrix covers recording
 stage reduction, anatomy-only and simultaneous anatomy/MEG routing,
 defaults/dataset/recording precedence, MNE/OSL parameter passthrough,
 dataset-scoped empty-room covariance, conditional LCMV data covariance,
-resume invalidation, strict failure, and dataset/corpus report rebuilding.
+continuous Raw LCMV without events or noise covariance, resume invalidation,
+strict failure, and dataset/corpus report rebuilding.
 Static documentation-example checks run here, while exhaustive parsing and
 previewing of every embedded Groovy example stays in the full local gate.
 
@@ -213,6 +214,18 @@ The stub suite verifies the following workflow contracts:
        reports can record them. dSPM-only routes omit LCMV data covariance,
        while raw and epoched LCMV routes require it and verify the exact
        source-input hash.
+   * - Noise covariance modes
+     - Recording profiles independently exercise ``epochs``, ``raw``,
+       ``ad_hoc``, and ``none``. Tests verify their mode-specific noise outputs,
+       the always-present rank/metadata files, conditional LCMV data covariance,
+       and rejection of the removed field, invalid values, direct ``noise_cov``
+       injection, mixed source methods, and mixed sensors without noise
+       covariance.
+   * - Continuous source input
+     - ``source.type = "raw"`` uses a separately materialized analysis-ready
+       Raw for rank, LCMV data covariance, forward ``Info``, and source imaging.
+       The no-noise route verifies that neither event discovery nor the epoch
+       process is scheduled.
    * - Raw covariance
      - Delayed noise branches, recording-specific covariance overrides,
        missing pairs, cross-dataset isolation, and several experimental tasks

@@ -144,7 +144,7 @@ selection, and :doc:`configuration_source` for covariance and source settings.
                       baseline: [null, 0.0], reject_by_annotation: true]
            ]
            covariance = [
-             type: "epochs",
+             noise_covariance_mode: "epochs",
              event_source: "event_file",
              event_time_shift_sec: -10.6105,
              event_file: [trial_type: [char: 1]],
@@ -338,9 +338,72 @@ consumes that exact dictionary instead of estimating a second default rank.
      }
    }
 
-For continuous beamforming, set ``source.type = "raw"``. The data covariance
-and source solver then consume the exact analysis-ready Raw associated with the
-epoch branch; they do not reopen the original imported recording.
+For continuous beamforming, set ``source.type = "raw"``. MEGFlow creates a
+separate analysis-ready Raw and routes that exact file to data covariance,
+forward modeling, and the source solver. It does not run epoching merely to
+obtain measurement ``Info``.
+
+.. _example-continuous-lcmv-no-noise:
+
+Continuous LCMV Without a Noise Recording
+-----------------------------------------
+
+This configuration is intended for continuous sleep, movie, or music data
+without an empty-room recording or a meaningful baseline. No trigger or event
+file is needed. ``none`` omits only the noise covariance; MEGFlow still
+computes ``lcmv-data-cov.fif`` and ``resolved-rank.json`` from the exact
+analysis-ready Raw. It passes ``noise_cov=None`` to MNE, which uses an internal
+unit-noise assumption to prepare the single-sensor-type beamformer; no external
+noise-covariance file is written.
+
+.. code-block:: groovy
+
+   params {
+     megflow {
+       datasets {
+         docker_input {
+           covariance = [
+             noise_covariance_mode: "none"
+           ]
+           source = [
+             type: "raw",
+             source_methods: ["LCMV"],
+             // Use one sensor type when no noise covariance is supplied.
+             data_type: "mag",
+             epoch_label: "continuous",
+             LCMV: [
+               data_covariance: [
+                 tmin: 0.0,
+                 tmax: null,
+                 method: "empirical",
+                 reject_by_annotation: true
+               ],
+               make_lcmv: [
+                 reg: 0.05,
+                 pick_ori: null
+                 // weight_norm defaults to "nai" in none mode.
+               ],
+               apply_lcmv_raw: [start: null, stop: null]
+             ]
+           ]
+         }
+       }
+     }
+   }
+
+For a MEGIN recording containing both magnetometers and gradiometers, choose
+``data_type: "mag"`` or ``"grad"``. To keep both types, change the covariance
+setting to ``noise_covariance_mode: "ad_hoc"``; MEGFlow then writes
+``noise-cov.fif`` with ``mne.make_ad_hoc_cov``. An explicit
+``weight_norm: "unit-noise-gain-invariant"`` is also accepted in ``none`` mode
+for a single sensor type.
+
+The example estimates data covariance over the full usable recording. For a
+long or nonstationary recording, set a scientifically justified ``tmin`` and
+``tmax`` or process validated windows separately. Bad annotations are excluded
+because ``reject_by_annotation`` is enabled.
+
+.. _example-lcmv-rank-overrides:
 
 Function-level rank values remain available when a validated study-specific
 override is required. Use MNE dictionaries for direct ``rank`` fields:
@@ -397,7 +460,7 @@ configured task id to locate the paired continuous recording.
              raw_exclude_keywords: null
            ]
            covariance = [
-             type: "raw",
+             noise_covariance_mode: "raw",
              raw_covariance_task_id: "emptyroom",
              compute_raw_covariance: [
                tmin: 0,
@@ -448,7 +511,7 @@ requested reference:
                  task = ["aef", "vef"]
                }
                covariance {
-                 type = "raw"
+                 noise_covariance_mode = "raw"
                  raw_covariance_task_id = "emptyroom"
                }
              }

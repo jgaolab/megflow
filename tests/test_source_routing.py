@@ -53,6 +53,29 @@ class SourceInputRoutingTests(unittest.TestCase):
                 "ico4",
             )
 
+    def test_none_mode_requires_no_noise_covariance_file(self):
+        covariance, forward = source_localization.resolve_source_input_files(
+            "/raw/sub-01/sub-01_raw.fif",
+            "continuous",
+            "ico4",
+            noise_covariance_mode="none",
+            forward_file="/routed/forward-a.fif",
+        )
+
+        self.assertIsNone(covariance)
+        self.assertEqual(forward, Path("/routed/forward-a.fif"))
+
+    def test_none_mode_rejects_an_accidental_noise_covariance_file(self):
+        with self.assertRaisesRegex(ValueError, "must not be provided"):
+            source_localization.resolve_source_input_files(
+                "/raw/sub-01/sub-01_raw.fif",
+                "continuous",
+                "ico4",
+                noise_covariance_mode="none",
+                noise_covariance_file="/wrong/bl-cov.fif",
+                forward_file="/routed/forward-a.fif",
+            )
+
     def test_source_failure_is_not_swallowed(self):
         config = {
             "spacing": "ico4",
@@ -61,6 +84,14 @@ class SourceInputRoutingTests(unittest.TestCase):
             "data_type": "meg",
         }
         with tempfile.TemporaryDirectory() as tmpdir, mock.patch.object(
+            source_localization.mne,
+            "read_epochs",
+            return_value=mock.sentinel.epochs,
+        ), mock.patch.object(
+            source_localization,
+            "_pick_source_data",
+            return_value=mock.sentinel.selected_epochs,
+        ), mock.patch.object(
             source_localization.mne,
             "read_cov",
             side_effect=RuntimeError("bad covariance"),

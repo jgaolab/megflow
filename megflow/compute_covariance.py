@@ -19,6 +19,7 @@ from utils import (
     RankConfigurationError,
     handle_yaml_scientific_notation,
     normalize_source_methods,
+    present_sensor_types,
     ranked_mne_kwargs,
     resolve_rank_policy,
     set_random_seed,
@@ -34,6 +35,9 @@ logger = logging.getLogger(__name__)
 
 class CovarianceConfigurationError(MegflowConfigurationError):
     """Raised for deterministic covariance configuration or routing errors."""
+
+
+NOISE_COVARIANCE_MODES = {"epochs", "raw", "ad_hoc", "none"}
 
 
 def _mapping(value, config_name):
@@ -107,20 +111,28 @@ def _read_target_source(path, data_mode, source_config):
     )
 
 
-def _prepare_noise_input(path, covar_type, events_file, covariance_config, data_type):
+def _prepare_noise_input(
+    path, noise_covariance_mode, events_file, covariance_config, data_type
+):
+    if not path:
+        raise CovarianceConfigurationError(
+            f"noise_data_file is required when noise_covariance_mode="
+            f"{noise_covariance_mode!r}."
+        )
     raw = mne.io.read_raw_fif(path, preload=True)
-    if covar_type == "raw":
+    if noise_covariance_mode == "raw":
         raw, _, _ = prepare_analysis_raw(
             raw,
             {"preproc": covariance_config.get("analysis_preproc")},
             config_name="covariance.analysis_preproc",
         )
         noise = raw
-    elif covar_type == "epochs":
+    elif noise_covariance_mode == "epochs":
         raw, noise = prepare_covariance_epochs(raw, events_file, covariance_config)
     else:
         raise CovarianceConfigurationError(
-            f"covariance.type must be 'raw' or 'epochs'; got {covar_type!r}."
+            "Noise data preparation is only valid for empirical raw or epochs "
+            f"modes; got {noise_covariance_mode!r}."
         )
     return raw, _pick_good_data_channels(noise, data_type, "Noise covariance input")
 
@@ -136,14 +148,9 @@ def _save_covariance_atomic(covariance, destination):
         raise RuntimeError(f"Covariance output was not written correctly: {destination}")
 
 
-def _save_resolved_rank_atomic(resolved_rank, channels, source_data_mode, destination):
+def _save_json_atomic(payload, destination, label):
     destination = Path(destination)
     destination.parent.mkdir(parents=True, exist_ok=True)
-    payload = {
-        "rank": resolved_rank,
-        "channels": list(channels),
-        "source_data_mode": source_data_mode,
-    }
     with tempfile.TemporaryDirectory(dir=destination.parent) as temp_dir:
         temporary_path = Path(temp_dir) / destination.name
         temporary_path.write_text(
@@ -151,7 +158,19 @@ def _save_resolved_rank_atomic(resolved_rank, channels, source_data_mode, destin
         )
         os.replace(temporary_path, destination)
     if not destination.is_file() or destination.stat().st_size == 0:
-        raise RuntimeError(f"Resolved-rank output was not written correctly: {destination}")
+        raise RuntimeError(f"{label} output was not written correctly: {destination}")
+
+
+def _save_resolved_rank_atomic(resolved_rank, channels, source_data_mode, destination):
+    _save_json_atomic(
+        {
+            "rank": resolved_rank,
+            "channels": list(channels),
+            "source_data_mode": source_data_mode,
+        },
+        destination,
+        "Resolved-rank",
+    )
 
 
 def _visualize_covariance(covariance, info, output_dir, stem):
@@ -170,8 +189,8 @@ def _source_uses_lcmv(source_config):
     return "LCMV" in normalize_source_methods(source_config["source_methods"])
 
 
-def _noise_covariance_kwargs(covar_type, covariance_config, resolved_rank):
-    if covar_type == "raw":
+def _noise_covariance_kwargs(noise_covariance_mode, covariance_config, resolved_rank):
+    if noise_covariance_mode == "raw":
         config_name = "covariance.compute_raw_covariance"
         kwargs = _mapping(covariance_config.get("compute_raw_covariance"), config_name)
     else:
@@ -179,7 +198,7 @@ def _noise_covariance_kwargs(covar_type, covariance_config, resolved_rank):
         kwargs = _mapping(covariance_config.get("covariance"), config_name)
         for key in (
             "visualize",
-            "type",
+            "noise_covariance_mode",
             "raw_covariance_task_id",
             "event_time_shift_sec",
             "compute_raw_covariance",
@@ -219,23 +238,68 @@ def compute_covariances(
     source_data_mode,
     events_file,
     output_dir,
-    covar_type,
+    noise_covariance_mode,
     covariance_config,
     source_config,
     visualize=True,
 ):
-    """Compute the required noise covariance and optional LCMV data covariance."""
+    """Compute target rank, conditional noise covariance, and LCMV data covariance."""
     output_dir = Path(output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
     resolved_rank_path = output_dir / "resolved-rank.json"
-    resolved_rank_path.unlink(missing_ok=True)
+    metadata_path = output_dir / "covariance-metadata.json"
+    empirical_noise_path = output_dir / "bl-cov.fif"
+    ad_hoc_noise_path = output_dir / "noise-cov.fif"
+    data_covariance_path = output_dir / "lcmv-data-cov.fif"
+    for stale_path in (
+        resolved_rank_path,
+        metadata_path,
+        empirical_noise_path,
+        ad_hoc_noise_path,
+        data_covariance_path,
+    ):
+        stale_path.unlink(missing_ok=True)
+
+    noise_covariance_mode = str(noise_covariance_mode).strip().lower()
+    if noise_covariance_mode not in NOISE_COVARIANCE_MODES:
+        raise CovarianceConfigurationError(
+            "noise_covariance_mode must be one of "
+            f"{sorted(NOISE_COVARIANCE_MODES)}; got {noise_covariance_mode!r}."
+        )
     data_type = source_config.get("data_type", "meg")
+    needs_lcmv = _source_uses_lcmv(source_config)
+    if noise_covariance_mode == "none":
+        methods = normalize_source_methods(source_config.get("source_methods"))
+        if methods != ["LCMV"]:
+            raise CovarianceConfigurationError(
+                "noise_covariance_mode='none' requires "
+                "source.source_methods=['LCMV']; "
+                f"received {methods}."
+            )
 
     target = _read_target_source(source_data_file, source_data_mode, source_config)
-    _, noise = _prepare_noise_input(
-        noise_data_file, covar_type, events_file, covariance_config, data_type
-    )
-    target, noise, common_channels = _restrict_to_common_channels(target, noise)
+    if noise_covariance_mode == "none":
+        sensor_types = present_sensor_types(target)
+        if len(sensor_types) > 1:
+            formatted_types = ", ".join(sorted(sensor_types))
+            raise CovarianceConfigurationError(
+                "noise_covariance_mode='none' requires a single sensor type, but "
+                f"the selected source input contains: {formatted_types}. Select "
+                "one type with source.data_type or use "
+                "noise_covariance_mode='ad_hoc'."
+            )
+    noise = None
+    if noise_covariance_mode in {"raw", "epochs"}:
+        _, noise = _prepare_noise_input(
+            noise_data_file,
+            noise_covariance_mode,
+            events_file,
+            covariance_config,
+            data_type,
+        )
+        target, noise, common_channels = _restrict_to_common_channels(target, noise)
+    else:
+        common_channels = list(target.ch_names)
 
     policy = source_config.get(
         "rank_policy", covariance_config.get("rank_policy", "auto")
@@ -247,7 +311,7 @@ def compute_covariances(
         source_data_file,
         len(common_channels),
     )
-    if covar_type == "raw":
+    if noise_covariance_mode == "raw":
         noise_empirical_rank = resolve_rank_policy(
             noise, "auto", config_name="raw noise empirical rank"
         )
@@ -259,24 +323,55 @@ def compute_covariances(
                 "preprocessing, ICA exclusions, and channel matching."
             )
 
-    noise_kwargs = _noise_covariance_kwargs(covar_type, covariance_config, resolved_rank)
-    logger.info("Noise covariance rank argument: %s", noise_kwargs.get("rank"))
-    if covar_type == "raw":
-        noise_covariance = mne.compute_raw_covariance(noise, **noise_kwargs)
+    noise_path = None
+    if noise_covariance_mode in {"raw", "epochs"}:
+        noise_kwargs = _noise_covariance_kwargs(
+            noise_covariance_mode, covariance_config, resolved_rank
+        )
+        logger.info("Noise covariance rank argument: %s", noise_kwargs.get("rank"))
+        if noise_covariance_mode == "raw":
+            noise_covariance = mne.compute_raw_covariance(noise, **noise_kwargs)
+        else:
+            noise_covariance = mne.compute_covariance(noise, **noise_kwargs)
+        noise_path = empirical_noise_path
+        _save_covariance_atomic(noise_covariance, noise_path)
+        if visualize:
+            _visualize_covariance(noise_covariance, noise.info, output_dir, "bl_cov")
+    elif noise_covariance_mode == "ad_hoc":
+        ad_hoc_kwargs = _mapping(
+            covariance_config.get("make_ad_hoc_cov"),
+            "covariance.make_ad_hoc_cov",
+        )
+        if "info" in ad_hoc_kwargs:
+            raise CovarianceConfigurationError(
+                "covariance.make_ad_hoc_cov.info is workflow-owned."
+            )
+        noise_covariance = mne.make_ad_hoc_cov(target.info, **ad_hoc_kwargs)
+        noise_path = ad_hoc_noise_path
+        _save_covariance_atomic(noise_covariance, noise_path)
+        if visualize:
+            _visualize_covariance(
+                noise_covariance, target.info, output_dir, "noise_cov"
+            )
     else:
-        noise_covariance = mne.compute_covariance(noise, **noise_kwargs)
+        logger.info("Noise covariance mode is none; no noise covariance was computed.")
 
-    noise_path = output_dir / "bl-cov.fif"
-    _save_covariance_atomic(noise_covariance, noise_path)
-    if visualize:
-        _visualize_covariance(noise_covariance, noise.info, output_dir, "bl_cov")
-
-    data_covariance_path = output_dir / "lcmv-data-cov.fif"
-    needs_lcmv = _source_uses_lcmv(source_config)
     if not needs_lcmv:
-        data_covariance_path.unlink(missing_ok=True)
         _save_resolved_rank_atomic(
             resolved_rank, common_channels, source_data_mode, resolved_rank_path
+        )
+        _save_json_atomic(
+            {
+                "channels": common_channels,
+                "data_covariance_file": None,
+                "noise_covariance_file": noise_path.name if noise_path else None,
+                "noise_covariance_mode": noise_covariance_mode,
+                "rank": resolved_rank,
+                "resolved_rank_file": resolved_rank_path.name,
+                "source_data_mode": source_data_mode,
+            },
+            metadata_path,
+            "Covariance metadata",
         )
         logger.info("LCMV is not requested; data covariance was not computed.")
         return noise_path, None, resolved_rank
@@ -293,6 +388,19 @@ def compute_covariances(
     _save_resolved_rank_atomic(
         resolved_rank, common_channels, source_data_mode, resolved_rank_path
     )
+    _save_json_atomic(
+        {
+            "channels": common_channels,
+            "data_covariance_file": data_covariance_path.name,
+            "noise_covariance_file": noise_path.name if noise_path else None,
+            "noise_covariance_mode": noise_covariance_mode,
+            "rank": resolved_rank,
+            "resolved_rank_file": resolved_rank_path.name,
+            "source_data_mode": source_data_mode,
+        },
+        metadata_path,
+        "Covariance metadata",
+    )
     return noise_path, data_covariance_path, resolved_rank
 
 
@@ -304,11 +412,12 @@ def parse_arguments():
         "--noise_data_file",
         "--raw_data_file",
         dest="noise_data_file",
-        required=True,
-        help="Noise input Raw FIF; --raw_data_file is retained as a legacy alias.",
+        default="",
+        help="Noise input Raw FIF, required only for raw or epochs noise modes.",
     )
     parser.add_argument(
         "--source_data_file",
+        required=True,
         help="Exact final Raw or Epochs FIF consumed by source imaging.",
     )
     parser.add_argument(
@@ -317,7 +426,11 @@ def parse_arguments():
     parser.add_argument("--events_file", default="", help="BIDS events.tsv file.")
     parser.add_argument("--output_dir", required=True)
     parser.add_argument("--visualize", type=str2bool, nargs="?", const=True, default=True)
-    parser.add_argument("--covar_type", required=True, choices=["raw", "epochs"])
+    parser.add_argument(
+        "--noise_covariance_mode",
+        required=True,
+        choices=sorted(NOISE_COVARIANCE_MODES),
+    )
     parser.add_argument("--config", default="{}", help="Covariance configuration mapping.")
     parser.add_argument("--source_config", default="{}", help="Source configuration mapping.")
     parser.add_argument("--noise_recording_id", default="", help="Routed noise recording identifier for logs.")
@@ -332,16 +445,15 @@ def main():
     if not isinstance(covariance_config, dict) or not isinstance(source_config, dict):
         raise CovarianceConfigurationError("--config and --source_config must decode to mappings.")
 
-    source_data_file = args.source_data_file or args.noise_data_file
     if args.noise_recording_id:
         logger.info("Noise covariance input recording: %s", args.noise_recording_id)
     compute_covariances(
         noise_data_file=args.noise_data_file,
-        source_data_file=source_data_file,
+        source_data_file=args.source_data_file,
         source_data_mode=args.source_data_mode,
         events_file=args.events_file,
         output_dir=args.output_dir,
-        covar_type=args.covar_type,
+        noise_covariance_mode=args.noise_covariance_mode,
         covariance_config=covariance_config,
         source_config=source_config,
         visualize=args.visualize,
