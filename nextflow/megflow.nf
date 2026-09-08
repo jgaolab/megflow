@@ -2469,13 +2469,18 @@ Map attachRecordingSteps(Map datasetConfig, Map recordingConfig, def rawPathValu
 Map buildMegProcessPlan(List datasetProfiles) {
     def stepCandidates = []
     def datasetSteps = []
+    def epochCandidates = []
     def sourceCandidates = []
     datasetProfiles.each { profile ->
         def effective = attachParsedSteps(asMap(asMap(profile).effective_config))
         def resolvedDatasetSteps = asMap(effective._steps)
+        def datasetStage = cfgGet(resolvedDatasetSteps, ['megStage'], -1).toString().toInteger()
         datasetSteps << resolvedDatasetSteps
         stepCandidates << resolvedDatasetSteps
-        if (cfgGet(resolvedDatasetSteps, ['megStage'], -1).toString().toInteger() >= 3) {
+        if (datasetStage == 2 || (datasetStage >= 3 && sourceDataMode(effective) == 'epochs')) {
+            epochCandidates << effective
+        }
+        if (datasetStage >= 3) {
             sourceCandidates << effective
         }
         asMap(effective.recordings).each { profileName, profileValue ->
@@ -2483,10 +2488,14 @@ Map buildMegProcessPlan(List datasetProfiles) {
             def recordingOverride = new LinkedHashMap(recordingProfile)
             recordingOverride.remove('match')
             def recordingEffective = attachParsedSteps(deepMerge(effective, recordingOverride))
+            def recordingStage = cfgGet(recordingEffective, ['_steps', 'megStage'], -1).toString().toInteger()
             if (recordingProfile.containsKey('steps')) {
                 stepCandidates << asMap(recordingEffective._steps)
             }
-            if (cfgGet(recordingEffective, ['_steps', 'megStage'], -1).toString().toInteger() >= 3) {
+            if (recordingStage == 2 || (recordingStage >= 3 && sourceDataMode(recordingEffective) == 'epochs')) {
+                epochCandidates << recordingEffective
+            }
+            if (recordingStage >= 3) {
                 sourceCandidates << recordingEffective
             }
         }
@@ -2499,9 +2508,7 @@ Map buildMegProcessPlan(List datasetProfiles) {
             cfgGet(steps, ['megStage'], -1).toString().toInteger() >= 1 &&
                 !cfgBool(steps, ['skipIca'], false)
         },
-        runEpochs: megSteps.any { steps ->
-            cfgGet(steps, ['megStage'], -1).toString().toInteger() >= 2
-        },
+        runEpochs: !epochCandidates.isEmpty(),
         runSource: megSteps.any { steps ->
             cfgGet(steps, ['megStage'], -1).toString().toInteger() >= 3
         },

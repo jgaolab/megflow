@@ -1195,7 +1195,10 @@ class NextflowProfileIntegrationTests(unittest.TestCase):
             self.assertNotIn("epochs", processes)
             self.assertIn("prepare_source_raw", processes)
             self.assertEqual(
-                self.displayed_processes(combined, {"prepare_source_raw"}),
+                self.displayed_processes(
+                    combined,
+                    {"epochs", "prepare_source_raw"},
+                ),
                 {"prepare_source_raw"},
                 combined,
             )
