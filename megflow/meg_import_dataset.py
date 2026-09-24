@@ -8,9 +8,9 @@ import re
 import yaml
 import argparse
 from pathlib import Path
-from tqdm.std import tqdm
 from typing import Literal, Optional, List, Union
-from mne_bids import BIDSPath, read_raw_bids, print_dir_tree, make_report, get_entity_vals
+from mne_bids import get_bids_path_from_fname, print_dir_tree, make_report, get_entity_vals
+from mne_bids.config import ALLOWED_DATATYPE_EXTENSIONS
 
 def _normalize_keywords(value) -> Optional[List[str]]:
     """Turn YAML config value into a list of non-empty strings, or None if unset."""
@@ -102,6 +102,30 @@ def _is_relative_to(path: Path, parent: Path) -> bool:
     return True
 
 
+def _bids_recording_paths(dataset_dir: Path, datatype: str) -> List:
+    """Parse complete filenames, including directory-based MEG recordings."""
+    endings = tuple(f"_{datatype}{ext}" for ext in ALLOWED_DATATYPE_EXTENSIONS[datatype])
+    paths = []
+    # Limit discovery to source BIDS recordings, outside derivatives/sourcedata.
+    for layout in (f"sub-*/{datatype}/*", f"sub-*/ses-*/{datatype}/*"):
+        for candidate in sorted(dataset_dir.glob(layout)):
+            is_bti = candidate.is_dir() and candidate.name.endswith(f"_{datatype}")
+            if not is_bti and not candidate.name.endswith(endings):
+                continue
+            try:
+                bids_path = get_bids_path_from_fname(candidate)
+                if is_bti:
+                    bids_path.update(extension=".pdf")
+            except (KeyError, ValueError) as exc:
+                raise ValueError(f"Invalid BIDS MEG recording {candidate}: {exc}") from exc
+            if bids_path.task is None:
+                continue  # Calibration and crosstalk files are not recordings.
+            if bids_path.fpath != candidate:
+                raise ValueError(f"BIDS filename and directory do not agree: {candidate}")
+            paths.append(bids_path)
+    return paths
+
+
 def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
                       dataset_format: Optional[Literal['bids', 'raw','auto']] = None,
                       datatype: Literal['meg'] = 'meg', subjects: Optional[List[str]] = None,
@@ -177,69 +201,39 @@ def read_meg_dataset(dataset_dir: Union[str, Path], file_suffix: str = '.fif',
         if bids_report:
             print(make_report(str(dataset_dir)))
 
-        bids_path = BIDSPath(root=str(dataset_dir),datatype=datatype)
-        entities = bids_path.entities
+        filters = {}
+        for entity, value in (
+            ('subject', subjects), ('session', sessions), ('task', tasks), ('run', runs)
+        ):
+            available = get_entity_vals(str(dataset_dir), entity, with_key=False)
+            filters[entity] = _normalize_entity_filter(value, available)
+            if entity == 'subject' and filters[entity] is None:
+                filters[entity] = available
 
-        for entity in bids_path.entities.keys():
-            values = get_entity_vals(str(dataset_dir), entity, with_key=False)
-            print("[entity],values:",entity,values)
-            if values:
-                entities[entity] = values
-            else:
-                entities[entity] = ['']
-
-        subjects = _normalize_entity_filter(subjects, entities.get('subject'))
-        sessions = _normalize_entity_filter(sessions, entities.get('session'))
-        tasks = _normalize_entity_filter(tasks, entities.get('task'))
-        runs = _normalize_entity_filter(runs, entities.get('run'))
-
-        if subjects is not None:
-            entities['subject'] = subjects
-        if sessions is not None:
-            entities['session'] = sessions
-        if tasks is not None:
-            entities['task'] = tasks
-        if runs is not None:
-            entities['run'] = runs
-
-
-        print("entities['session']",entities['session'])
         raw_list = []
-        total_iters = len(entities['subject']) * len(entities['session']) * len(entities['task']) * len(entities['run'])
-        print("entities['run']",entities['run'])
-        print("total_iters", total_iters,len(entities['subject']),len(entities['session']) ,len(entities['task']),len(entities['run']))
+        split_recordings = {}
+        for bids_path in _bids_recording_paths(dataset_dir, datatype):
+            if any(values is not None and getattr(bids_path, entity) not in values
+                   for entity, values in filters.items()):
+                continue
+            if bids_path.extension == '.fif' and bids_path.split is not None:
+                key = bids_path.copy().update(split=None).basename
+                split_recordings.setdefault(key, []).append(bids_path)
+            else:
+                raw_list.append(bids_path)
 
-        with tqdm(total=total_iters) as pbar:
-            for subj in entities['subject']:
-                print("debug subject",subj)
-                for sess in entities['session']:
-                    for tk in entities['task']:
-                        if sess == '':
-                            sess = None
-                        for run in entities['run']:
-                            try:
-                                if run == '':
-                                    bids_path.update(subject=subj, session=sess, task=tk)
-                                else:
-                                    bids_path.update(subject=subj, session=sess, task=tk, run=run)
-                            except (ValueError, RuntimeError) as e:
-                                print("BIDS_path Update Error:", e)
-                                continue
+        # MNE follows the FIF links from the first part; do not schedule each part.
+        for recording, parts in split_recordings.items():
+            first = [part for part in parts if int(part.split) == 1]
+            if len(first) != 1:
+                raise ValueError(f"Expected exactly one first split (split-01) for {recording}.")
+            raw_list.append(first[0])
 
-                            try:
-                                # _ = read_raw_bids(bids_path, verbose=False)
-                                file_path = bids_path.fpath
-                                if os.path.exists(file_path):
-                                    print("file_path:", file_path)
-                                    raw_list.append(bids_path.copy())
-                                else:
-                                    print("file_path:",file_path,"does not exist.")
-                            except (FileNotFoundError, ValueError, OSError, RuntimeError) as e:
-                                print("BIDS Parse Error:", e)
-                                continue
-
-                            pbar.update(1)
-
+        if not raw_list:
+            raise ValueError(f"No BIDS MEG recordings match the import filters in {dataset_dir}.")
+        raw_list.sort(key=str)
+        for bids_path in raw_list:
+            print("file_path:", bids_path.fpath)
         return raw_list
 
     # Handle raw dataset

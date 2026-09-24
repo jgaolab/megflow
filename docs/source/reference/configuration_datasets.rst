@@ -506,6 +506,21 @@ MEG Import
 MEG input discovery is configured by ``meg_import``. BIDS datasets use MNE-BIDS
 entities; raw datasets are discovered by suffix and optional filename keywords.
 
+BIDS discovery preserves the complete recording filename, including optional
+``acq`` (acquisition), ``proc`` (processing), and ``rec`` (recording) entities.
+For example, ``sub-02_ses-sleep_task-r4_acq-04_meg.fif`` and
+``sub-02_ses-sleep_task-r4_acq-14_meg.fif`` are separate recordings, even without
+a ``run`` entity. Both are imported when they match the filters below, and their
+full basenames keep their output directories distinct. Session and run filters
+left unset also retain recordings without those optional entities.
+
+For BIDS split FIF files, only ``split-01`` is listed as an input; MNE follows
+the file links to read subsequent parts. Keep all parts together. A selected
+split recording without its first part stops import with an error. Metadata
+sidecars, calibration/crosstalk files, and the ``derivatives`` and ``sourcedata``
+trees are excluded from recording discovery. CTF ``.ds`` and BTi recording
+directories are supported. An empty BIDS selection is reported as an error.
+
 .. list-table::
    :header-rows: 1
    :widths: 28 20 17 35

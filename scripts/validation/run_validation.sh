@@ -191,6 +191,7 @@ print(f"OSL-ephys source: {actual}")
         test_deepreject_input \
         test_epochs_preproc \
         test_ica_category_switches \
+        test_meg_import_dataset \
         test_megnet_retrained \
         test_megnet_retrained_comparison \
         test_megqc_scores \

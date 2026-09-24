@@ -112,7 +112,9 @@ following contracts must be checked independently:
    * - P0-03
      - Import and identity
      - Cover BIDS and raw discovery, file and directory recordings such as CTF
-       ``.ds``, task/session/run identity, duplicate output ids, empty imports,
+       ``.ds`` and BTi, complete acquisition/processing/recording identity,
+       optional session/run entities, split FIF first-part selection and full
+       sample loading, duplicate output ids, empty imports,
        output-tree exclusion, and repeated subject ids across datasets.
    * - P0-04
      - Scientific parameters
