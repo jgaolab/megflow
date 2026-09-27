@@ -243,6 +243,10 @@ The stub suite verifies the following workflow contracts:
        require raw noise to support the target rank. The persisted rank artifact
        is checked against source channel order. Real epoch-noise, dSPM-only, raw
        LCMV, and saved-Epochs LCMV covariance outputs are read back with MNE 1.8.
+       Ad hoc visualization tests render diagonal and dense covariances without
+       modifying their values, and verify both Raw and Epochs routes write all
+       noise/data covariance plots and rank/metadata outputs while preserving
+       the saved diagonal noise covariance.
    * - Validation
      - Unknown match keys, overlapping recording profiles, ineffective
        recording-scope fields, excessive recording stages, duplicate recording

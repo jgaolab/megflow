@@ -9,6 +9,7 @@ from pathlib import Path
 
 import matplotlib.pyplot as plt
 import mne
+import numpy as np
 import yaml
 
 from epochs import _get_epoch_kwargs, prepare_epoching_raw_and_events
@@ -176,6 +177,11 @@ def _save_resolved_rank_atomic(resolved_rank, channels, source_data_mode, destin
 def _visualize_covariance(covariance, info, output_dir, stem):
     cov_plot_path = Path(output_dir) / f"{stem}.png"
     spectra_plot_path = Path(output_dir) / f"{stem}_spectra.png"
+    if covariance["diag"]:
+        # MNE 1.8 plot_cov requires a dense matrix; keep the saved covariance diagonal.
+        covariance = covariance.copy()
+        covariance["data"] = np.diag(covariance.data)
+        covariance["diag"] = False
     fig_cov, fig_spectra = mne.viz.plot_cov(covariance, info, show=False)
     fig_cov.savefig(cov_plot_path)
     fig_spectra.savefig(spectra_plot_path)

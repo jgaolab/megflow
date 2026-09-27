@@ -68,6 +68,18 @@ is ``"auto"``.
      - Treated as the MEGFlow default ``"auto"`` at policy level.
      - Useful when clearing an inherited dataset policy.
 
+.. warning::
+
+   Numerical rank estimates depend on the singular-value tolerance and data
+   precision. Saving rank-reduced data as single-precision FIF can introduce
+   rounding errors that inflate the rank estimated with the default tolerance.
+   If the estimated rank exceeds the rank indicated by Maxwell/SSS metadata,
+   inspect the target recording before interpreting source results. Use
+   ``"info"`` only when its metadata describe the intended rank; directly
+   applied ICA and interpolation may reduce rank further. Otherwise, set a
+   validated rank dictionary for the affected dataset or recording. Do not
+   reuse one recording's rank for an entire corpus without verification.
+
 Example:
 
 .. code-block:: groovy
@@ -195,6 +207,15 @@ assumption is why the mode is restricted to one sensor type and why its output
 must not be interpreted as empirically noise calibrated. In contrast,
 ``ad_hoc`` creates and saves an explicit sensor-type-aware covariance before
 the source task.
+
+With ``covariance.visualize = true``, ad hoc noise covariance is displayed as a
+diagonal matrix in ``noise_cov.png``, with a spectrum of square-root singular
+values in sensor units in ``noise_cov_spectra.png``. These plots describe the
+assumed noise model, not measured noise. MEGFlow expands a copy of the diagonal
+representation for plotting; ``noise-cov.fif`` and the covariance used by source
+reconstruction retain the original representation and values. LCMV data-covariance diagnostics
+are generated separately as ``lcmv_data_cov.png`` and
+``lcmv_data_cov_spectra.png``.
 
 See :ref:`example-continuous-lcmv-no-noise` for a complete trigger-free Raw
 configuration and :ref:`example-raw-covariance` for empty-room pairing.

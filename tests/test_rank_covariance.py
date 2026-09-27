@@ -78,6 +78,43 @@ class RankPolicyTests(unittest.TestCase):
             )
 
 
+class CovarianceVisualizationTests(unittest.TestCase):
+    def test_plotting_preserves_diagonal_and_dense_covariances(self):
+        info = mne.create_info(
+            ["MEG0111", "MEG0121", "MEG0112", "MEG0122"],
+            100.0,
+            ["mag", "mag", "grad", "grad"],
+        )
+        diagonal = mne.make_ad_hoc_cov(info)
+        dense = diagonal.copy()
+        dense["data"] = np.diag(diagonal.data)
+        dense["diag"] = False
+        dense["data"][0, 1] = dense["data"][1, 0] = dense.data[0, 0] * 0.1
+
+        for name, covariance in (("diagonal", diagonal), ("dense", dense)):
+            with self.subTest(covariance=name), tempfile.TemporaryDirectory() as tmp:
+                original = covariance.copy()
+                with mock.patch.object(
+                    compute_covariance.mne.viz,
+                    "plot_cov",
+                    wraps=mne.viz.plot_cov,
+                ) as plot_cov:
+                    compute_covariance._visualize_covariance(
+                        covariance, info, tmp, name
+                    )
+
+                plotted = plot_cov.call_args.args[0]
+                expected = np.diag(original.data) if original["diag"] else original.data
+                np.testing.assert_array_equal(plotted.data, expected)
+                self.assertFalse(plotted["diag"])
+                self.assertEqual(plotted.ch_names, original.ch_names)
+                np.testing.assert_array_equal(covariance.data, original.data)
+                self.assertEqual(covariance["diag"], original["diag"])
+                self.assertEqual(covariance.ch_names, original.ch_names)
+                for filename in (f"{name}.png", f"{name}_spectra.png"):
+                    self.assertGreater((Path(tmp) / filename).stat().st_size, 0)
+
+
 class CovarianceWorkflowTests(unittest.TestCase):
     def setUp(self):
         self.temp_dir = tempfile.TemporaryDirectory()
@@ -388,6 +425,47 @@ class CovarianceWorkflowTests(unittest.TestCase):
                 )
 
         compute_data_covariance.assert_not_called()
+
+    def test_ad_hoc_visualization_completes_covariance_outputs(self):
+        for mode, source_path in (
+            ("raw", self.target_raw_path),
+            ("epochs", self.epochs_path),
+        ):
+            with self.subTest(source_data_mode=mode):
+                output_dir = self.root / f"ad_hoc_visualization_{mode}"
+                noise_path, data_path, rank = compute_covariance.compute_covariances(
+                    noise_data_file=None,
+                    source_data_file=source_path,
+                    source_data_mode=mode,
+                    events_file="",
+                    output_dir=output_dir,
+                    noise_covariance_mode="ad_hoc",
+                    covariance_config={},
+                    source_config={
+                        "source_methods": ["LCMV"],
+                        "data_type": "meg",
+                        "LCMV": {"data_covariance": {"method": "empirical"}},
+                    },
+                    visualize=True,
+                )
+
+                noise = mne.read_cov(noise_path, verbose=False)
+                self.assertTrue(noise["diag"])
+                self.assertEqual(noise.data.ndim, 1)
+                expected = mne.make_ad_hoc_cov(low_rank_raw().info)
+                np.testing.assert_array_equal(noise.data, expected.data)
+                data = mne.read_cov(data_path, verbose=False)
+                self.assertFalse(data["diag"])
+                self.assertEqual(data.ch_names, noise.ch_names)
+                rank_payload = json.loads((output_dir / "resolved-rank.json").read_text())
+                self.assertEqual(rank_payload["rank"], rank)
+                self.assertEqual(rank_payload["source_data_mode"], mode)
+                metadata = json.loads((output_dir / "covariance-metadata.json").read_text())
+                self.assertEqual(metadata["noise_covariance_file"], noise_path.name)
+                self.assertEqual(metadata["data_covariance_file"], data_path.name)
+                for stem in ("noise_cov", "lcmv_data_cov"):
+                    for suffix in (".png", "_spectra.png"):
+                        self.assertGreater((output_dir / f"{stem}{suffix}").stat().st_size, 0)
 
     def test_ad_hoc_mode_uses_selected_target_info(self):
         output_dir = self.root / "ad_hoc"
