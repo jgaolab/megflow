@@ -214,6 +214,13 @@ def _align_source_inputs(
         data_cov = mne.pick_channels_cov(
             data_cov, include=target_channels, ordered=True, copy=True
         )
+
+    # FIF diagonal covariances can be big-endian; MNE 1.8 eigh needs native arrays.
+    for covariance in (noise_cov, data_cov):
+        if covariance is not None and not covariance.data.dtype.isnative:
+            covariance["data"] = covariance.data.astype(
+                covariance.data.dtype.newbyteorder("="), copy=False
+            )
     return inst, fwd, noise_cov, data_cov
 
 

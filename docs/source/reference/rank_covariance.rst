@@ -217,6 +217,17 @@ reconstruction retain the original representation and values. LCMV data-covarian
 are generated separately as ``lcmv_data_cov.png`` and
 ``lcmv_data_cov_spectra.png``.
 
+Before source reconstruction, MEGFlow converts non-native byte order in the
+in-memory noise and data covariance arrays to the host's native byte order.
+This handles diagonal FIF covariances that MNE 1.8 reads as big-endian arrays
+but cannot pass directly to its whitening eigensolver. The conversion preserves
+numeric values, precision, channel order, and diagonal/full representation;
+it does not rewrite the covariance FIF files or change the rank policy. No
+additional configuration is required. Older builds may fail with an
+``AssertionError`` in ``mne.utils.linalg._get_evd`` during LCMV or minimum-norm
+whitening; update the running code/image and resume rather than disabling
+visualization or changing the inverse-model parameters.
+
 See :ref:`example-continuous-lcmv-no-noise` for a complete trigger-free Raw
 configuration and :ref:`example-raw-covariance` for empty-room pairing.
 

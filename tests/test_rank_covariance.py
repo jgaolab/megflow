@@ -518,6 +518,191 @@ class CovarianceWorkflowTests(unittest.TestCase):
         self.assertEqual(metadata["noise_covariance_file"], "noise-cov.fif")
 
 
+class SourceCovarianceNumericsTests(unittest.TestCase):
+    @staticmethod
+    def _synthetic_meg_and_forward():
+        channel_types = ["mag", "grad"] * 6
+        info = mne.create_info(
+            [f"MEG{index:03}" for index in range(12)], 100.0, channel_types
+        )
+        for index, channel in enumerate(info["chs"]):
+            angle = 2 * np.pi * index / 12
+            z = 0.3 + 0.3 * (index % 2)
+            normal = np.array([
+                np.sqrt(1 - z * z) * np.cos(angle),
+                np.sqrt(1 - z * z) * np.sin(angle),
+                z,
+            ])
+            tangent = np.cross([0.0, 0.0, 1.0], normal)
+            tangent /= np.linalg.norm(tangent)
+            channel["loc"][:] = np.concatenate(
+                [0.12 * normal, tangent, np.cross(normal, tangent), normal]
+            )
+        src = mne.setup_volume_source_space(pos={
+            "rr": np.array([[0.02, 0.01, 0.02], [-0.02, 0.015, 0.025]]),
+            "nn": np.array([[0.0, 0.0, 1.0], [0.0, 0.0, 1.0]]),
+        })
+        sphere = mne.make_sphere_model(r0=(0.0, 0.0, 0.0), head_radius=None)
+        forward = mne.make_forward_solution(
+            info, trans=None, src=src, bem=sphere, eeg=False, mindist=0.0, n_jobs=1
+        )
+        scales = np.array([
+            1e-13 if channel_type == "mag" else 1e-11
+            for channel_type in channel_types
+        ])
+        data = np.random.default_rng(21).standard_normal((12, 300)) * scales[:, None]
+        return mne.io.RawArray(data, info, verbose=False), forward
+
+    def test_fif_covariance_alignment_supports_real_whitening(self):
+        info = mne.create_info(
+            ["MEG0111", "MEG0112", "MEG0121", "MEG0122"],
+            100.0,
+            ["mag", "grad", "mag", "grad"],
+        )
+        raw = mne.io.RawArray(np.zeros((4, 100)), info, verbose=False)
+        diagonal = mne.make_ad_hoc_cov(info)
+        dense = diagonal.copy()
+        dense["data"] = np.diag(diagonal.data)
+        dense["diag"] = False
+        dense["data"][0, 2] = dense["data"][2, 0] = dense.data[0, 0] * 0.1
+        forward = {"info": info}
+
+        with tempfile.TemporaryDirectory() as tmp:
+            for name, original in (("diagonal", diagonal), ("dense", dense)):
+                with self.subTest(covariance=name):
+                    path = Path(tmp) / f"{name}-cov.fif"
+                    original.save(path, overwrite=True)
+                    loaded = mne.read_cov(path)
+                    before = loaded.copy()
+                    data_cov = dense.copy()
+                    non_native = ">f8" if np.little_endian else "<f8"
+                    data_cov["data"] = data_cov.data.astype(non_native)
+                    with mock.patch.object(
+                        source_localization.mne,
+                        "pick_channels_forward",
+                        return_value=forward,
+                    ):
+                        _, _, noise, data = source_localization._align_source_inputs(
+                            raw.copy(), forward, loaded, data_cov
+                        )
+
+                    # Exercise the MNE eigensolver, not a mocked source call.
+                    for rank in ({"meg": 4}, {"meg": 3}):
+                        actual, names = mne.cov.compute_whitener(noise, info, rank=rank)
+                        expected, _ = mne.cov.compute_whitener(original, info, rank=rank)
+                        np.testing.assert_allclose(actual, expected)
+                        self.assertTrue(np.isfinite(actual).all())
+                        self.assertEqual(names, info["ch_names"])
+                    self.assertTrue(noise.data.dtype.isnative)
+                    self.assertTrue(data.data.dtype.isnative)
+                    np.testing.assert_array_equal(noise.data, before.data)
+                    np.testing.assert_array_equal(data.data, data_cov.data)
+                    self.assertEqual(noise["diag"], before["diag"])
+                    self.assertEqual(noise["nfree"], before["nfree"])
+                    self.assertEqual(loaded.data.dtype, before.data.dtype)
+                    np.testing.assert_array_equal(loaded.data, before.data)
+                    self.assertFalse(data_cov.data.dtype.isnative)
+                    np.testing.assert_array_equal(mne.read_cov(path).data, before.data)
+
+    def test_covariance_alignment_keeps_none_noise(self):
+        raw = low_rank_raw()
+        forward = {"info": raw.info}
+        data_cov = mne.compute_raw_covariance(raw, method="empirical")
+        non_native = ">f8" if np.little_endian else "<f8"
+        data_cov["data"] = data_cov.data.astype(non_native)
+        with mock.patch.object(
+            source_localization.mne, "pick_channels_forward", return_value=forward
+        ):
+            _, _, noise, data = source_localization._align_source_inputs(
+                raw, forward, None, data_cov
+            )
+
+        self.assertIsNone(noise)
+        self.assertTrue(data.data.dtype.isnative)
+        np.testing.assert_array_equal(data.data, data_cov.data)
+
+    def test_fif_round_trip_runs_real_raw_and_epochs_source_solvers(self):
+        raw, forward = self._synthetic_meg_and_forward()
+        events = np.column_stack([
+            [0, 75, 150, 225], np.zeros(4, dtype=int), np.ones(4, dtype=int)
+        ])
+        epochs = mne.Epochs(
+            raw, events, tmin=0.0, tmax=0.49, baseline=None, preload=True
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            raw_path = root / "sub-01_raw.fif"
+            epochs_path = root / "sub-01-epo.fif"
+            forward_path = root / "test-fwd.fif"
+            raw.save(raw_path, overwrite=True)
+            epochs.save(epochs_path, overwrite=True)
+            mne.write_forward_solution(forward_path, forward, overwrite=True)
+            for mode in ("raw", "epochs"):
+                for noise_mode in ("ad_hoc", "raw"):
+                    for method in ("LCMV", "dSPM"):
+                        with self.subTest(mode=mode, noise_mode=noise_mode, method=method):
+                            config = {
+                                "source_methods": [method],
+                                "data_type": "meg",
+                                "rank_policy": "auto",
+                                "epoch_label": "test",
+                                "spacing": "test",
+                                "LCMV": {
+                                    "data_covariance": {"method": "empirical"},
+                                    "make_lcmv": {
+                                        "reg": 0.05,
+                                        "depth": 0.8,
+                                        "pick_ori": "max-power",
+                                        "weight_norm": "unit-noise-gain-invariant",
+                                        # Spherical MEG lead fields have a null radial direction.
+                                        "reduce_rank": True,
+                                    },
+                                    "apply_lcmv_raw": {"start": None, "stop": None},
+                                },
+                                "dSPM": {
+                                    "inverse_operator": {"loose": 1.0, "depth": 0.8},
+                                    "apply_inverse": {"lambda2": 1.0 / 9.0},
+                                },
+                            }
+                            output = root / f"{mode}_{noise_mode}_{method}"
+                            covariance_dir = output / "covariance"
+                            source_path = raw_path if mode == "raw" else epochs_path
+                            noise_path, data_path, _ = compute_covariance.compute_covariances(
+                                noise_data_file=raw_path if noise_mode == "raw" else None,
+                                source_data_file=source_path,
+                                source_data_mode=mode,
+                                events_file="",
+                                output_dir=covariance_dir,
+                                noise_covariance_mode=noise_mode,
+                                covariance_config={
+                                    "compute_raw_covariance": {"method": "empirical"}
+                                },
+                                source_config=config,
+                                visualize=False,
+                            )
+                            noise_bytes = noise_path.read_bytes()
+                            process = (
+                                source_localization.process_raw if mode == "raw"
+                                else source_localization.process_subject
+                            )
+                            process(
+                                source_path, root, None, None, output, config, False,
+                                noise_covariance_file=noise_path,
+                                forward_file=forward_path,
+                                data_covariance_file=data_path,
+                                resolved_rank_file=covariance_dir / "resolved-rank.json",
+                                noise_covariance_mode=noise_mode,
+                            )
+                            label = "raw" if mode == "raw" else "evoked"
+                            stc = mne.read_source_estimate(
+                                str(output / f"test_{label}_{method}-test-vl.stc")
+                            )
+                            self.assertEqual(stc.data.shape, (2, 300 if mode == "raw" else 50))
+                            self.assertTrue(np.isfinite(stc.data).all())
+                            self.assertGreater(np.abs(stc.data).max(), 0)
+                            self.assertEqual(noise_path.read_bytes(), noise_bytes)
+
+
 class SourceContractTests(unittest.TestCase):
     def test_lcmv_requires_precomputed_data_covariance(self):
         config = {

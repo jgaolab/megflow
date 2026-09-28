@@ -247,6 +247,13 @@ The stub suite verifies the following workflow contracts:
        modifying their values, and verify both Raw and Epochs routes write all
        noise/data covariance plots and rank/metadata outputs while preserving
        the saved diagonal noise covariance.
+       FIF round-trip tests execute real whitening with full and reduced rank,
+       preserve covariance values and files during byte-order normalization,
+       and retain ``none`` noise mode. A small spherical MEG forward fixture
+       runs eight real source-solver combinations: Raw/Epochs inputs, ad hoc/raw
+       empirical noise, and LCMV/dSPM. LCMV uses depth weighting, max-power
+       orientation, and unit-noise-gain-invariant normalization; the tests read
+       back the resulting STCs and require finite, nonzero estimates.
    * - Validation
      - Unknown match keys, overlapping recording profiles, ineffective
        recording-scope fields, excessive recording stages, duplicate recording
@@ -276,8 +283,9 @@ run the real Nextflow executable and inspect trace statuses plus created,
 deleted, restored, and cached outputs; ``-stub-run`` replaces the expensive
 scientific process bodies only. The synthetic MNE/OSL tests validate API
 acceptance and local numeric contracts but not whether a parameter is
-scientifically appropriate. Mocked source-call tests do not replace a complete
-forward/inverse solution on real anatomy. Neither
+scientifically appropriate. Mocked source-call tests and the small real-MNE
+spherical source-solver tests do not replace a complete forward/inverse solution
+on real anatomy. Neither
 layer validates vendor-specific readers, actual FreeSurfer/DeepPrep completion,
 GPU behavior, identical ICA subspaces between experimental and empty-room
 recordings, or scientific suitability of event and inverse-model parameters.
