@@ -17,6 +17,7 @@ from utils import (
     MegflowConfigurationError,
     RANK_NOT_SET,
     RankConfigurationError,
+    ensure_real_lcmv_filters,
     handle_yaml_scientific_notation,
     normalize_mne_rank,
     normalize_source_methods,
@@ -398,6 +399,7 @@ def compute_LCMV(
         noise_cov=noise_cov,
         **make_lcmv_kwargs,
     )
+    ensure_real_lcmv_filters(filters)
     stc = apply_lcmv(evoked, filters, **apply_lcmv_kwargs)
     stc.save(stc_file, overwrite=True)
     if visualize:
@@ -649,6 +651,7 @@ def process_raw(
             raw.info, fwd, data_cov, noise_cov=noise_cov,
             **make_lcmv_kwargs,
         )
+        ensure_real_lcmv_filters(filters)
         stc = apply_lcmv_raw(raw, filters, **apply_lcmv_kwargs)
         stc.save(
             os.path.join(output_dir, f"{epoch_label}_raw_LCMV-{spacing}"),

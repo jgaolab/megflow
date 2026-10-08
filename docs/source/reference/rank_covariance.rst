@@ -228,6 +228,19 @@ additional configuration is required. Older builds may fail with an
 whitening; update the running code/image and resume rather than disabling
 visualization or changing the inverse-model parameters.
 
+MNE 1.8's batched ``max-power`` orientation solver can return complex-typed
+arrays even when every selected orientation and filter weight has an exactly
+zero imaginary part. Without normalization, this type propagates to the source
+estimate and STC saving fails with ``Cannot save complex-valued STC data``.
+MEGFlow checks the LCMV weights and selected orientations before applying the
+filters to Raw or evoked data. It converts them to real arrays only when every
+imaginary value is exactly zero, preserving the values and precision. Nonzero
+imaginary values (including tiny ones), NaNs, or infinities stop source imaging
+with a diagnostic; they are not silently discarded or saved as HDF5. No change
+to ``pick_ori``, ``weight_norm``, ``reg``, or ``rank_policy`` is required for the
+zero-imaginary case. Successful saving is not a validation of the rank choice
+or of the preceding artifact/ICA decisions.
+
 See :ref:`example-continuous-lcmv-no-noise` for a complete trigger-free Raw
 configuration and :ref:`example-raw-covariance` for empty-room pairing.
 

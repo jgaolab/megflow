@@ -561,7 +561,7 @@ class SourceConfigContractTests(unittest.TestCase):
         data_cov = mock.sentinel.data_cov
         forward = mock.sentinel.forward
         inverse_operator = mock.sentinel.inverse_operator
-        filters = mock.sentinel.filters
+        filters = {"weights": np.ones((2, 2)), "max_power_ori": None}
         minimum_norm_stc = mock.Mock()
         lcmv_stc = mock.Mock()
 
@@ -631,7 +631,7 @@ class SourceConfigContractTests(unittest.TestCase):
         }
         evoked = mock.Mock()
         evoked.info = mock.sentinel.info
-        filters = mock.sentinel.filters
+        filters = {"weights": np.ones((2, 2)), "max_power_ori": None}
         stc = mock.Mock()
         with mock.patch.object(
             source_localization, "make_lcmv", return_value=filters

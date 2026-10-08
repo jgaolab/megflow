@@ -254,6 +254,12 @@ The stub suite verifies the following workflow contracts:
        empirical noise, and LCMV/dSPM. LCMV uses depth weighting, max-power
        orientation, and unit-noise-gain-invariant normalization; the tests read
        back the resulting STCs and require finite, nonzero estimates.
+       Additional real-solver tests simulate complex dtype promotion in the
+       orientation eigensolver for Raw and evoked inputs and verify that STCs
+       remain real and readable. Filter validation tests cover single/double
+       precision, exact preservation of real values, absent max-power
+       orientations, and rejection of any nonzero imaginary or non-finite
+       values before modifying the filters.
    * - Validation
      - Unknown match keys, overlapping recording profiles, ineffective
        recording-scope fields, excessive recording stages, duplicate recording

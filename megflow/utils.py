@@ -383,6 +383,37 @@ def normalize_source_methods(value, config_name="source.source_methods"):
     return methods
 
 
+def ensure_real_lcmv_filters(filters):
+    """Normalize zero-imaginary LCMV arrays without discarding complex values."""
+    arrays = {"weights": filters["weights"]}
+    if filters.get("max_power_ori") is not None:
+        arrays["max_power_ori"] = filters["max_power_ori"]
+
+    # Validate all arrays before changing any of them. Batched eig can promote
+    # real selected orientations when only unselected eigenpairs are complex.
+    for name, values in arrays.items():
+        if not np.isfinite(values).all():
+            raise MegflowConfigurationError(
+                f"LCMV {name} contains non-finite values. Check the input data, "
+                "rank_policy, covariance, and forward solution."
+            )
+        if np.iscomplexobj(values) and np.any(values.imag != 0):
+            raise MegflowConfigurationError(
+                f"LCMV {name} has nonzero imaginary values "
+                f"(max_abs_imag={np.max(np.abs(values.imag)):.6g}); "
+                "refusing to discard them or silently change output format. "
+                "Check the input data, rank_policy, covariance, and forward solution."
+            )
+
+    for name, values in arrays.items():
+        if np.iscomplexobj(values):
+            filters[name] = values.real.copy()
+            logger.info(
+                "LCMV %s: imaginary values are exactly zero; using real-valued %s.",
+                name, filters[name].dtype,
+            )
+
+
 def present_sensor_types(inst, supported=("mag", "grad", "eeg")):
     """Return supported sensor types present in an MNE Raw or Epochs object."""
     allowed = set(supported)

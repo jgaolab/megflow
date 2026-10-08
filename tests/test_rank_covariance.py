@@ -21,6 +21,7 @@ sys.modules.setdefault("autoreject", autoreject)
 
 import compute_covariance
 import source_localization
+import utils
 from utils import (
     RankConfigurationError,
     ranked_mne_kwargs,
@@ -621,6 +622,96 @@ class SourceCovarianceNumericsTests(unittest.TestCase):
         self.assertTrue(data.data.dtype.isnative)
         np.testing.assert_array_equal(data.data, data_cov.data)
 
+    def test_zero_imaginary_lcmv_filters_keep_raw_and_evoked_stc_real(self):
+        raw, forward = self._synthetic_meg_and_forward()
+        data_cov = mne.compute_raw_covariance(raw, method="empirical")
+        noise_cov = mne.make_ad_hoc_cov(raw.info)
+        real_eig = np.linalg.eig
+
+        def complex_dtype_eig(matrix):
+            values, vectors = real_eig(matrix)
+            # A complex, unselected eigenpair promotes the whole batched array.
+            return values.astype(complex), vectors.astype(complex)
+
+        config = {
+            "source_methods": ["LCMV"], "data_type": "meg",
+            "epoch_label": "test", "spacing": "test",
+            "LCMV": {"make_lcmv": {
+                "reg": 0.05, "depth": 0.8, "pick_ori": "max-power",
+                "weight_norm": "unit-noise-gain-invariant", "reduce_rank": True,
+            }},
+        }
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            raw_path = root / "sub-01_raw.fif"
+            forward_path = root / "test-fwd.fif"
+            noise_path = root / "noise-cov.fif"
+            data_path = root / "data-cov.fif"
+            raw.save(raw_path, overwrite=True)
+            mne.write_forward_solution(forward_path, forward, overwrite=True)
+            noise_cov.save(noise_path, overwrite=True)
+            data_cov.save(data_path, overwrite=True)
+            for mode in ("raw", "evoked"):
+                with self.subTest(mode=mode), mock.patch.object(
+                    np.linalg, "eig", side_effect=complex_dtype_eig
+                ) as eig:
+                    if mode == "raw":
+                        source_localization.process_raw(
+                            raw_path, root, None, None, root, config, False,
+                            noise_covariance_file=noise_path,
+                            forward_file=forward_path, data_covariance_file=data_path,
+                            noise_covariance_mode="ad_hoc",
+                        )
+                    else:
+                        evoked = mne.EvokedArray(raw.get_data(), raw.info)
+                        source_localization.compute_LCMV(
+                            evoked, forward, data_cov, noise_cov, root, "sub-01",
+                            root, "test", "test", config, False, {"meg": 12},
+                            noise_covariance_mode="ad_hoc",
+                        )
+                    eig.assert_called_once()
+                    stc = mne.read_source_estimate(
+                        str(root / f"test_{mode}_LCMV-test-vl.stc")
+                    )
+                    self.assertFalse(np.iscomplexobj(stc.data))
+                    self.assertTrue(np.isfinite(stc.data).all())
+                    self.assertGreater(np.abs(stc.data).max(), 0)
+
+    def test_real_lcmv_filter_validation_is_lossless_and_rejects_nonzero_imaginary(self):
+        original = np.array([[np.pi, -np.e], [1.123456789012345, 4.987654321098765]])
+        orientations = np.array([[np.pi, -np.e, np.sqrt(2)]] * 2)
+        for dtype in (np.float32, np.float64, np.complex64, np.complex128):
+            with self.subTest(dtype=dtype):
+                filters = {
+                    "weights": original.astype(dtype),
+                    "max_power_ori": orientations.astype(dtype),
+                    "rank": 2,
+                }
+                expected = {key: filters[key].real.copy() for key in (
+                    "weights", "max_power_ori"
+                )}
+                utils.ensure_real_lcmv_filters(filters)
+                for key, values in expected.items():
+                    np.testing.assert_array_equal(filters[key], values)
+                    self.assertEqual(filters[key].dtype, values.dtype)
+                self.assertEqual(filters["rank"], 2)
+
+        for key in ("weights", "max_power_ori"):
+            for invalid in (1j, 1e-30j, complex(0, np.nan), complex(np.inf, 0)):
+                with self.subTest(key=key, invalid=invalid):
+                    filters = {
+                        "weights": original.astype(complex),
+                        "max_power_ori": np.ones((2, 3), dtype=complex),
+                    }
+                    filters[key][0, 0] = invalid
+                    with self.assertRaisesRegex(ValueError, "LCMV.*" + key):
+                        utils.ensure_real_lcmv_filters(filters)
+                    self.assertTrue(np.iscomplexobj(filters["weights"]))
+        filters = {"weights": original, "max_power_ori": None}
+        utils.ensure_real_lcmv_filters(filters)
+        self.assertIs(filters["weights"], original)
+        self.assertIsNone(filters["max_power_ori"])
+
     def test_fif_round_trip_runs_real_raw_and_epochs_source_solvers(self):
         raw, forward = self._synthetic_meg_and_forward()
         events = np.column_stack([
@@ -945,7 +1036,7 @@ class SourceContractTests(unittest.TestCase):
         noise_cov = object()
         data_cov = object()
         forward = object()
-        filters = object()
+        filters = {"weights": np.ones((2, 3)), "max_power_ori": None}
         stc = mock.Mock()
         config = {
             "spacing": "ico4",
@@ -1008,7 +1099,7 @@ class SourceContractTests(unittest.TestCase):
         raw = low_rank_raw(("MEG001", "MEG002"))
         data_cov = object()
         forward = object()
-        filters = object()
+        filters = {"weights": np.ones((2, 3)), "max_power_ori": None}
         stc = mock.Mock()
         config = {
             "spacing": "ico4",
