@@ -315,6 +315,16 @@ The resulting epoch FIF file and rejection log are written under
 the same directory also contains ``*_analysis-raw.fif``; epoch-based covariance
 uses this exact analysis-ready continuous recording.
 
+Continuous source mode follows a separate materialization path. With
+``source.type = "raw"``, it starts from the ICA-clean ``*_clean_raw.fif``,
+applies ``epochs.preproc`` when configured, and always writes the exact target
+under ``preprocessed/analysis_raw/<recording>/``. The file is still created
+when ``epochs.preproc = []`` so downstream covariance, forward-model metadata,
+and source reconstruction share an explicit input without changing the
+ICA-clean file. With ``source.type = "epochs"``, the central ``analysis_raw``
+directory is not created merely for source processing; the optional file under
+``preprocessed/epochs/<recording>/`` belongs to the epoch path described above.
+
 Covariance and Empty-Room Style Records
 ---------------------------------------
 
@@ -466,7 +476,8 @@ Primary Outputs by Step
      - ``*-epo.fif``, rejection log, sensor/PSD/topomap figures.
    * - Analysis-ready Raw
      - ``preprocessed/analysis_raw/<recording>/``
-     - Exact continuous source target when ``source.type = "raw"``.
+     - Exact continuous source target materialized from the ICA-clean Raw when
+       ``source.type = "raw"``.
    * - Covariance
      - ``preprocessed/covariance/<recording>/``
      - Mode-dependent ``bl-cov.fif``, ``noise-cov.fif``, or no noise FIF;

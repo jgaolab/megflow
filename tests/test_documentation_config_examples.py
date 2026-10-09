@@ -418,6 +418,51 @@ def write_runtime_config(path, block, profiles, root):
 class DocumentationConfigExamplesTests(unittest.TestCase):
     maxDiff = None
 
+    def test_analysis_raw_docs_explain_materialization_and_locations(self):
+        required_phrases = {
+            REPO_ROOT / "docs" / "source" / "tutorial" / "outputs.rst": (
+                "starts from ``*_clean_raw.fif``",
+                "still written when ``epochs.preproc = []``",
+                "``source.type = \"epochs\"``",
+            ),
+            REPO_ROOT
+            / "docs"
+            / "source"
+            / "reference"
+            / "configuration_source.rst": (
+                "Continuous Raw Source Input",
+                "``preprocessed/analysis_raw/<recording>/``",
+                "``*_clean_raw.fif``",
+                "``epochs.preproc = []``",
+                "``source.type = \"epochs\"``",
+                "``preprocessed/epochs/<recording>/``",
+            ),
+            REPO_ROOT
+            / "docs"
+            / "source"
+            / "reference"
+            / "configuration_preprocessing.rst": (
+                "``source.type = \"raw\"``",
+                "still materializes",
+                "``preprocessed/analysis_raw/<recording>/``",
+            ),
+            REPO_ROOT
+            / "docs"
+            / "source"
+            / "details"
+            / "pipeline_details.rst": (
+                "starts from the ICA-clean ``*_clean_raw.fif``",
+                "``source.type = \"raw\"``",
+                "``epochs.preproc = []``",
+            ),
+        }
+
+        for document, phrases in required_phrases.items():
+            text = " ".join(document.read_text(encoding="utf-8").split())
+            for phrase in phrases:
+                with self.subTest(document=document.name, phrase=phrase):
+                    self.assertIn(phrase, text)
+
     def test_public_docs_use_only_the_canonical_noise_covariance_field(self):
         obsolete = []
         canonical = []

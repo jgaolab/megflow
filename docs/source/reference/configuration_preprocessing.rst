@@ -844,8 +844,8 @@ Optional Analysis Preprocessing
 
 ``epochs.preproc`` optionally filters or resamples the cleaned continuous Raw
 recording immediately before events are converted into epochs. It is empty by
-default, so existing configurations keep their original data and do not create
-an additional continuous file. Supported operations are ``filter``,
+default, so the epoch path keeps the cleaned data unchanged and does not create
+an additional epoch-side continuous file. Supported operations are ``filter``,
 ``notch_filter``, and ``resample``.
 
 Operations run from top to bottom. ``l_freq`` and ``h_freq`` set the analysis
@@ -859,6 +859,14 @@ keeps the epochs and noise covariance in the same analysis band. Trigger events
 found from a stimulation channel are detected before resampling and remapped by
 MNE; BIDS event onsets and annotations are converted using the final sampling
 rate.
+
+The continuous source path deliberately reuses this same preprocessing list.
+When ``source.type = "raw"``, MEGFlow still materializes a file under
+``preprocessed/analysis_raw/<recording>/`` when ``epochs.preproc = []``; in
+that case no filter or resampling operation is applied. A non-empty list
+transforms the copy before it is used for continuous source analysis. The
+ICA-clean ``*_clean_raw.fif`` is never overwritten. This central Raw-source
+artifact is different from the optional epoch-side file described above.
 
 **Example: change the epoch analysis range to 1–40 Hz and 100 Hz**
 

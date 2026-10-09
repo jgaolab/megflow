@@ -262,6 +262,25 @@ in :doc:`rank_covariance`.
 **Worked examples:** :ref:`example-full-meg` and
 :ref:`example-lcmv-covariance`.
 
+Continuous Raw Source Input
+---------------------------
+
+With ``source.type = "raw"``, MEGFlow does not create epochs. It starts from
+the ICA-clean ``*_clean_raw.fif``, applies the optional operations in
+``epochs.preproc``, and always materializes the exact downstream input at
+``preprocessed/analysis_raw/<recording>/*_analysis-raw.fif``. The original
+ICA-clean file is not modified. Even with ``epochs.preproc = []``, the output
+is still written as an explicit, cacheable record of the continuous data used
+by covariance, forward-model metadata, and source reconstruction.
+
+With ``source.type = "epochs"``, source reconstruction instead consumes the
+saved ``*-epo.fif``. It does not create the central
+``preprocessed/analysis_raw/<recording>/`` directory merely for source
+processing. If ``epochs.preproc`` is configured, its intermediate
+``*_analysis-raw.fif`` is stored under
+``preprocessed/epochs/<recording>/`` beside the epoch output; this is distinct
+from the continuous Raw source artifact above.
+
 MNE Parameter Passthrough Example
 ---------------------------------
 

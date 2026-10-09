@@ -80,8 +80,9 @@ not user parameters:
      - Saved event- or fixed-length Epochs for epoched analysis and reports.
    * - Analysis-ready Raw
      - ``analysis_raw``
-     - Exact continuous target routed to covariance, forward, and source
-       processing when ``source.type = "raw"``.
+     - Exact continuous target materialized from ``*_clean_raw.fif`` and routed
+       to covariance, forward, and source processing when
+       ``source.type = "raw"``.
    * - Coregistration
      - ``trans``
      - Holds transforms and report figures.

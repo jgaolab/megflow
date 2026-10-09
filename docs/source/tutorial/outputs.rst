@@ -103,8 +103,9 @@ Preprocessed Directory
    * - ``preprocessed/epochs/<recording>/``
      - Epoch FIF files, rejection logs, and epoch-level figures.
    * - ``preprocessed/analysis_raw/<recording>/``
-     - Exact analysis-ready continuous source input when
-       ``source.type = "raw"``.
+     - Exact analysis-ready continuous source input materialized when
+       ``source.type = "raw"``. It starts from ``*_clean_raw.fif`` and applies
+       ``epochs.preproc`` when configured.
    * - ``preprocessed/covariance/<recording>/``
      - Noise covariance according to the selected mode, conditional
        ``lcmv-data-cov.fif`` and diagnostics when LCMV is selected, and the
@@ -125,6 +126,26 @@ Preprocessed Directory
        anatomy processing is enabled.
    * - ``preprocessed/pseudomri/<subject>/``
      - Generated pseudo T1 input when ``anatomy.method = "pseudomri"``.
+
+``analysis_raw`` versus the epoch-side analysis Raw
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+For ``source.type = "raw"``, MEGFlow starts from ``*_clean_raw.fif`` and
+materializes the exact continuous source target as
+``preprocessed/analysis_raw/<recording>/*_analysis-raw.fif``. Configured
+``epochs.preproc`` filter, notch-filter, and resample operations are applied to
+this copy; the ICA-clean input is not modified. The file is still written when
+``epochs.preproc = []`` so the precise continuous input used by covariance,
+forward-model metadata, and source reconstruction remains explicit and
+cacheable.
+
+For ``source.type = "epochs"``, source reconstruction consumes ``*-epo.fif``
+and does not create the central ``analysis_raw`` directory merely for source
+processing. If ``epochs.preproc`` is non-empty, a similarly named
+``*_analysis-raw.fif`` is instead saved beside the epoch output under
+``preprocessed/epochs/<recording>/`` and is used to construct those epochs and
+their epoch-based covariance. With an empty list, that epoch-side file is not
+created. These two locations therefore describe different execution paths.
 
 FreeSurfer-format anatomy is written to the configured ``fs_subjects_dir``.
 In a corpus run without an explicit override this is normally under
@@ -177,8 +198,10 @@ Important Sidecar Files
    * - ``*_clean_raw.fif``
      - Continuous raw file after ICA application.
    * - ``*_analysis-raw.fif``
-     - Exact continuous source target after optional ``epochs.preproc``. It is
-       written under ``analysis_raw`` for ``source.type = "raw"``.
+     - Analysis-ready continuous data after optional ``epochs.preproc``. See
+       the distinction above: Raw source mode writes it under ``analysis_raw``;
+       epoch mode writes it beside the epochs only when preprocessing is
+       configured.
    * - ``*-epo.fif``
      - Epoch output.
    * - ``*_reject_epoch_log.txt``
